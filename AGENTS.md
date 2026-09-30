@@ -55,7 +55,7 @@ Mục tiêu: Dự báo nhu cầu, tối ưu nhập hàng, giảm lãng phí th�
 - [x] T1: Viết README.md chính cho dự án (hoàn thành 5/10)
 - [x] T3: Viết sơ đồ kiến trúc hệ thống (hoàn thành 5/10)
 - [x] T4 (phần 1): Viết xong Chương 1 (docs/02-bao-cao/chuong-1-tong-quan.md) — hoàn thành 6/10
-- [ ] T4 (phần 2): Đang viết Chương 2 (docs/02-bao-cao/chuong-2-co-so-ly-thuyet.md)
+- [x] T4 (phần 2): Viết xong Chương 2 (docs/02-bao-cao/chuong-2-co-so-ly-thuyet.md) — hoàn thành 6/10
 - [ ] Viết SQL Schema (đang làm)
 - [ ] Setup Backend FastAPI
 - [ ] Setup Frontend React
