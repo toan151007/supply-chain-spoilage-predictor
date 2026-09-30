@@ -52,6 +52,8 @@ Mục tiêu: Dự báo nhu cầu, tối ưu nhập hàng, giảm lãng phí th�
 ## Current Progress
 
 - [x] Cấu trúc thư mục đã tạo trên GitHub
+- [x] T1: Viết README.md chính cho dự án (hoàn thành 5/10)
+- [x] T3: Viết sơ đồ kiến trúc hệ thống (hoàn thành 5/10)
 - [ ] Viết SQL Schema (đang làm)
 - [ ] Setup Backend FastAPI
 - [ ] Setup Frontend React
