@@ -1,8 +1,8 @@
 # Ghi chú tiến độ làm việc
 
-> **Ngày cập nhật:** 30/09/2026
-> **Giai đoạn:** Ngày 5/10 – 6/10 (tương ứng ngày 5 và ngày 6 trong timeline dự án)
+> **Cập nhật:** 02/10/2026
 > **Repo:** https://github.com/toan151007/supply-chain-spoilage-predictor
+> **Giai đoạn:** Tuần 1 (05/10 – 16/10/2026)
 
 ---
 
@@ -10,14 +10,22 @@
 
 | Hạng mục | Trạng thái | Ghi chú |
 |----------|-------------|---------|
-| Cấu trúc thư mục | ✅ Xong | Đã tạo đầy đủ 8 thư mục chính |
-| AGENTS.md | ✅ Xong | Đọc + cập nhật tiến độ nhiều lần |
-| T1 — README.md | ✅ Xong | Commit `31df9f7` |
-| T3 — Sơ đồ kiến trúc | ✅ Xong | Commit `31df9f7` |
-| T4 phần 1 — Chương 1 | ✅ Xong | Commit `f55dce4` |
-| T4 phần 2 — Chương 2 | ✅ Xong | Commit `40020ca` |
-| SQL Schema (10 bảng) | ✅ Xong | `database/01-schema/02-create-tables.sql` — xem `git log` |
-| Backend FastAPI | ⬜ Chưa làm | |
+| Cấu trúc thư mục | ✅ Xong | 8 thư mục gốc + 30+ thư mục con |
+| AGENTS.md | ✅ Xong | Tech stack, quy tắc, môi trường, tiến độ |
+| T1 — README.md | ✅ Xong | 11 mục, commit `31df9f7` |
+| T3 — Kiến trúc hệ thống | ✅ Xong | 4 sơ đồ Mermaid, commit `31df9f7` |
+| T4.1 — Chương 1 | ✅ Xong | ~2.050 từ, 6 mục, commit `f55dce4` |
+| T4.2 — Chương 2 | ✅ Xong | ~2.500 từ, 6 mục, commit `40020ca` |
+| D1 — SQL Schema | ✅ Xong | 10 bảng, test thật, commit `ea9e96e` |
+| Fix encoding SQL | ✅ Xong | Thuần ASCII, commit `48f4b4b` |
+| i18n | ✅ Xong | `vi.json`, commit `9372a0d` |
+| Quy tắc SQL | ✅ Xong | 6 quy tắc, commit `aaec0c6` |
+| Dataset Kaggle | ✅ Đã tải | `datasets/raw/train.csv`, không commit |
+| D2 — Seed data | ✅ Xong | categories 8, stores 10, products 50, users 3 |
+| D3 — Import Kaggle | ✅ Xong | 3.650 orders + 182.500 order_items (năm 2017) |
+| D4 — Seed inventory | ⬜ Chưa làm | inventory + inventory_transactions |
+| B1/B2 — Backend | ⬜ Chưa làm | FastAPI + kết nối DB |
+| T2 — README con | ⬜ Chưa làm | |
 | Frontend React | ⬜ Chưa làm | |
 | AI Model | ⬜ Chưa làm | |
 
@@ -26,12 +34,16 @@
 ## 2. Lịch sử commit
 
 ```
-40020ca  T4 (phần 2): Add Chapter 2 theoretical foundations report
-f55dce4  T4 (phần 1): Add Chapter 1 overview report
-31df9f7  T1+T3: Add README and system architecture docs
+aaec0c6  docs(agents): Add mandatory SQL rules
+cebd8e7  fix(sql): Join stores in v_daily_sales
+9372a0d  feat(i18n): Store i18n keys, add vi.json
+48f4b4b  fix(sql): Convert SQL comments to English
+ea9e96e  D1: Add PostgreSQL schema with 10 tables
+40020ca  T4.2: Chapter 2
+f55dce4  T4.1: Chapter 1
+8245924  docs: progress notes
+31df9f7  T1+T3: README + architecture
 ```
-
-Remote: `origin/main` đã đồng bộ tại `40020ca`.
 
 ---
 
@@ -39,191 +51,231 @@ Remote: `origin/main` đã đồng bộ tại `40020ca`.
 
 | File | Mô tả |
 |------|-------|
-| `README.md` | Tài liệu chính dự án (11 mục: giới thiệu, tính năng 2 giai đoạn, công nghệ, cấu trúc thư mục, cài đặt, sử dụng, lộ trình) |
-| `AGENTS.md` | File hướng dẫn AI — tech stack, quy tắc bắt buộc, tiến độ |
-| `docs/03-thiet-ke/kien-truc-he-thong.md` | Kiến trúc tổng thể, Use Case, Sequence, mô tả module, API endpoints, DB schema |
-| `docs/02-bao-cao/chuong-1-tong-quan.md` | Chương 1 — Tổng quan đề tài (~2.050 từ) |
-| `docs/02-bao-cao/chuong-2-co-so-ly-thuyet.md` | Chương 2 — Cơ sở lý thuyết (~3.500 từ, 6 mục) |
-
-### Chi tiết Chương 1
-Mục 1.1 Đặt vấn đề · 1.2 Mục tiêu (chung + GĐ1 + GĐ2) · 1.3 Đối tượng & phạm vi · 1.4 Phương pháp nghiên cứu · 1.5 Ý nghĩa thực tiễn · 1.6 Cấu trúc báo cáo.
-
-### Chi tiết Chương 2
-Mục 2.1 Chuỗi cung ứng bán lẻ · 2.2 Bài toán dự báo nhu cầu · 2.3 Năm mô hình dự báo + bảng so sánh 12 tiêu chí · 2.4 Nghiên cứu liên quan + 6 khoảng trống · 2.5 Công nghệ sử dụng · 2.6 Tổng kết.
+| `README.md` | Tài liệu chính dự án (11 mục) |
+| `AGENTS.md` | Hướng dẫn AI + tiến độ |
+| `GHI-CHU-TIEN-DO.md` | File này |
+| `docs/03-thiet-ke/kien-truc-he-thong.md` | Kiến trúc, Use Case, Sequence, module, API, DB schema |
+| `docs/02-bao-cao/chuong-1-tong-quan.md` | Chương 1 — Tổng quan đề tài |
+| `docs/02-bao-cao/chuong-2-co-so-ly-thuyet.md` | Chương 2 — Cơ sở lý thuyết |
+| `docs/05-tham-khao/giai-thich-comment-sql.md` | Đối chiếu comment SQL Anh ↔ Việt (20 mục) |
+| `database/01-schema/02-create-tables.sql` | Schema 10 bảng + 6 trigger + 2 hàm + 4 view |
+| `backend/app/i18n/vi.json` | Bản dịch thông báo cảnh báo (9 khóa) |
 
 ---
 
 ## 4. Quyết định thiết kế đã chốt
 
-Những điều đã thống nhất trong tài liệu — **không nên đổi ngay** vì sẽ phải sửa cả Chương 1 và Chương 2:
+> **Không đổi các mục dưới đây** — sẽ phải sửa cả Chương 1 và Chương 2.
 
-| Quyết định | Ghi chú |
-|------------|---------|
-| Mô hình dự báo cơ sở: **Prophet** | Tự động phát hiện changepoint, xử lý ngày lễ |
-| Mô hình dự báo chính: **XGBoost** | Vì có thể feature importance + biến ngoại |
-| Đối chứng: **ARIMA** + trung bình động | Để so sánh công bằng |
-| **Không dùng LSTM** trong hệ thống | Chỉ trình bày lý thuyết — dữ liệu quy mô nhỏ không đủ |
-| Phạm vi: sản phẩm hạn sử dụng **< 90 ngày** | Nhóm rủi ro lãng phí cao nhất |
-| AI Agent dùng **grounding** (RAG đơn giản hóa) | Lấy context từ DB rồi gửi Gemini → giảm tình trạng "bịa" số liệu |
-| **Thông báo i18n: SQL lưu KEY, backend dịch** | File SQL thuần ASCII (an toàn Windows), toàn bộ tiếng Việt nằm ở `backend/app/i18n/vi.json` — dễ sửa, dễ thêm ngôn ngữ |
-| API prefix bắt buộc `/api/v1/` | Theo quy tắc trong AGENTS.md |
-| ORM: SQLAlchemy, cấu trúc 3NF | Theo quy tắc trong AGENTS.md |
-
----
-
-## 5. ⚠️ Việc cần tra cứu / xác minh
-
-Không phải việc bận gấp, nhưng **bắt buộc làm trước khi nộp báo cáo**:
-
-- [ ] **Đối chiếu trích dẫn Chương 2 [5]–[8]**: số tạp, số trang, năm xuất bản với bản gốc
-  - Taylor & Letham — *The American Statistician* 72(1), 37–45
-  - Chen & Guestrin — KDD '16, 785–794
-  - Breiman — *Machine Learning* 45(1), 5–32
-  - Hochreiter & Schmidhuber — *Neural Computation* 9(8), 1735–1780
-- [ ] **Mục 2.4 hiện là "hướng nghiên cứu" chưa có nguồn cụ thể** — cần tra Google Scholar / IEEE Xplore để gắn bài báo thật
-- [ ] **Số liệu lãng phịch thực phẩm Việt Nam** — đang để trống `(cần bổ sung)`, cần nguồn Tổng cục Thống kê hoặc Cục Chế biến & Phát triển thị trường nông nghiệp
-- [ ] **Số liệu minh họa biến động nhu cầu theo mùa vụ** trong Chương 1 (mục 2.2.2 của Chương 2)
-- [ ] **Tên trường / khoa** trong mục 1.1 Chương 1 và phần tác giả
-- [ ] **Khả năng cung cấp dữ liệu thực tế** — Chương 1 ghi cần tối thiểu 12 tháng dữ liệu bán hàng theo ngày; cần xác nhận với đơn vị thực hành
-- [ ] **Danh mục tài liệu tham khảo đầy đủ** ở phần cuối báo cáo (thư mục `docs/05-tham-khao/`)
+| Quyết định | Lý do |
+|------------|-------|
+| **10 bảng** (không có bảng `sales`) | Đã thêm `stores` để hỗ trợ chuỗi nhiều chi nhánh |
+| **Dữ liệu bán hàng nằm ở `orders` + `order_items`** | Thuật ngữ "sales" trong tài liệu = `orders` + `order_items` trong schema |
+| **`expiry_date` ở `inventory` + `inventory_transactions`** | Hạn sử dụng thuộc về *lô hàng tại cửa hàng*, không phải thuộc tính sản phẩm |
+| **`CHECK` thay vì PG `ENUM`** | Dễ migrate, tương thích SQLAlchemy ORM |
+| **`NUMERIC` cho mọi số lượng, `TIMESTAMPTZ` cho mọi thời gian** | Tránh sai số làm lệch tồn kho, tránh lệch múi giờ |
+| **SQL giữ ASCII, tiếng Việt qua i18n key** | `psql -f` chạy được trên Windows; dễ thêm ngôn ngữ |
+| Prophet = cơ sở, XGBoost = chính, ARIMA + trung bình động = đối chứng | Chương 2 đã phân tích chi tiết |
+| **KHÔNG dùng LSTM** trong hệ thống | Dữ liệu quy mô nhỏ, chỉ trình bày lý thuyết |
+| AI Agent dùng **grounding** | Lấy context từ DB → giảm tình trạng mô hình "bịa" số liệu |
+| **KHÔNG commit file CSV 17MB** | Giữ repo nhẹ, tránh giới hạn 100MB của GitHub |
 
 ---
 
-## 6. Task ngày mai — theo thứ tự đề xuất
+## 5. Môi trường đã kiểm chứng
 
-### ✅ Ưu tiên 1: SQL Schema — ĐÃ XONG
+| Thành phần | Thông tin |
+|------------|-----------|
+| Python | 3.14.7 · pip 26.2.1 |
+| pandas | 3.0.6 |
+| numpy | 2.5.3 |
+| SQLAlchemy | 2.1.2 |
+| psycopg2-binary | 2.9.13 |
+| Node.js | v24.15.0 · npm 11.12.1 |
+| PostgreSQL | 18.6 · service `postgresql-x64-18` · port 5432 |
+| Database | `spoilage_predictor` · 10 bảng · đang rỗng |
+| Xác thực | `scram-sha-256` |
 
-File: `database/01-schema/02-create-tables.sql`
+**Cần cài thêm:** `fastapi`, `uvicorn`, `pydantic` · mô hình: `prophet`, `xgboost`, `scikit-learn`, `statsmodels`, `matplotlib`
 
-**10 bảng (đã thêm `stores` — quyết định 30/09, hỗ trợ chuỗi nhiều cửa hàng):**
-
-| # | Bảng | Ghi chú chính |
-|---|------|---------------|
-| 1 | `stores` | **THÊM MỚI** — chi nhánh/cửa hàng, thực thể gốc cho toàn bộ dữ liệu |
-| 2 | `users` | Tài khoản, role owner/manager/staff, `store_id` NULL = quản lý toàn hệ thống |
-| 3 | `categories` | Phân loại nhiều cấp (tự tham chiếu `parent_category_id`) |
-| 4 | `products` | **KHÔNG có `expiry_date`** — có `shelf_life_days`, `min_stock`, `max_stock`, `reorder_point` |
-| 5 | `inventory` | Tồn kho theo LÔ HÀNG. UNIQUE `(store_id, product_id, expiry_date)` |
-| 6 | `inventory_transactions` | **Quan trọng nhất cho dự báo.** import/export/adjustment/disposal |
-| 7 | `orders` | `order_type`: sale / purchase (gộp cả bán và nhập) |
-| 8 | `order_items` | `line_total` dùng GENERATED ALWAYS AS STORED (PostgreSQL 12+) |
-| 9 | `forecasts` | Lưu kết quả TỪNG mô hình để so sánh công bằng + `recommended_import_qty` |
-| 10 | `alerts` | 5 loại cảnh báo, phục vụ real-time qua WebSocket |
-
-**Ngoài 10 bảng, file còn có:**
-- Hàm `fn_update_updated_at()` + 6 trigger tự cập nhật `updated_at`
-- Hàm `fn_generate_inventory_alerts(days)` — sinh cảnh báo theo 4 quy tắc, chống trùng
-- 4 view: `v_daily_sales` (nguồn dữ liệu cho dự báo), `v_low_stock`, `v_expiring_inventory`, `v_product_stock_summary`
-- Script kiểm tra: đếm số bảng, liệt kê khoá ngoại
-
-**Quyết định thiết kế quan trọng đã chốt:**
-1. **Thêm bảng `stores`** → hỗ trợ chuỗi nhiều cửa hàng, thay vì chỉ 1 cửa hàng
-2. **`expiry_date` đặt ở `inventory` + `inventory_transactions`**, KHÔNG ở `products` — vì hạn sử dụng thuộc về từng lô hàng tại từng cửa hàng, không phải thuộc tính bất biến của sản phẩm
-3. Dùng **CHECK constraint** thay vì PG `ENUM` — dễ migrate, tương thích SQLAlchemy ORM
-4. `NUMERIC` mọi số lượng (không FLOAT), `TIMESTAMPTZ` mọi cột thời gian
-5. `order_items` UNIQUE `(order_id, product_id)` — 1 sản phẩm 1 dòng trong đơn
-
-> ⚠️ **Cần cập nhật `docs/03-thiet-ke/kien-truc-he-thong.md` mục 7** — nơi đang ghi 9 bảng, chưa có `stores` và còn ghi `products` có `expiry_date`. Chưa sửa vì cần đồng bộ với Chương 3.
-
-### Ưu tiên 2: Seed data (nên làm ngay)
-
-Tạo `database/02-seed/seed-data.sql` — dữ liệu mẫu:
-- 3 cửa hàng, 8 nhóm sản phẩm, ~30 sản phẩm (thực phẩm tươi sống + đồ uống hạn ngắn)
-- Dữ liệu giao dịch **ít nhất 12 tháng** theo ngày, có mùa vụ Tết rõ rệt để mô hình dự báo học được
-- Cố tình tạo một vài tình huống hết hàng để kiểm tra hiện tượng censored demand
-- 1 tài khoản cho mỗi role (owner/manager/staff)
-
-Có thể sinh dữ liệu bằng Python (pandas + faker) thay vì viết tay — nhanh và linh hoạt hơn.
-
-### Ưu tiên 3: Chương 3 — Phân tích và thiết kế hệ thống
-
-Tạo `docs/02-bao-cao/chuong-3-phan-tich-thiet-ke.md`:
-- 3.1 Phân tích yêu cầu nghiệp vụ
-- 3.2 Yêu cầu chức năng / phi chức năng
-- 3.3 Thiết kế kiến trúc & mô hình hóa nghiệp vụ
-- 3.4 Thiết kế cơ sở dữ liệu
-- 3.5 Thiết kế API
-- 3.6 Thiết kế giao diện
-
-*(Phần sơ đồ Use Case / Sequence / kiến trúc đã có sẵn ở `docs/03-thiet-ke/kien-truc-he-thong.md` — tham chiếu lại, không cần vẽ lại.)*
-
-### Ưu tiên 4: Setup Backend FastAPI
-
-- `backend/requirements.txt`
-- `backend/app/main.py` — FastAPI + CORS cho `localhost:3000` + WebSocket
-- `backend/app/config.py`, `database.py`
-- `backend/app/models/` — SQLAlchemy models theo **10 bảng**
-- `backend/app/routers/` — prefix `/api/v1/`
-- `backend/app/i18n/vi.json` — **ĐÃ TẠO** trước, cần viết module đọc file này
-
-> **Lưu ý AGENTS.md:** Không sửa `config.py` / `.env` mà không hỏi trước. Mọi truy vấn DB phải qua ORM, **không raw SQL trong routers**.
-
-### Cách hoạt động của i18n (đã chốt)
-
-Bảng `alerts.title` lưu **key** chứ không lưu text hiển thị:
-
-| Key trong DB | Nghĩa sau khi backend dịch |
-|--------------|---------------------------|
-| `alert.title.EXPIRED` | ĐÃ HẾT HẠN |
-| `alert.title.EXPIRING_SOON` | SẮP HẾT HẠN |
-| `alert.title.LOW_STOCK` | Cảnh báo tồn kho thấp |
-| `alert.title.OVER_STOCK` | Cảnh báo tồn kho cao |
-
-Cột `alerts.message` cố ý để **NULL**. Backend dựng nội dung chi tiết từ các cột `current_stock`, `threshold_value`, `expiry_date` bằng key `alert.message.*` trong `vi.json`. Nhờ vậy thông báo không bị viết trùng ở hai nơi.
-
-Khi viết backend, cần module `backend/app/i18n/translator.py`:
-- Nạp `vi.json` một lần khi khởi động app
-- Hàm `t(key, **params)` thay thế `{quantity}`, `{unit}`, `{expiry_date}`, `{threshold}`, `{shortage}`
-- Ném lỗi rõ ràng nếu thiếu key — để phát hiện sớm key sai
+🔒 **Mật khẩu database nằm trong `.env` cục bộ — KHÔNG ghi vào repo này.**
 
 ---
 
-## 7. Lệnh thường dùng
+## 6. Dataset Kaggle
 
-```powershell
-# Xem trạng thái
-git status --short
+| Mục | Nội dung |
+|-----|----------|
+| Nguồn | Walmart Store Sales - Time Series Forecasting |
+| Link | https://www.kaggle.com/competitions/demand-forecasting-kernels-only |
+| File | `datasets/raw/train.csv` — 913.000 dòng dữ liệu (913.001 dòng gồm header) |
+| Cột | `date, store, item, sales` — **không có cột giá** |
+| Kích thước | 50 items (id 1–50), 10 stores (id 1–10) |
+| Giai đoạn | 2013-01-01 → 2017-12-31 (test set bắt đầu 2018-01-01) |
+| Trong git | ❌ Không commit — đã thêm `datasets/raw/*.csv` vào `.gitignore` |
 
-# Commit + push (PowerShell dùng dấu chấm phẩy, KHÔNG dùng &&)
-git add <file>
-git commit -m "message"
-git push
+---
 
-# Chạy backend (ghi chú: PowerShell)
-cd backend; uvicorn app.main:app --reload --port 8000
+## 7. Kết quả test D1 (đã xác minh)
 
-# Chạy frontend
-cd frontend; npm run dev
+Schema chạy sạch trên PostgreSQL 18.6:
 
-# Import schema
-psql -U postgres -d spoilage_predictor -f database/01-schema/02-create-tables.sql
+| Kiểm tra | Kết quả |
+|----------|---------|
+| Số bảng | 10/10 ✓ |
+| Khoá ngoại | 16 quan hệ ✓ |
+| Encoding | 0 ký tự non-ASCII, không BOM ✓ |
+| Cột GENERATED `line_total` | `2.5 × 35000 × 0.9 = 78750.00` ✓ |
+| View `v_daily_sales` | Trả đúng `store_code`, `store_name`, `product_name` ✓ |
+| Hàm `fn_generate_inventory_alerts()` | Sinh 2 cảnh báo đúng loại ✓ |
+| Chống trùng (gọi lần 2) | 0 dòng ✓ |
+| 3 view còn lại | Trả dữ liệu đúng ✓ |
+
+Dữ liệu test đã `TRUNCATE`, DB sẵn sàng cho seed.
+
+---
+
+## 8. Việc còn lại
+
+| Mã | Task | Ưu tiên |
+|----|------|---------|
+| ~~D2~~ | ✅ Seed: categories 8, stores 10, products 50, users 3 | Xong |
+| ~~D3~~ | ✅ Import Kaggle 2017 → 3.650 orders + 182.500 order_items | Xong |
+| **D4** | Seed `inventory` + `inventory_transactions` | 🔴 Cao — cần cho cảnh báo + mô hình |
+| D5 | Chạy `fn_generate_inventory_alerts()` tạo cảnh báo thật | 🟡 TB |
+| B1 | Setup backend FastAPI | 🟡 TB |
+| B2 | Kết nối backend với database (SQLAlchemy) | 🟡 TB |
+| T2 | README con cho từng thư mục | 🟢 Thấp |
+| F1 | Setup Frontend React | 🟢 Thấp |
+| M1 | Huấn luyện AI Model | 🟢 Thấp |
+
+### Thứ tự seed + import (đã chốt)
+
+```
+1. categories  (8 nhóm)
+2. products    (50 sản phẩm, id 1-50  ← khớp Kaggle item)
+3. stores      (10 cửa hàng, id 1-10  ← khớp Kaggle store)
+        ↓
+4. Import Kaggle 2017 → orders + order_items
+        ↓
+5. inventory + inventory_transactions + users (seed)
+        ↓
+6. forecasts + alerts (chạy hàm sinh cảnh báo)
 ```
 
-> ⚠️ PowerShell trên máy này **không hỗ trợ `&&`** — luôn dùng `;`
+**Bắt buộc:** seed `products` và `stores` **trước**, vì `order_items.product_id` và `orders.store_id` là khoá ngoại — import trước sẽ vi phạm ràng buộc toàn vẹn.
 
 ---
 
-## 8. Quy tắc bắt buộc (rút lại từ AGENTS.md)
+## 8b. Chi tiết import dataset (D3)
 
-1. KHÔNG dùng PHP, ASP.NET hoặc framework ngoài danh sách trong AGENTS.md
-2. KHÔNG sửa `config.py`, `.env` mà không hỏi trước
-3. Mọi API có prefix `/api/v1/`
-4. Mọi truy vấn DB qua ORM — không raw SQL trong routers
-5. Tên file Python: `snake_case` · Component React: `PascalCase`
-6. Trước khi commit chạy `git status`
-7. File Python: `snake_case` · Comment tiếng Việt
+**Script:** `scripts/import_kaggle.py`
+
+```bash
+python scripts/import_kaggle.py --year 2017 --dry-run   # xem trước
+python scripts/import_kaggle.py --year 2017             # import thật
+python scripts/import_kaggle.py --year 2016 --unit-price 25000
+```
+
+| Thông số | Giá trị |
+|----------|---------|
+| Nguồn | `datasets/raw/train.csv` (913.000 dòng, 2013-01-01 → 2017-12-31) |
+| Lọc | Năm 2017 → 182.500 dòng |
+| `orders` | 3.650 (mỗi cặp ngày × cửa hàng = 1 đơn) |
+| `order_items` | 182.500 |
+| `order_code` | `ORD-2017-000001` … `ORD-2017-003650` |
+| Tổng số lượng | 10.733.740 |
+| Độ phủ | 50 sản phẩm · 10 cửa hàng · 365 ngày |
+| **Đối chiếu CSV** | ✅ Khớp chính xác 182.500 dòng / 10.733.740 |
+
+**Cách ánh xạ:** `products.product_id` 1–50 ← Kaggle `item`; `stores.store_id` 1–10 ← Kaggle `store`. Seed data dùng **id tường minh** nên không cần bảng mapping.
+
+**Kết quả chạy:** `orders` và `order_items` nằm trong cùng transaction (`engine.begin()`) — nếu lỗi giữa chừng thì rollback hết, không để lại dữ liệu nửa vời.
 
 ---
 
-## 9. Cảnh báo môi trường
+## 8c. ⚠️ Lỗi đã gặp — đừng lặp lại
 
-| Vấn đề | Ghi chú |
-|--------|---------|
-| `LF will be replaced by CRLF` | Bình thường trên Windows (do `core.autocrlf`), **không phải lỗi** |
-| Token bị giới hạn | AGENTS.md ghi "Token Antigravity có giới hạn → cần commit thường xuyên" |
-| Chuyển sang IDE khác | **Luôn yêu cầu AI đọc `AGENTS.md` trước** |
-| WebSocket | Nhớ bật CORS cho `localhost:3000` |
+| Lỗi | Nguyên nhân | Cách xử lý |
+|-----|-------------|-------------|
+| `column p.store_code does not exist` | Trong view, `p` là alias của `products` nhưng `store_code` thuộc bảng `stores` | Thêm `JOIN stores s` và dùng `s.store_code` |
+| Seed chạy xong nhưng DB vẫn rỗng | **Thiếu `COMMIT;`** — query kiểm tra nằm trong transaction nên thấy dữ liệu, nhưng `psql` thoát là rollback | Luôn kết thúc file SQL bằng `COMMIT;` |
+| `UnicodeEncodeError: charmap` | Console Windows dùng cp1252, không in được ký tự tiếng Việt trong đường dẫn `Đồ án TN` | Thêm `sys.stdout.reconfigure(encoding="utf-8", errors="replace")` |
+| `ResourceClosedError` khi `RETURNING` | SQLAlchemy 2.x không hỗ trợ `RETURNING` với bulk insert | Insert không `RETURNING`, rồi `SELECT` lại theo `order_code` (UNIQUE) để lấy `order_id` |
+| `KeyError: 1` | `code_to_id` khoá theo `order_code` (string) nhưng code truy cập bằng `_tmp_key` (int) | Thêm bảng trung gian `key_to_code` |
+| `pip list` bỏ sót thư viện | Lọc bằng `Select-String` chỉ trả về một phần output | Kiểm tra bằng `python -c "import X; print(X.__version__)"` |
 
 ---
 
-*Ngày mai: bắt đầu bằng việc đọc lại `AGENTS.md`, kiểm tra `git status`, rồi làm SQL Schema.*
+## 9. ⚠️ Việc cần tra cứu / xác minh
+
+Không gấp, nhưng **bắt buộc làm trước khi nộp báo cáo**:
+
+- [ ] **Đối chiếu trích dẫn Chương 2 [5]–[8]** với bản gốc: số tạp, số trang, năm
+- [ ] **Mục 2.4** hiện là "hướng nghiên cứu" chưa gắn bài báo cụ thể
+- [ ] **Số liệu lãng phịch thực phẩm Việt Nam** — đang để `(cần bổ sung)`
+- [ ] **Tên trường / khoa** trong Chương 1 và phần tác giả
+- [ ] **Khả năng cung cấp dữ liệu thực tế** — hiện đang dùng dataset Kaggle (Mỹ), cần ghi rõ trong Chương 1
+- [ ] **Danh mục tài liệu tham khảo đầy đủ** ở phần cuối báo cáo
+- [ ] **Cân nhắc sửa Chương 2** để nhất quán với thuật ngữ `orders`/`order_items` (xem mục 10)
+
+---
+
+## 10. Cần quyết định (chưa làm)
+
+| Việc | Vấn đề |
+|------|--------|
+| **Thuật ngữ trong Chương 2** | Tài liệu nhắc bảng `sales`, schema dùng `orders` + `order_items`. Cần sửa Chương 2 cho nhất quán, hoặc thêm bảng `sales` |
+| **`unit_price = 0` trong import** | Kaggle không có giá → `line_total` và `total_amount` đang bằng **0**. Mô hình dự báo chỉ dùng `quantity` nên không ảnh hưởng, nhưng dashboard doanh thu sẽ hiển thị 0. Có thể chạy lại với `--unit-price` để gán giá mẫu |
+| **`docs/03-thiet-ke/kien-truc-he-thong.md` mục 7** | Đang ghi 9 bảng, chưa có `stores`, còn ghi `products` có `expiry_date` → lệch với schema hiện tại |
+
+---
+
+## 11. Lệnh thường dùng
+
+```powershell
+# Git (PowerShell KHÔNG hỗ trợ &&)
+git status --short; git add <file>; git commit -m "msg"; git push
+
+# Database
+$env:PGPASSWORD = "<mat khau trong .env>"
+psql -U postgres -h localhost -c "CREATE DATABASE spoilage_predictor;"
+psql -U postgres -h localhost -d spoilage_predictor -v ON_ERROR_STOP=1 -f database/01-schema/02-create-tables.sql
+
+# Kiểm tra dữ liệu
+psql -U postgres -h localhost -d spoilage_predictor -c "SELECT count(*) FROM orders;"
+
+# Xoá dữ liệu test (pgAdmin giữ session thì không DROP được)
+psql -U postgres -h localhost -d spoilage_predictor -c "TRUNCATE alerts, forecasts, order_items, orders, inventory_transactions, inventory, products, categories, users, stores RESTART IDENTITY CASCADE;"
+
+# Backend
+cd backend; uvicorn app.main:app --reload --port 8000
+
+# Frontend
+cd frontend; npm run dev
+```
+
+---
+
+## 12. Quy tắc bắt buộc
+
+**SQL** (xem `AGENTS.md:46-53`):
+1. Kiểm tra cột tồn tại trong `CREATE TABLE` trước khi viết INDEX/VIEW/FUNCTION
+2. Không tham chiếu cột không tồn tại
+3. **Phải test `psql -f` trước khi commit**
+4. Lỗi thì sửa ngay, không để sang task khác
+5. File SQL giữ ASCII
+6. Tiếng Việt trong SQL → dùng i18n key
+
+**Chung:**
+7. KHÔNG dùng PHP, ASP.NET hoặc framework ngoài danh sách trong AGENTS.md
+8. KHÔNG sửa `config.py`, `.env` mà không hỏi trước
+9. Mọi API có prefix `/api/v1/`
+10. Mọi truy vấn DB qua ORM — không raw SQL trong routers
+11. File Python: `snake_case` · Component React: `PascalCase` · Comment tiếng Việt
+12. Trước khi commit chạy `git status`
+13. 🔒 Không ghi mật khẩu vào bất kỳ file nào trong repo
+
+---
+
+*Phiên sau: đọc `AGENTS.md` + file này, chạy `git status`, rồi làm D2 (seed data).*

@@ -52,21 +52,70 @@ Mục tiêu: Dự báo nhu cầu, tối ưu nhập hàng, giảm lãng phí th�
 - File SQL giữ ASCII (comment tiếng Anh) để chạy được trên Windows PowerShell.
 - Muốn thêm tiếng Việt vào SQL thì dùng cơ chế i18n: lưu KEY, dịch ở `backend/app/i18n/vi.json`.
 
+## Môi trường phát triển (đã kiểm chứng 02/10/2026)
+
+| Thành phần | Phiên bản / thông tin |
+|-----------|----------------------|
+| Python | 3.14.7 (pip 26.2.1) |
+| pandas | 3.0.6 |
+| numpy | 2.5.3 |
+| SQLAlchemy | 2.1.2 |
+| psycopg2-binary | 2.9.13 |
+| Node.js | v24.15.0 (npm 11.12.1) |
+| PostgreSQL | 18.6 · service `postgresql-x64-18` · port 5432 |
+| Database | `spoilage_predictor` · 10 bảng đã tạo · đang rỗng |
+| Xác thực | `scram-sha-256` · mật khẩu nằm trong `.env` cục bộ, KHÔNG commit |
+
+Cần cài thêm: `fastapi`, `uvicorn`, `pydantic`. Cần cài cho mô hình: `prophet`, `xgboost`, `scikit-learn`, `statsmodels`, `matplotlib`.
+
+## Dataset Kaggle
+
+- **Nguồn:** Walmart Store Sales - Time Series Forecasting
+- **Link:** https://www.kaggle.com/competitions/demand-forecasting-kernels-only
+- **File:** `datasets/raw/train.csv` (913.000 dòng dữ liệu), `test.csv`, `sample_submission.csv`
+- **Cột:** `date, store, item, sales` — KHÔNG có cột giá
+- **Phạm vi:** 50 items (id 1–50), 10 stores (id 1–10), giai đoạn 2013-01-01 → 2017-12-31
+- **KHÔNG commit CSV** (17MB vượt ngân sách repo). Đã thêm vào `.gitignore`
+
+## Quyết định thiết kế đã chốt
+
+- **10 bảng:** users, stores, categories, products, inventory, inventory_transactions, orders, order_items, forecasts, alerts
+- **SQL giữ ASCII**, tiếng Việt dùng i18n key → `backend/app/i18n/vi.json`
+- **Dữ liệu Kaggle nạp vào `orders` + `order_items`**, KHÔNG tạo bảng `sales` riêng
+- **Thuật ngữ:** bảng "sales" trong tài liệu = `orders` + `order_items` trong schema
+- **Prophet** = mô hình cơ sở, **XGBoost** = mô hình chính, **ARIMA + trung bình động** = đối chứng
+- **KHÔNG dùng LSTM** trong hệ thống (chỉ trình bày lý thuyết — dữ liệu quá nhỏ)
+- **`expiry_date`** đặt ở `inventory` + `inventory_transactions`, không đặt ở `products`
+- **CHECK constraint** thay vì PostgreSQL `ENUM` (dễ migrate, tương thích SQLAlchemy)
+
 ## Known Issues & Gotchas
 
 - Token Antigravity có giới hạn → cần commit thường xuyên.
 - Khi chuyển sang Cursor/OpenCode, PHẢI yêu cầu AI đọc file AGENTS.md trước.
 - WebSocket cần bật CORS cho frontend localhost:3000.
+- **Không có bảng `sales`.** Dữ liệu bán hàng nằm ở `orders` + `order_items`.
+- Không ghi mật khẩu database vào bất kỳ file nào trong repo.
+- PowerShell máy này KHÔNG hỗ trợ `&&` — dùng `;`.
+- pgAdmin giữ session thì `DROP DATABASE` bị lỗi → dùng `TRUNCATE`.
 
 ## Current Progress
 
-- [x] Cấu trúc thư mục đã tạo trên GitHub
-- [x] T1: Viết README.md chính cho dự án (hoàn thành 5/10)
-- [x] T3: Viết sơ đồ kiến trúc hệ thống (hoàn thành 5/10)
-- [x] T4 (phần 1): Viết xong Chương 1 (docs/02-bao-cao/chuong-1-tong-quan.md) — hoàn thành 6/10
-- [x] T4 (phần 2): Viết xong Chương 2 (docs/02-bao-cao/chuong-2-co-so-ly-thuyet.md) — hoàn thành 6/10
-- [x] D1: Viết SQL Schema 10 bảng (database/01-schema/02-create-tables.sql) — hoàn thành 02/10
-- [ ] Viết seed data mẫu (database/02-seed/seed-data.sql)
-- [ ] Setup Backend FastAPI
+- [x] Cấu trúc thư mục — 8 thư mục gốc + 30+ thư mục con (commit `31df9f7`)
+- [x] T1: README.md chính, 11 mục (commit `31df9f7`)
+- [x] T3: Sơ đồ kiến trúc hệ thống, 4 sơ đồ Mermaid (commit `31df9f7`)
+- [x] T4.1: Chương 1 — Tổng quan đề tài (commit `f55dce4`)
+- [x] T4.2: Chương 2 — Cơ sở lý thuyết (commit `40020ca`)
+- [x] Ghi chú tiến độ — GHI-CHU-TIEN-DO.md (commit `8245924`)
+- [x] D1: SQL Schema 10 bảng — đã test thật, 10/10 bảng + 16 khoá ngoại (commit `ea9e96e`)
+- [x] Fix encoding SQL — comment sang tiếng Anh, thuần ASCII (commit `48f4b4b`)
+- [x] i18n — SQL lưu key, tạo `backend/app/i18n/vi.json` (commit `9372a0d`)
+- [x] Quy tắc SQL bắt buộc trong AGENTS.md (commit `aaec0c6`)
+- [x] Tải dataset Kaggle về `datasets/raw/` (không commit — có trong .gitignore)
+- [x] D2: Seed data — categories 8, stores 10, products 50, users 3 (đã test `psql -f`)
+- [x] D3: Import Kaggle 2017 → 3.650 orders + 182.500 order_items (đã verify khớp CSV)
+- [ ] D4: Seed `inventory` + `inventory_transactions`
+- [ ] B1: Setup backend FastAPI
+- [ ] B2: Kết nối backend với database
+- [ ] T2: README con cho từng thư mục
 - [ ] Setup Frontend React
 - [ ] Tích hợp AI Model
