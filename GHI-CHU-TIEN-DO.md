@@ -292,6 +292,53 @@ Cột `title` chứa đúng **key i18n**: `alert.title.EXPIRED`, `alert.title.EX
 
 ---
 
+## 8e. Fix mâu thuẫn "nguồn dữ liệu dự báo"
+
+**Vấn đề:** Comment gốc trong schema mô tả `inventory_transactions` là *"bảng quan trọng nhất cho mô hình dự báo"* và *"nguồn dữ liệu chính cho mô hình dự báo"*. Điều này **sai** sau quyết định Hướng B.
+
+**Đã sửa:**
+
+| Đối tượng | Trước | Sau |
+|-----------|-------|-----|
+| `inventory_transactions` | *"Stock import/export history - main data source for the demand forecasting model"* | *"Stock movement audit trail - used for stock analysis, expiry alerts and FIFO. NOT the demand forecasting input."* |
+| `v_daily_sales` | *"input data for the demand forecasting model"* | *"PRIMARY data source for the demand forecasting model... Built from orders + order_items"* |
+
+**Files đã sửa:**
+
+| File | Nội dung sửa |
+|------|--------------|
+| `database/01-schema/02-create-tables.sql` | Header bảng 6 + 2 `COMMENT ON` + comment chỉ mục |
+| `docs/05-tham-khao/giai-thich-comment-sql.md` | Bảng dịch mục 9 + `v_daily_sales` + thêm mục 0 giải thích |
+| `database/03-migrations/004-fix-comments.sql` | **Mới** — migration chỉ chứa `COMMENT ON` |
+
+### ⚠️ Vì sao tạo migration thay vì chạy lại schema
+
+`01-schema/02-create-tables.sql` bắt đầu bằng `DROP TABLE ... CASCADE`. Chạy lại sẽ **xóa toàn bộ dữ liệu** đã seed và import. Migration 004 chỉ chứa `COMMENT ON` — thuần metadata, không thể mất dữ liệu.
+
+**Đã kiểm chứng số dòng trước / sau migration — không đổi:**
+
+```
+Trước: inventory=1330 trans=11412 orders=3650 items=182500 products=50 alerts=518
+Sau:  inventory=1330 trans=11412 orders=3650 items=182500 products=50 alerts=518
+```
+
+Backup trước khi làm: `pg_dump` ra thư mục temp (14,7 MB), không đưa vào repo.
+
+### Chương 2 không cần sửa
+
+Đã tìm toàn bộ Chương 2 (439 dòng): `inventory_transactions` → **0 lần**, `sales` → **0 lần**. Chương 2 là tài liệu lý thuyết, không nhắc tên bảng.
+
+### Bảng phân công vai trò (nhớ để viết Chương 3/4)
+
+| Đối tượng | Vai trò |
+|-----------|---------|
+| `orders` + `order_items` | Lịch sử bán hàng thật |
+| **`v_daily_sales`** | **Đầu vào DUY NHẤT cho mô hình dự báo** |
+| `inventory` | Tồn kho hiện tại theo lô |
+| `inventory_transactions` | Nhật ký biến động — phân tích tồn kho, cảnh báo hết hạn, FIFO. **KHÔNG** dùng để dự báo |
+
+---
+
 ## 9. ⚠️ Việc cần tra cứu / xác minh
 
 Không gấp, nhưng **bắt buộc làm trước khi nộp báo cáo**:
@@ -302,7 +349,7 @@ Không gấp, nhưng **bắt buộc làm trước khi nộp báo cáo**:
 - [ ] **Tên trường / khoa** trong Chương 1 và phần tác giả
 - [ ] **Khả năng cung cấp dữ liệu thực tế** — hiện đang dùng dataset Kaggle (Mỹ), cần ghi rõ trong Chương 1
 - [ ] **Danh mục tài liệu tham khảo đầy đủ** ở phần cuối báo cáo
-- [ ] **Cân nhắc sửa Chương 2** để nhất quán với thuật ngữ `orders`/`order_items` (xem mục 10)
+- [x] **Cân nhắc sửa Chương 2** — ✅ Đã kiểm tra: Chương 2 **không nhắc tên bảng nào** (0 lần `inventory_transactions`, 0 lần `sales`), nên không cần sửa. Mâu thuẫn thật nằm ở comment SQL, đã sửa qua migration 004 — xem mục 8e
 
 ---
 

@@ -6,8 +6,22 @@
 
 ---
 
-## 1. Vì sao comment lại dùng tiếng Anh?
+## 0. Lưu ý quan trọng về nguồn dữ liệu dự báo
 
+Bảng này từng mô tả `inventory_transactions` là *"bảng quan trọng nhất đối với mô hình dự báo"*. **Điều đó đã sai và đã được sửa** (migration `004-fix-comments.sql`).
+
+| Bảng / view | Vai trò thực tế |
+|--------------|-----------------|
+| `orders` + `order_items` | **Lịch sử bán hàng thật** — nguồn dữ liệu gốc |
+| `v_daily_sales` (view) | **Đầu vào duy nhất cho mô hình dự báo** ARIMA / Prophet / XGBoost |
+| `inventory` | Tồn kho hiện tại theo lô hàng |
+| `inventory_transactions` | Nhật ký truy vết biến động tồn kho — dùng cho **phân tích tồn kho**, cảnh báo hết hạn, chọn lô FIFO. **KHÔNG** phải đầu vào dự báo |
+
+Lý do tách bạch: nếu doanh số nằm ở cả hai nơi, hệ thống sẽ có **hai nguồn sự thật** cho cùng một khái niệm và rất dễ lệch nhau.
+
+---
+
+## 1. Vì sao comment lại dùng tiếng Anh?
 Khi chạy file `.sql` chứa ký tự tiếng Việt trên Windows, `psql` có thể báo lỗi do bảng mã ký tự (character encoding) của console không khớp với file. Ba cách xử lý:
 
 | Cách | Hiệu quả | Ghi chú |
@@ -188,18 +202,25 @@ psql -U postgres -d spoilage_predictor -f database/01-schema/02-create-tables.sq
 | Comment tiếng Anh | Nghĩa tiếng Việt |
 |-------------------|------------------|
 | `TABLE 6: inventory_transactions - Stock movement history` | BẢNG 6: inventory_transactions — Lịch sử giao dịch nhập/xuất kho |
-| `*** THIS IS THE MOST IMPORTANT TABLE FOR THE FORECASTING MODEL ***` | *** ĐÂY LÀ BẢNG QUAN TRỌNG NHẤT ĐỐI VỚI MÔ HÌNH DỰ BÁO *** |
-| `It holds the time series input data for ARIMA / Prophet / XGBoost.` | Bảng chứa dữ liệu chuỗi thời gian đầu vào cho ARIMA / Prophet / XGBoost. |
-| `Critical technical note - CENSORED DEMAND:` | Lưu ý kỹ thuật quan trọng — HIỆN TƯỢNG CENSORED DEMAND: |
+| `ROLE IN THIS PROJECT - READ THIS BEFORE USING THE TABLE:` | VAI TRÒ TRONG DỰ ÁN — ĐỌC MỤC NÀY TRƯỚC KHI DÙNG BẢNG: |
+| `This table is the audit trail for stock movements. It feeds:` | Bảng này là nhật ký truy vết các biến động tồn kho. Nó phục vụ: |
+| `- stock analysis (which product moved how much, when)` | − Phân tích tồn kho (sản phẩm nào biến động bao nhiêu, khi nào) |
+| `- expiry alerts (v_expiring_inventory, fn_generate_inventory_alerts)` | − Cảnh báo hết hạn (`v_expiring_inventory`, `fn_generate_inventory_alerts`) |
+| `- FIFO batch selection when exporting goods` | − Chọn lô hàng theo nguyên tắc FIFO khi xuất hàng |
+| `- spoilage statistics (disposal movements)` | − Thống kê lãng phịch (các giao dịch tiêu hủy) |
+| `It is NOT the source for demand forecasting.` | Nó **KHÔNG** phải nguồn dữ liệu cho bài toán dự báo nhu cầu. |
+| `The forecasting input is v_daily_sales, which is built from orders + order_items.` | Đầu vào cho mô hình dự báo là view `v_daily_sales`, được xây dựng từ `orders` + `order_items`. |
+| `Sales and stock movements are deliberately kept apart so that one source of truth exists for "what was sold".` | Doanh số và biến động tồn kho được tách bạch có chủ đích, để tồn tại **một nguồn sự thật duy nhất** cho câu hỏi "đã bán được gì". |
+| `Critical technical note - CENSORED DEMAND (applies to the forecasting input, i.e. orders/order_items):` | Lưu ý kỹ thuật quan trọng — HIỆN TƯỢNG CENSORED DEMAND (áp dụng cho đầu vào dự báo, tức `orders`/`order_items`): |
 | `When a product runs out of stock, recorded sales become 0 even though customers still wanted to buy.` | Khi sản phẩm hết hàng, doanh số ghi nhận được sẽ bằng 0 dù khách hàng vẫn muốn mua. |
 | `If this data is fed to a forecasting model, the model learns the wrong relation "low sales = low demand" and will under-forecast in later periods.` | Nếu đưa dữ liệu này vào mô hình dự báo, mô hình sẽ học nhầm mối quan hệ "bán ít = nhu cầu thấp" và dự báo thấp hơn thực tế ở các kỳ sau. |
-| `These days must be detected and corrected before training.` | Phải phát hiện và hiệu chỉnh các ngày này trước khi huấn luyện. |
+| `Those days must be detected and corrected before training.` | Phải phát hiện và hiệu chỉnh các ngày này trước khi huấn luyện. |
 | `Prevent duplicate movements: the same order cannot export the same batch twice` | Chống giao dịch trùng lặp: cùng một đơn hàng không được xuất cùng lô 2 lần |
-| `INDEXES SERVING FORECASTING (optimise product + time queries)` | CHỈ MỤC PHỤC VỤ DỰ BÁO (tối ưu truy vấn theo sản phẩm + thời gian) |
+| `INDEXES FOR STOCK ANALYSIS (not used by the forecasting model)` | CHỈ MỤC PHỤC VỤ PHÂN TÍCH TỒN KHO (không dùng cho mô hình dự báo) |
 
 | Đối tượng | Comment tiếng Anh | Nghĩa tiếng Việt |
 |-----------|-------------------|------------------|
-| Bảng | `Stock import/export history - main data source for the demand forecasting model` | Lịch sử giao dịch nhập/xuất kho — nguồn dữ liệu chính cho mô hình dự báo nhu cầu |
+| Bảng | `Stock movement audit trail - used for stock analysis, expiry alerts and FIFO. NOT the demand forecasting input.` | Nhật ký truy vết biến động tồn kho — dùng cho phân tích tồn kho, cảnh báo hết hạn và FIFO. **KHÔNG** phải đầu vào cho mô hình dự báo nhu cầu. |
 | `transaction_id` | `Primary key, auto generated` | Khoá chính, tự sinh |
 | `expiry_date` | `Expiry date of the batch at the time of the movement` | Hạn sử dụng của lô hàng tại thời điểm giao dịch |
 | `transaction_type` | `import, export (sale), adjustment (stocktake), disposal (spoilage write-off)` | nhập, xuất (bán), điều chỉnh (kiểm kê), tiêu hủy (hết hạn) |
@@ -340,7 +361,7 @@ psql -U postgres -d spoilage_predictor -f database/01-schema/02-create-tables.sq
 
 | Đối tượng | Comment tiếng Anh | Nghĩa tiếng Việt |
 |-----------|-------------------|------------------|
-| `v_daily_sales` | `Daily revenue and quantity sold - input data for the demand forecasting model` | Doanh thu và số lượng bán ra theo ngày — dữ liệu đầu vào cho mô hình dự báo nhu cầu |
+| `v_daily_sales` | `Daily quantity and revenue per product/shop - PRIMARY data source for the demand forecasting model (ARIMA / Prophet / XGBoost). Built from orders + order_items.` | Số lượng và doanh thu bán ra theo ngày, theo từng sản phẩm và cửa hàng — **nguồn dữ liệu chính** cho mô hình dự báo nhu cầu (ARIMA / Prophet / XGBoost). Được xây dựng từ `orders` + `order_items`. |
 | `v_low_stock` | `Products with stock below the minimum level, with the shortage quantity` | Sản phẩm có tồn kho thấp hơn ngưỡng tối thiểu, kèm số lượng thiếu |
 | `v_expiring_inventory` | `Batches still in stock expiring within 30 days, with alert severity` | Các lô hàng còn tồn và hết hạn trong vòng 30 ngày, kèm mức độ cảnh báo |
 | `v_product_stock_summary` | `Stock, stock value and potential gross profit summary per product` | Tổng hợp tồn kho, giá trị tồn kho và lợi nhuận gộp tiềm năng theo sản phẩm |

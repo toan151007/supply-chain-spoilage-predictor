@@ -83,7 +83,9 @@ Cần cài thêm: `fastapi`, `uvicorn`, `pydantic`. Cần cài cho mô hình: `p
 - **SQL giữ ASCII**, tiếng Việt dùng i18n key → `backend/app/i18n/vi.json`
 - **Dữ liệu Kaggle nạp vào `orders` + `order_items`**, KHÔNG tạo bảng `sales` riêng
 - **Giá trong DB là MÔ PHỎNG theo nhóm hàng** — Kaggle không có cột giá. Chỉ dùng để demo dashboard doanh thu. **Không trình bày như số liệu thật.** Mô hình dự báo chỉ dùng `quantity` nên không ảnh hưởng kết quả.
+- **Nguồn dữ liệu dự báo:** `v_daily_sales` (view, dựng từ `orders` + `order_items`). `inventory_transactions` CHỈ dùng cho phân tích tồn kho, cảnh báo hết hạn, FIFO — **KHÔNG** phải đầu vào dự báo.
 - **Thuật ngữ:** bảng "sales" trong tài liệu = `orders` + `order_items` trong schema
+- **KHÔNG chạy lại `01-schema/02-create-tables.sql` khi DB đã có dữ liệu** — file đó có `DROP TABLE ... CASCADE`. Dùng file trong `database/03-migrations/`.
 - **Prophet** = mô hình cơ sở, **XGBoost** = mô hình chính, **ARIMA + trung bình động** = đối chứng
 - **KHÔNG dùng LSTM** trong hệ thống (chỉ trình bày lý thuyết — dữ liệu quá nhỏ)
 - **`expiry_date`** đặt ở `inventory` + `inventory_transactions`, không đặt ở `products`
@@ -115,6 +117,7 @@ Cần cài thêm: `fastapi`, `uvicorn`, `pydantic`. Cần cài cho mô hình: `p
 - [x] D2: Seed data — categories 8, stores 10, products 50, users 3 (đã test `psql -f`)
 - [x] D3: Import Kaggle 2017 → 3.650 orders + 182.500 order_items (giá MÔ PHỎNG theo nhóm hàng)
 - [x] D4: Seed inventory (1.330 lô) + transactions (11.412) + alerts (518) — đã test `psql -f`
+- [x] Sửa comment SQL sai về nguồn dữ liệu dự báo (migration 004) — dữ liệu không đổi
 - [ ] B1: Setup backend FastAPI
 - [ ] B2: Kết nối backend với database
 - [ ] T2: README con cho từng thư mục

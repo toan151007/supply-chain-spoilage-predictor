@@ -253,14 +253,25 @@ CREATE INDEX idx_inventory_expiry_store ON inventory(expiry_date, store_id) WHER
 -- =============================================================================
 --  TABLE 6: inventory_transactions - Stock movement history
 -- -----------------------------------------------------------------------------
---  *** THIS IS THE MOST IMPORTANT TABLE FOR THE FORECASTING MODEL ***
---  It holds the time series input data for ARIMA / Prophet / XGBoost.
+--  ROLE IN THIS PROJECT - READ THIS BEFORE USING THE TABLE:
 --
---  Critical technical note - CENSORED DEMAND:
+--  This table is the audit trail for stock movements. It feeds:
+--    - stock analysis (which product moved how much, when)
+--    - expiry alerts (v_expiring_inventory, fn_generate_inventory_alerts)
+--    - FIFO batch selection when exporting goods
+--    - spoilage statistics (disposal movements)
+--
+--  It is NOT the source for demand forecasting.
+--  The forecasting input is v_daily_sales, which is built from
+--  orders + order_items. Sales and stock movements are deliberately kept
+--  apart so that one source of truth exists for "what was sold".
+--
+--  Critical technical note - CENSORED DEMAND (applies to the forecasting
+--  input, i.e. orders/order_items):
 --  When a product runs out of stock, recorded sales become 0 even though
 --  customers still wanted to buy. If this data is fed to a forecasting model,
 --  the model learns the wrong relation "low sales = low demand" and will
---  under-forecast in later periods. These days must be detected and
+--  under-forecast in later periods. Those days must be detected and
 --  corrected before training.
 -- =============================================================================
 CREATE TABLE inventory_transactions (
@@ -285,7 +296,7 @@ CREATE TABLE inventory_transactions (
     CONSTRAINT uq_transactions_reference UNIQUE (reference_type, reference_id, product_id, expiry_date)
 );
 
-COMMENT ON TABLE  inventory_transactions                     IS 'Stock import/export history - main data source for the demand forecasting model';
+COMMENT ON TABLE  inventory_transactions                     IS 'Stock movement audit trail - used for stock analysis, expiry alerts and FIFO. NOT the demand forecasting input.';
 COMMENT ON COLUMN inventory_transactions.transaction_id     IS 'Primary key, auto generated';
 COMMENT ON COLUMN inventory_transactions.expiry_date        IS 'Expiry date of the batch at the time of the movement';
 COMMENT ON COLUMN inventory_transactions.transaction_type   IS 'import, export (sale), adjustment (stocktake), disposal (spoilage write-off)';
@@ -296,6 +307,7 @@ COMMENT ON COLUMN inventory_transactions.transaction_date   IS 'When the movemen
 COMMENT ON COLUMN inventory_transactions.note               IS 'Note, for example the reason a batch was written off';
 
 -- ===== INDEXES SERVING FORECASTING (optimise product + time queries) =====
+-- ===== INDEXES FOR STOCK ANALYSIS (not used by the forecasting model) =====
 CREATE INDEX idx_transactions_product_date ON inventory_transactions(product_id, transaction_date);
 CREATE INDEX idx_transactions_store_date   ON inventory_transactions(store_id, transaction_date);
 CREATE INDEX idx_transactions_date          ON inventory_transactions(transaction_date);
@@ -680,7 +692,7 @@ WHERE o.status = 'completed'
 GROUP BY o.store_id, s.store_code, s.store_name, oi.product_id, p.product_code,
          p.product_name, p.unit, o.order_date;
 
-COMMENT ON VIEW v_daily_sales IS 'Daily revenue and quantity sold - input data for the demand forecasting model';
+COMMENT ON VIEW v_daily_sales IS 'Daily quantity and revenue per product/shop - PRIMARY data source for the demand forecasting model (ARIMA / Prophet / XGBoost). Built from orders + order_items.';
 
 
 -- View 2: Stock below the minimum level - for the alert chart
