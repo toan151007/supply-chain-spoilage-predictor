@@ -1,0 +1,19 @@
+{
+  "_meta": {
+    "_comment": "Ban dich tieng Viet cho cac thong bao canh bao cua he thong.",
+    "_locale": "vi",
+    "_source_of_keys": "database/01-schema/02-create-tables.sql - ham fn_generate_inventory_alerts()",
+    "_note": "Cac kho gia tri co dau {} la bien duoc backend thay the khi tra thong bao ve frontend. KHONG tu dich phan nay - chi backend moi thay the bien.",
+    "_encoding": "UTF-8 KHONG BOM - tep nay duoc doc boi backend nen van duoc phep chua tieng Viet co dau."
+  },
+
+  "alert.title.EXPIRED": "ĐÃ HẾT HẠN",
+  "alert.title.EXPIRING_SOON": "SẮP HẾT HẠN",
+  "alert.title.LOW_STOCK": "Cảnh báo tồn kho thấp",
+  "alert.title.OVER_STOCK": "Cảnh báo tồn kho cao",
+
+  "alert.message.EXPIRED": "Lô hàng đã hết hạn từ ngày {expiry_date}. Cần xử lý ngay để tránh lãng phí.",
+  "alert.message.EXPIRING_SOON": "Lô hàng còn {quantity} {unit}, sẽ hết hạn vào ngày {expiry_date}. Cần xử lý trước khi hết hạn.",
+  "alert.message.LOW_STOCK": "Tồn kho hiện tại là {quantity} {unit}, thấp hơn ngưỡng tối thiểu {threshold} {unit}. Cần nhập thêm {shortage} {unit}.",
+  "alert.message.OVER_STOCK": "Tồn kho hiện tại là {quantity} {unit}, vượt ngưỡng tối đa {threshold} {unit}. Cần xem xét giảm lượng nhập lần sau."
+}

@@ -65,6 +65,7 @@ Những điều đã thống nhất trong tài liệu — **không nên đổi n
 | **Không dùng LSTM** trong hệ thống | Chỉ trình bày lý thuyết — dữ liệu quy mô nhỏ không đủ |
 | Phạm vi: sản phẩm hạn sử dụng **< 90 ngày** | Nhóm rủi ro lãng phí cao nhất |
 | AI Agent dùng **grounding** (RAG đơn giản hóa) | Lấy context từ DB rồi gửi Gemini → giảm tình trạng "bịa" số liệu |
+| **Thông báo i18n: SQL lưu KEY, backend dịch** | File SQL thuần ASCII (an toàn Windows), toàn bộ tiếng Việt nằm ở `backend/app/i18n/vi.json` — dễ sửa, dễ thêm ngôn ngữ |
 | API prefix bắt buộc `/api/v1/` | Theo quy tắc trong AGENTS.md |
 | ORM: SQLAlchemy, cấu trúc 3NF | Theo quy tắc trong AGENTS.md |
 
@@ -153,8 +154,27 @@ Tạo `docs/02-bao-cao/chuong-3-phan-tich-thiet-ke.md`:
 - `backend/app/config.py`, `database.py`
 - `backend/app/models/` — SQLAlchemy models theo **10 bảng**
 - `backend/app/routers/` — prefix `/api/v1/`
+- `backend/app/i18n/vi.json` — **ĐÃ TẠO** trước, cần viết module đọc file này
 
 > **Lưu ý AGENTS.md:** Không sửa `config.py` / `.env` mà không hỏi trước. Mọi truy vấn DB phải qua ORM, **không raw SQL trong routers**.
+
+### Cách hoạt động của i18n (đã chốt)
+
+Bảng `alerts.title` lưu **key** chứ không lưu text hiển thị:
+
+| Key trong DB | Nghĩa sau khi backend dịch |
+|--------------|---------------------------|
+| `alert.title.EXPIRED` | ĐÃ HẾT HẠN |
+| `alert.title.EXPIRING_SOON` | SẮP HẾT HẠN |
+| `alert.title.LOW_STOCK` | Cảnh báo tồn kho thấp |
+| `alert.title.OVER_STOCK` | Cảnh báo tồn kho cao |
+
+Cột `alerts.message` cố ý để **NULL**. Backend dựng nội dung chi tiết từ các cột `current_stock`, `threshold_value`, `expiry_date` bằng key `alert.message.*` trong `vi.json`. Nhờ vậy thông báo không bị viết trùng ở hai nơi.
+
+Khi viết backend, cần module `backend/app/i18n/translator.py`:
+- Nạp `vi.json` một lần khi khởi động app
+- Hàm `t(key, **params)` thay thế `{quantity}`, `{unit}`, `{expiry_date}`, `{threshold}`, `{shortage}`
+- Ném lỗi rõ ràng nếu thiếu key — để phát hiện sớm key sai
 
 ---
 

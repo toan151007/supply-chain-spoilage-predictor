@@ -520,6 +520,14 @@ CREATE TRIGGER trg_orders_updated
 --
 --  Duplicate guard: an alert is only created when there is no unresolved
 --  alert of the same type for the same product.
+--
+--  i18n DESIGN:
+--  This function stores an i18n KEY in the title column, NOT display text.
+--  Keys are resolved by the backend using backend/app/i18n/vi.json.
+--  The message column is left NULL on purpose: the backend builds the
+--  localized detail text from current_stock, threshold_value and expiry_date.
+--  This keeps this SQL file pure ASCII (safe on Windows) and puts all
+--  Vietnamese text in one place that is easy to edit or translate later.
 -- =============================================================================
 CREATE OR REPLACE FUNCTION fn_generate_inventory_alerts(
     p_warning_days INTEGER DEFAULT 3
@@ -552,12 +560,13 @@ BEGIN
             WHEN i.expiry_date <= v_deadline                        THEN 'medium'
             ELSE 'low'
         END,
-        p.product_name || ' - ' ||
-            CASE WHEN i.expiry_date < v_today
-                 THEN 'EXPIRED since ' || TO_CHAR(i.expiry_date, 'DD/MM/YYYY')
-                 ELSE 'EXPIRING on ' || TO_CHAR(i.expiry_date, 'DD/MM/YYYY') END,
-        'Batch remaining ' || i.quantity || ' ' || p.unit ||
-            '. Handle before ' || TO_CHAR(i.expiry_date, 'DD/MM/YYYY') || '.',
+        -- Store the i18n KEY in title, not display text.
+        -- The backend resolves it via backend/app/i18n/vi.json
+        -- and builds the message from current_stock + expiry_date.
+        CASE WHEN i.expiry_date < v_today
+             THEN 'alert.title.EXPIRED'
+             ELSE 'alert.title.EXPIRING_SOON' END,
+        NULL,
         i.expiry_date,
         i.quantity
     FROM inventory i
@@ -586,9 +595,8 @@ BEGIN
         i.product_id,
         'low_stock',
         'high',
-        p.product_name || ' - LOW STOCK',
-        'Current stock ' || SUM(i.quantity) || ' ' || p.unit ||
-            ', below minimum level ' || p.min_stock || ' ' || p.unit || '.',
+        'alert.title.LOW_STOCK',
+        NULL,
         SUM(i.quantity),
         p.min_stock
     FROM inventory i
@@ -615,10 +623,8 @@ BEGIN
         i.product_id,
         'over_stock',
         'medium',
-        p.product_name || ' - OVERSTOCK',
-        'Current stock ' || SUM(i.quantity) || ' ' || p.unit ||
-            ', above maximum level ' || p.max_stock || ' ' || p.unit ||
-            '. Consider reducing the next import.',
+        'alert.title.OVER_STOCK',
+        NULL,
         SUM(i.quantity),
         p.max_stock
     FROM inventory i
