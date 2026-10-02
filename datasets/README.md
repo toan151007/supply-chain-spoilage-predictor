@@ -55,17 +55,46 @@ Quyết định đã chốt: nạp dataset vào **`orders` + `order_items`** (kh
 | *(tự sinh)* | `order_items.unit_price` | **Giá không có trong dataset** |
 | *(tính toán)* | `orders.total_amount` | Tổng `order_items.line_total` |
 
-### ⚠️ Vấn đề cột giá
+### ⚠️ Về cột giá — DỮ LIỆU MÔ PHỎNG
 
-Vì dataset không có giá, khi nạp cần chọn 1 trong 3 cách:
+**Dataset Kaggle chỉ có `quantity` (số lượng), KHÔNG có cột giá.**
 
-| Cách | Ưu | Nhược |
-|------|-----|-------|
-| Để `unit_price = 0` | Trung thực với dữ liệu gốc | `revenue` trong `v_daily_sales` = 0, dashboard doanh thu vô nghĩa |
-| Gán giá ảo theo nhóm hàng | Dashboard doanh thu chạy được | Số liệu không phải thật, phải ghi rõ là **mô phỏng** |
-| Tách bảng giá riêng | Đúng mô hình nghiệp vụ | Thêm độ phức tạp, không cần cho đồ án |
+Vì vậy `unit_price` trong database là **giá mô phỏng do người viết script tự gán theo nhóm hàng**, dựa trên mức giá thị trường Việt Nam:
 
-**Mô hình dự báo chỉ dùng `quantity`, không dùng `revenue`** → cả 3 cách đều cho kết quả dự báo giống nhau.
+| Nhóm hàng | `category_id` | Giá mô phỏng |
+|-----------|---------------|--------------|
+| Đồ uống | 3 | 15.000đ |
+| Rau củ, trái cây | 2 (id 1–6) | 20.000đ |
+| Bánh kẹo | 4 | 25.000đ |
+| Tạp hóa / chăm sóc cá nhân / trẻ em | 5, 6, 7 | 30.000đ |
+| Sữa, phô mai | 8 | 35.000đ |
+| Thịt, cá, trứng | 2 (id 7–10) | 80.000đ |
+
+**Lưu ý:** `category_id = 2` (Fresh Food) chứa cả rau củ lẫn thịt cá, nên script tách nhỏ theo `product_id`: id 1–6 là rau củ/trái cây, id 7–10 là thịt/cá/trứng.
+
+### ⚠️ Cảnh báo quan trọng khi viết báo cáo
+
+| Nội dung | Ghi chú |
+|----------|---------|
+| Nguồn dữ liệu | **Walmart (Hoa Kỳ)**, KHÔNG phải chuỗi bán lẻ Việt Nam |
+| Cột giá trong DB | **MÔ PHỎNG**, không phải giá thật của Walmart hay của bất kỳ cửa hàng Việt Nam nào |
+| Mục đích của giá mô phỏng | Chỉ để **dashboard doanh thu chạy được** khi demo |
+| Mô hình dự báo | Chỉ dùng `quantity`, **không dùng `revenue`** → kết quả dự báo không phụ thuộc giá mô phỏng |
+
+**Tuyệt đối không trình bày doanh thu 317.233.060.000 VND như một con số nghiệp vụ thật.**
+
+### Cách nạp
+
+```bash
+# Giá mô phỏng theo nhóm hàng (mặc định)
+python scripts/import_kaggle.py --year 2017
+
+# Xem trước, không ghi vào DB
+python scripts/import_kaggle.py --year 2017 --dry-run
+
+# Ghi đè: gán một mức giá cho mọi sản phẩm
+python scripts/import_kaggle.py --year 2017 --unit-price 25000
+```
 
 ---
 

@@ -82,6 +82,7 @@ Cần cài thêm: `fastapi`, `uvicorn`, `pydantic`. Cần cài cho mô hình: `p
 - **10 bảng:** users, stores, categories, products, inventory, inventory_transactions, orders, order_items, forecasts, alerts
 - **SQL giữ ASCII**, tiếng Việt dùng i18n key → `backend/app/i18n/vi.json`
 - **Dữ liệu Kaggle nạp vào `orders` + `order_items`**, KHÔNG tạo bảng `sales` riêng
+- **Giá trong DB là MÔ PHỎNG theo nhóm hàng** — Kaggle không có cột giá. Chỉ dùng để demo dashboard doanh thu. **Không trình bày như số liệu thật.** Mô hình dự báo chỉ dùng `quantity` nên không ảnh hưởng kết quả.
 - **Thuật ngữ:** bảng "sales" trong tài liệu = `orders` + `order_items` trong schema
 - **Prophet** = mô hình cơ sở, **XGBoost** = mô hình chính, **ARIMA + trung bình động** = đối chứng
 - **KHÔNG dùng LSTM** trong hệ thống (chỉ trình bày lý thuyết — dữ liệu quá nhỏ)
@@ -112,7 +113,7 @@ Cần cài thêm: `fastapi`, `uvicorn`, `pydantic`. Cần cài cho mô hình: `p
 - [x] Quy tắc SQL bắt buộc trong AGENTS.md (commit `aaec0c6`)
 - [x] Tải dataset Kaggle về `datasets/raw/` (không commit — có trong .gitignore)
 - [x] D2: Seed data — categories 8, stores 10, products 50, users 3 (đã test `psql -f`)
-- [x] D3: Import Kaggle 2017 → 3.650 orders + 182.500 order_items (đã verify khớp CSV)
+- [x] D3: Import Kaggle 2017 → 3.650 orders + 182.500 order_items (giá MÔ PHỎNG theo nhóm hàng)
 - [ ] D4: Seed `inventory` + `inventory_transactions`
 - [ ] B1: Setup backend FastAPI
 - [ ] B2: Kết nối backend với database

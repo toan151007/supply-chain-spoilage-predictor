@@ -187,6 +187,27 @@ python scripts/import_kaggle.py --year 2016 --unit-price 25000
 | Tổng số lượng | 10.733.740 |
 | Độ phủ | 50 sản phẩm · 10 cửa hàng · 365 ngày |
 | **Đối chiếu CSV** | ✅ Khớp chính xác 182.500 dòng / 10.733.740 |
+| **Tổng doanh thu** | **317.233.060.000 VND** ⚠️ *từ giá mô phỏng, không phải số liệu thật* |
+
+### ⚠️ Giá là MÔ PHỎNG — bắt buộc nêu trong Chương 4
+
+Dataset Kaggle **chỉ có số lượng, không có cột giá**. Script tự gán giá theo nhóm hàng để dashboard doanh thu chạy được:
+
+| Nhóm hàng | `category_id` | Giá mô phỏng |
+|-----------|---------------|--------------|
+| Đồ uống | 3 | 15.000đ |
+| Rau củ, trái cây | 2 (id 1–6) | 20.000đ |
+| Bánh kẹo | 4 | 25.000đ |
+| Tạp hóa / cá nhân / trẻ em | 5, 6, 7 | 30.000đ |
+| Sữa, phô mai | 8 | 35.000đ |
+| Thịt, cá, trứng | 2 (id 7–10) | 80.000đ |
+
+`category_id = 2` chứa cả rau củ lẫn thịt cá → tách nhỏ theo `product_id`.
+
+**Khi viết báo cáo phải ghi rõ:**
+1. Dataset gốc là của **Walmart (Hoa Kỳ)**, không phải Việt Nam
+2. Con số doanh thu 317 tỷ VND là **tính từ giả định mô phỏng**, không phải doanh thu thật
+3. Giá chỉ phục vụ **demo giao diện**, mô hình dự báo chỉ dùng `quantity` nên không phụ thuộc giá
 
 **Cách ánh xạ:** `products.product_id` 1–50 ← Kaggle `item`; `stores.store_id` 1–10 ← Kaggle `store`. Seed data dùng **id tường minh** nên không cần bảng mapping.
 
@@ -204,6 +225,7 @@ python scripts/import_kaggle.py --year 2016 --unit-price 25000
 | `ResourceClosedError` khi `RETURNING` | SQLAlchemy 2.x không hỗ trợ `RETURNING` với bulk insert | Insert không `RETURNING`, rồi `SELECT` lại theo `order_code` (UNIQUE) để lấy `order_id` |
 | `KeyError: 1` | `code_to_id` khoá theo `order_code` (string) nhưng code truy cập bằng `_tmp_key` (int) | Thêm bảng trung gian `key_to_code` |
 | `pip list` bỏ sót thư viện | Lọc bằng `Select-String` chỉ trả về một phần output | Kiểm tra bằng `python -c "import X; print(X.__version__)"` |
+| Doanh thu báo **15.861 tỷ** thay vì 317 tỷ | `SUM(orders.total_amount)` chạy trên `JOIN order_items` — mỗi đơn có ~50 dòng chi tiết nên tổng bị nhân 50 lần | Tính từ `SUM(order_items.line_total)`, hoặc query `orders` riêng không join |
 
 ---
 
@@ -226,7 +248,7 @@ Không gấp, nhưng **bắt buộc làm trước khi nộp báo cáo**:
 | Việc | Vấn đề |
 |------|--------|
 | **Thuật ngữ trong Chương 2** | Tài liệu nhắc bảng `sales`, schema dùng `orders` + `order_items`. Cần sửa Chương 2 cho nhất quán, hoặc thêm bảng `sales` |
-| **`unit_price = 0` trong import** | Kaggle không có giá → `line_total` và `total_amount` đang bằng **0**. Mô hình dự báo chỉ dùng `quantity` nên không ảnh hưởng, nhưng dashboard doanh thu sẽ hiển thị 0. Có thể chạy lại với `--unit-price` để gán giá mẫu |
+| ~~`unit_price = 0` trong import~~ | ✅ **Đã xử lý** — chuyển sang gán giá mô phỏng theo nhóm hàng (mục 8b) |
 | **`docs/03-thiet-ke/kien-truc-he-thong.md` mục 7** | Đang ghi 9 bảng, chưa có `stores`, còn ghi `products` có `expiry_date` → lệch với schema hiện tại |
 
 ---

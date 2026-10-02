@@ -92,6 +92,75 @@ def load_csv(year: int) -> pd.DataFrame:
     return df_year
 
 
+# =============================================================================
+# BANG GIA MO PHONG - KHONG PHAI GIA THAT
+# -----------------------------------------------------------------------------
+# Dataset Kaggle chi co cot "sales" (so luong), KHONG co cot gia.
+# De dashboard doanh thu co so lieu de chay, ta gan gia uoc luong theo nhom hang.
+#
+# ⚠️ DAY LA DU LIEU GIA LAP. KHONG duoc trinh bay trong bao cao nhu gia that cua
+#    Walmart hay cua mot chuoi ban le Viet Nam nao.
+#
+# Vì sao khong gán MOT muc gia chung:
+#    Rau củ (~20.000/kg) va thịt cá (~80.000/kg) khac nhau 4 lan. Dùng chung
+#    một mức giá sẽ làm doanh thu sai lệch so với thực tế ngành.
+#
+# Luu y: category_id = 2 (Fresh Food) chua ca rau cu/trai cay (id 1-6) VA
+#        thit/ca/trung (id 7-10), nen phai tach nho hon theo product_id.
+# =============================================================================
+
+DEFAULT_UNIT_PRICE = 25_000.0
+
+# Gia theo category_id
+PRICE_BY_CATEGORY = {
+    3: 15_000.0,   # Beverages      - nuoc giai khat, tra, ca phe
+    4: 25_000.0,   # Snacks         - banh, keo
+    8: 35_000.0,   # Dairy          - sua, pho mat
+    5: 30_000.0,   # Household      - ve sinh
+    6: 30_000.0,   # Personal Care  - cham soc ca nhan
+    7: 30_000.0,   # Baby Care      - dung cho tre em
+}
+
+# Category 2 (Fresh Food) tach nho theo product_id
+PRICE_FRESH_PRODUCE = 20_000.0   # product_id 1-6: rau cu, trai cay
+PRICE_FRESH_MEAT = 80_000.0      # product_id 7-10: thit, ca, trung
+
+CATEGORY_FRESH_FOOD = 2
+FRESH_PRODUCE_MAX_ID = 6
+
+
+def resolve_price(product_id: int, category_id: int | None) -> float:
+    """Tra ve gia don vi mo phong cho mot san pham."""
+    if category_id == CATEGORY_FRESH_FOOD:
+        return (
+            PRICE_FRESH_PRODUCE
+            if product_id <= FRESH_PRODUCE_MAX_ID
+            else PRICE_FRESH_MEAT
+        )
+    return PRICE_BY_CATEGORY.get(category_id, DEFAULT_UNIT_PRICE)
+
+
+def load_price_map(engine) -> dict:
+    """Doc product_id -> category_id tu database de gan gia."""
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("SELECT product_id, category_id FROM products")
+        ).all()
+
+    price_map = {pid: resolve_price(pid, cid) for pid, cid in rows}
+
+    print(f"\nBang gia mo phong ({len(price_map)} san pham):")
+    grouped = {}
+    for pid, price in price_map.items():
+        grouped.setdefault(price, []).append(pid)
+    for price in sorted(grouped):
+        ids = sorted(grouped[price])
+        print(f"  {price:>10,.0f} VND  -> {len(ids)} san pham (id {ids[0]}-{ids[-1]})")
+    print("  ⚠  GIA LAP - dung de demo dashboard doanh thu, khong phai gia that.")
+
+    return price_map
+
+
 def check_prerequisites(engine) -> None:
     """Kiem tra products/stores da seed du chua truoc khi insert."""
     with engine.connect() as conn:
@@ -113,7 +182,7 @@ def check_prerequisites(engine) -> None:
         sys.exit(1)
 
 
-def build_rows(df_year: pd.DataFrame, unit_price: float):
+def build_rows(df_year: pd.DataFrame, price_map: dict):
     """
     Chuyen dataframe thanh 2 danh sach: orders va order_items.
 
@@ -146,16 +215,18 @@ def build_rows(df_year: pd.DataFrame, unit_price: float):
 
         for _, row in group.iterrows():
             qty = float(row["sales"])
-            if qty <= 0:
-                # sales = 0 nghia la khong ban duoc. Van giu de phuc hoi
-                # du lieu chay (censored demand) va de trung binh nhu that.
-                pass
+            product_id = int(row["item"])
+
+            # sales = 0 nghia la khong ban duoc. Van giu de phuc hoi
+            # du lieu chay (censored demand) va de trung binh nhu that.
+            price = price_map.get(product_id, DEFAULT_UNIT_PRICE)
+
             order_items.append(
                 {
                     "_tmp_key": counter,
-                    "product_id": int(row["item"]),
+                    "product_id": product_id,
                     "quantity": qty,
-                    "unit_price": unit_price,
+                    "unit_price": price,
                     "discount_percent": 0,
                 }
             )
@@ -163,9 +234,15 @@ def build_rows(df_year: pd.DataFrame, unit_price: float):
     return orders, order_items
 
 
-def import_data(engine, df_year: pd.DataFrame, unit_price: float, dry_run: bool) -> None:
+def import_data(
+    engine, df_year: pd.DataFrame, price_map: dict, override_price: float | None, dry_run: bool
+) -> None:
     """Ghi vao database theo batch."""
-    orders, order_items = build_rows(df_year, unit_price)
+    if override_price is not None:
+        print(f"\nGhi de gia: gan {override_price:,.0f} VND cho MOI san pham.")
+        price_map = {pid: override_price for pid in price_map}
+
+    orders, order_items = build_rows(df_year, price_map)
 
     print(f"\nSe tao {len(orders):,} don va {len(order_items):,} dong chi tiet.")
 
@@ -289,6 +366,40 @@ def verify(engine, year: int) -> None:
         print(f"order_items : {n_items:,}")
         print(f"Khoang ngay: {rng[0]} den {rng[1]}")
 
+        money = conn.execute(
+            text(
+                """
+                SELECT MIN(oi.unit_price),
+                       MAX(oi.unit_price),
+                       SUM(oi.line_total)
+                FROM orders o
+                JOIN order_items oi ON oi.order_id = o.order_id
+                WHERE o.order_date >= :start AND o.order_date < :end
+                """
+            ),
+            {"start": f"{year}-01-01", "end": f"{year + 1}-01-01"},
+        ).first()
+
+        # ⚠ KHONG duoc tinh SUM(total_amount) tren join voi order_items:
+        #   moi don co ~50 dong chi tiet nen tong se bi nhan 50 lan.
+        #   Toi doan duoi day chi lay tong line_total cua don.
+        total_orders = conn.execute(
+            text(
+                """
+                SELECT SUM(total_amount) FROM orders
+                WHERE order_date >= :start AND order_date < :end
+                """
+            ),
+            {"start": f"{year}-01-01", "end": f"{year + 1}-01-01"},
+        ).scalar()
+
+        if money[2] is not None and money[2] != 0:
+            print(f"Doanh thu   : {money[2]:,.0f} VND (tong line_total)")
+        else:
+            print("Doanh thu   : 0 (khong co du lieu)")
+        print(f"  doi chieu : tong orders.total_amount = {total_orders:,.0f} VND")
+        print(f"Bien gia    : {money[0]:,.0f} den {money[1]:,.0f} VND (gia MO PHONG)")
+
         print("\n--- 5 dong mau ---")
         sample = conn.execute(
             text(
@@ -331,8 +442,11 @@ def main() -> None:
     parser.add_argument(
         "--unit-price",
         type=float,
-        default=0.0,
-        help="Gia don vi cho san pham. Kaggle khong co cot gia. Mac dinh 0.",
+        default=None,
+        help=(
+            "Ghi de gia don vi cho MOI san pham. Mac dinh: gia mo phong theo "
+            "nhom hang (xem PRICE_BY_CATEGORY trong file nay)."
+        ),
     )
     parser.add_argument(
         "--dry-run",
@@ -347,6 +461,7 @@ def main() -> None:
 
     engine = get_engine()
     check_prerequisites(engine)
+    price_map = load_price_map(engine)
 
     df_year = load_csv(args.year)
 
@@ -354,7 +469,7 @@ def main() -> None:
         print(f"\nLOI: khong co du lieu nao cho nam {args.year}.", file=sys.stderr)
         sys.exit(1)
 
-    import_data(engine, df_year, args.unit_price, args.dry_run)
+    import_data(engine, df_year, price_map, args.unit_price, args.dry_run)
 
     if not args.dry_run:
         verify(engine, args.year)
