@@ -71,8 +71,8 @@ def get_engine():
     return create_engine(url, pool_pre_ping=True)
 
 
-def load_csv(year: int) -> pd.DataFrame:
-    """Doc CSV va loc theo nam."""
+def load_csv(year: int, all_years: bool = False) -> pd.DataFrame:
+    """Doc CSV va loc theo nam (hoac lay toan bo)."""
     if not CSV_PATH.exists():
         print(f"LOI: khong tim thay {CSV_PATH}", file=sys.stderr)
         print("Tai dataset tu Kaggle: xem datasets/README.md", file=sys.stderr)
@@ -84,12 +84,18 @@ def load_csv(year: int) -> pd.DataFrame:
     print(f"Tong so dong: {len(df):,}")
     print(f"Khoang ngay goc: {df['date'].min().date()} den {df['date'].max().date()}")
 
-    df_year = df[df["date"].dt.year == year].copy()
-    print(f"Loc nam {year}: {len(df_year):,} dong")
-    print(f"  - stores: {sorted(df_year['store'].unique().tolist())}")
-    print(f"  - items : {df_year['item'].nunique()} gia tri")
+    if all_years:
+        out = df.copy()
+        print(f"Lay TOAN BO du lieu: {len(out):,} dong")
+        print(f"  - nam  : {sorted(out['date'].dt.year.unique().tolist())}")
+    else:
+        out = df[df["date"].dt.year == year].copy()
+        print(f"Loc nam {year}: {len(out):,} dong")
 
-    return df_year
+    print(f"  - stores: {sorted(out['store'].unique().tolist())}")
+    print(f"  - items : {out['item'].nunique()} gia tri")
+
+    return out
 
 
 # =============================================================================
@@ -191,6 +197,7 @@ def build_rows(df_year: pd.DataFrame, price_map: dict):
     """
     orders = []
     order_items = []
+    skipped = 0
 
     counter = 0
     # Gom theo (date, store) de moi don chi co 1 store, tranh lap don
@@ -217,8 +224,15 @@ def build_rows(df_year: pd.DataFrame, price_map: dict):
             qty = float(row["sales"])
             product_id = int(row["item"])
 
-            # sales = 0 nghia la khong ban duoc. Van giu de phuc hoi
-            # du lieu chay (censored demand) va de trung binh nhu that.
+            # Bang order_items co CHECK (quantity > 0), nen dong sales = 0
+            # se khong insert duoc. Trong CSV co 1 dong nhu vay (nam 2014).
+            # Day nghia la hom do khong ban duoc mat hang nay - bo di, khong
+            # phai loi du lieu. Khi tao chuoi thoi gian, ngay nay se duoc
+            # dien vao voi gia tri 0 (xem xu ly trong train_models.py).
+            if qty <= 0:
+                skipped += 1
+                continue
+
             price = price_map.get(product_id, DEFAULT_UNIT_PRICE)
 
             order_items.append(
@@ -230,6 +244,8 @@ def build_rows(df_year: pd.DataFrame, price_map: dict):
                     "discount_percent": 0,
                 }
             )
+
+    print(f"  Bo qua {skipped} dong co sales <= 0 (khong ban duoc mat hang do)")
 
     return orders, order_items
 
@@ -258,7 +274,8 @@ def import_data(
         print(f"Tong items : {len(order_items):,}")
         return
 
-    year = int(df_year["date"].dt.year.iloc[0])
+    date_min = df_year["date"].min()
+    date_max = df_year["date"].max()
 
     with engine.begin() as conn:
         # Xoa don cu de chay lai nhieu lan khong bi trung order_code
@@ -283,7 +300,7 @@ def import_data(
 
         # SQLAlchemy 2.x khong ho tro RETURNING khi insert nhieu dong.
         # order_code la UNIQUE nen tao ban do order_code -> order_id
-        # bang cach doc lai cac don vua tao trong nam nay.
+        # bang cach doc lai cac don vua tao trong khoang thoi gian da import.
         print("Lay danh sach order_id ...")
         existing = conn.execute(
             text(
@@ -293,7 +310,7 @@ def import_data(
                 WHERE order_date >= :start AND order_date < :end
                 """
             ),
-            {"start": f"{year}-01-01", "end": f"{year + 1}-01-01"},
+            {"start": str(date_min.date()), "end": str((date_max + pd.Timedelta(days=1)).date())},
         ).all()
 
         code_to_id = {code: oid for code, oid in existing}
@@ -349,8 +366,11 @@ def import_data(
     print("\nImport thanh cong.")
 
 
-def verify(engine, year: int) -> None:
+def verify(engine, df_year: pd.DataFrame) -> None:
     """Kiem tra ket qua import."""
+    date_min = str(df_year["date"].min().date())
+    date_max = str((df_year["date"].max() + pd.Timedelta(days=1)).date())
+
     with engine.connect() as conn:
         n_orders = conn.execute(text("SELECT COUNT(*) FROM orders")).scalar()
         n_items = conn.execute(text("SELECT COUNT(*) FROM order_items")).scalar()
@@ -377,7 +397,7 @@ def verify(engine, year: int) -> None:
                 WHERE o.order_date >= :start AND o.order_date < :end
                 """
             ),
-            {"start": f"{year}-01-01", "end": f"{year + 1}-01-01"},
+            {"start": date_min, "end": date_max},
         ).first()
 
         # ⚠ KHONG duoc tinh SUM(total_amount) tren join voi order_items:
@@ -390,7 +410,7 @@ def verify(engine, year: int) -> None:
                 WHERE order_date >= :start AND order_date < :end
                 """
             ),
-            {"start": f"{year}-01-01", "end": f"{year + 1}-01-01"},
+            {"start": date_min, "end": date_max},
         ).scalar()
 
         if money[2] is not None and money[2] != 0:
@@ -440,6 +460,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Import Kaggle dataset vao PostgreSQL")
     parser.add_argument("--year", type=int, default=2017, help="Nam can import (mac dinh 2017)")
     parser.add_argument(
+        "--all-years",
+        action="store_true",
+        help=(
+            "Lay toan bo du lieu cua CSV (mac dinh 2013-2017). Can it nhat 2 nam "
+            "de Prophet uoc luong duoc mua vu nam."
+        ),
+    )
+    parser.add_argument(
         "--unit-price",
         type=float,
         default=None,
@@ -463,16 +491,16 @@ def main() -> None:
     check_prerequisites(engine)
     price_map = load_price_map(engine)
 
-    df_year = load_csv(args.year)
+    df_year = load_csv(args.year, args.all_years)
 
     if df_year.empty:
-        print(f"\nLOI: khong co du lieu nao cho nam {args.year}.", file=sys.stderr)
+        print("\nLOI: khong co du lieu nao khop bo loc.", file=sys.stderr)
         sys.exit(1)
 
     import_data(engine, df_year, price_map, args.unit_price, args.dry_run)
 
     if not args.dry_run:
-        verify(engine, args.year)
+        verify(engine, df_year)
 
     engine.dispose()
 

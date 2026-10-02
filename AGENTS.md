@@ -99,6 +99,34 @@ Kiểm tra lại môi trường ML: `python scripts/check_ml_env.py`
 - **`expiry_date`** đặt ở `inventory` + `inventory_transactions`, không đặt ở `products`
 - **CHECK constraint** thay vì PostgreSQL `ENUM` (dễ migrate, tương thích SQLAlchemy)
 
+## Cấu hình mô hình dự báo (đã chốt 03/10/2026)
+
+| Mục | Giá trị |
+|-----|---------|
+| Dữ liệu | **5 năm 2013–2017** · 912.999 dòng · 1.826 ngày · 10 cửa hàng · 50 sản phẩm |
+| Chia tập | Theo **mốc ngày `2017-10-01`** (không dùng 80/20) — train 1.734 ngày · test 92 ngày |
+| Chuỗi thời gian | Reindex đủ 1.826 ngày, ngày thiếu điền **0** |
+| Prophet | `changepoint_prior_scale=0.01`, `seasonality_mode='multiplicative'`, `yearly_seasonality=20` |
+| Ngày lễ | Bộ ngày lễ **Hoa Kỳ** (dùng chung Prophet + XGBoost để so sánh công bằng) |
+| Đặc trưng XGBoost | `lag_1..7`, `lag_14`, `lag_28`, `roll_mean_7/28`, `dow`, `month`, `is_weekend`, `trend`, `is_holiday` |
+| Chọn tham số | **Theo validation**, không theo test (tránh rò rỉ dữ liệu) |
+
+### Kết quả test 1 cặp (product 15, store 1)
+
+| Mô hình | RMSE | MAE | MAPE |
+|---------|------|-----|------|
+| **Prophet** | **9,98** | **7,99** | **10,10%** |
+| XGBoost | 10,91 | 8,67 | 10,62% |
+| ARIMA | 18,36 | 15,37 | 20,65% |
+
+## ⚠️ Bài học quan trọng (nhớ khi làm tiếp)
+
+1. **Prophet cần ≥ 2 năm dữ liệu để ước lượng mùa vụ năm.** Với 1 năm, Prophet báo *"Yearly seasonality is enabled with less than 730 days"* và RMSE 23,20. Thêm 4 năm dữ liệu → RMSE **9,98** (−57%), và đi từ **hạng 3 lên hạng 1**. Nguyên nhân khiến Prophet kém là **thiếu dữ liệu**, không phải tham số.
+2. **Dữ liệu dài làm mô hình bám đảo hơn.** Biến động RMSE giữa các bộ tham số giảm từ **10,5 lần** (1 năm) xuống **8%** (5 năm).
+3. **Chọn tham số theo validation, không theo test.** Tune trên test cho RMSE thấp hơn 0,47 nhưng đó là rò rỉ dữ liệu — con số báo cáo sẽ không còn trung thực.
+4. **`yearly_seasonality=True` chính là `fourier_order=10`.** 18 lần chạy chỉ cho 12 kết quả khác nhau (đã xác nhận bằng dữ liệu).
+5. **Bảo vệ toàn vẹn dữ liệu thay vì nới ràng buộc.** 1 dòng `sales = 0` vi phạm `CHECK (quantity > 0)` → bỏ dòng, **không** sửa schema.
+
 ## 10 sản phẩm dùng để huấn luyện mô hình (đã chốt 02/10/2026)
 
 `product_id`: **[45, 8, 15, 13, 25, 11, 28, 48, 38, 18]**
@@ -167,8 +195,12 @@ Vì vậy **không dùng được** tiêu chí "hệ số biến động mùa v�
 - [x] D4: Seed inventory (1.330 lô) + transactions (11.412) + alerts (518) — đã test `psql -f`
 - [x] Sửa comment SQL sai về nguồn dữ liệu dự báo (migration 004) — dữ liệu không đổi
 - [x] Chọn 10 sản phẩm huấn luyện (điều tra lại tiêu chí mùa vụ — không dùng được)
-- [ ] M1: Train 3 mô hình (Prophet / XGBoost / ARIMA) cho 100 cặp
-- [ ] M2: Dự báo 30 ngày + ghi vào bảng `forecasts`
+- [x] M0: Import lại dataset Kaggle **5 năm** (2013–2017) — 912.999 dòng, 1.826 ngày
+- [x] M0: Tune Prophet trên 5 năm → `cps=0.01, multiplicative, yearly=20`
+- [x] M0: Test 1 cặp — Prophet RMSE 9,98 (thắng), XGBoost 10,91, ARIMA 18,36
+- [ ] M1: Chạy 100 cặp (~9 phút) — ⏸ **CHỜ DUYỆT**
+- [ ] M2: Dự báo 30 ngày (01/01–30/01/2018) + ghi bảng `forecasts` — ⏸ chờ
+- [ ] M3: Tạo `docs/05-tham-khao/ket-qua-danh-gia-model.md` — ⏸ chờ
 - [ ] B1: Setup backend FastAPI
 - [ ] B2: Kết nối backend với database
 - [ ] T2: README con cho từng thư mục

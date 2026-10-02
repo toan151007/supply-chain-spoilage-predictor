@@ -1,0 +1,2 @@
+product_id,store_id,train_days,test_days,prophet_rmse,prophet_mae,prophet_mape,xgboost_rmse,xgboost_mae,xgboost_mape,arima_rmse,arima_mae,arima_mape,best_model,best_rmse
+4,6,1734,92,4.563217146791851,3.6390229510483296,24.3408640181035,4.946067668960299,3.956940225932909,27.325348572610185,6.5690080095999175,5.6777071611344665,41.39552068572204,prophet,4.563217146791851

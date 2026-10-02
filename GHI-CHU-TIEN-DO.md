@@ -103,7 +103,7 @@ f55dce4  T4.1: Chapter 1
 ✅ Python 3.14.7 chạy được đủ 3 mô hình — **không cần lùi phiên bản**.
 **Còn thiếu:** `fastapi`, `uvicorn`, `pydantic` (cho backend B1).
 
-**Dữ liệu trong DB (02/10/2026):** categories 8 · stores 10 · products 50 · users 3 · orders 3.650 · order_items 182.500 · inventory 1.330 · inventory_transactions 11.412 · alerts 518 · **forecasts 0 (đang xây)**
+**Dữ liệu trong DB (03/10/2026):** categories 8 · stores 10 · products 50 · users 3 · **orders 18.260** · **order_items 912.999** (2013–2017) · inventory 1.330 · inventory_transactions 11.412 · alerts 518 · **forecasts 0 (đang xây)**
 
 🔒 **Mật khẩu database nằm trong `.env` cục bộ — KHÔNG ghi vào repo này.**
 
@@ -410,6 +410,121 @@ Chương 1 và 2 trình bày censored demand như vấn đề **lý thuyết**. 
 | `scripts/investigate_selection.py` | Điều tra vì sao tiêu chí không phân biệt được |
 | `scripts/selection_options.py` | Tính 2 phương án chọn |
 | `scripts/confirm_products.py` | Kiểm chứng danh sách cuối + độ phủ dữ liệu |
+
+---
+
+## 8g. Công việc ngày 03/10/2026
+
+### 1. Import lại dataset Kaggle — 5 năm (2013–2017)
+
+Trước đó chỉ import năm 2017 (365 ngày). Vì Prophet cảnh báo *"Yearly seasonality is enabled with less than 730 days"*, đã import lại **toàn bộ 5 năm**.
+
+**Cách chạy:**
+```powershell
+python scripts/import_kaggle.py --all-years
+```
+
+| Chỉ số | CSV | Database |
+|--------|-----|----------|
+| Số dòng | 912.999 (sales > 0) | **912.999** ✅ |
+| Tổng số lượng | 47.704.512 | **47.704.512** ✅ |
+| Số ngày | 1.826 | **1.826** ✅ |
+| Cửa hàng / sản phẩm | 10 / 50 | **10 / 50** ✅ |
+| `orders` | — | 18.260 |
+| Doanh thu (giá giả lập) | — | 1.409.611.790.000 VND |
+
+**Lỗi gặp phải:** bảng `order_items` có ràng buộc `CHECK (quantity > 0)`, nhưng CSV có **1 dòng** năm 2014 với `sales = 0` (product 4, store 6, ngày 15/01/2014). Đã **bỏ dòng đó** thay vì nới ràng buộc — vì `sales = 0` nghĩa là hôm đó không bán được mặt hàng đó, không phải lỗi dữ liệu. Script giờ in rõ số dòng bỏ qua.
+
+Hệ quả: cặp (product 4, store 6) thiếu 1 ngày trong chuỗi. Đã xử lý bằng cách reindex (mục 2).
+
+### 2. Sửa `train_models.py` cho dữ liệu 5 năm
+
+| Thay đổi | Chi tiết |
+|----------|----------|
+| Đọc dữ liệu | Toàn bộ 2013–2017 thay vì chỉ 2017 |
+| **Reindex chuỗi** | Đủ 1.826 ngày liên tục, ngày thiếu điền **0**. Đây có thể là ngày không bán được mặt hàng → là trường hợp censored demand |
+| Tách tập | Theo **mốc ngày `2017-10-01`** (không dùng 80/20): train 1.734 ngày · test 92 ngày |
+| Tham số Prophet | `PROPHET_PARAMS` tách thành hằng số ở đầu file |
+
+**Log mỗi cặp:** in số ngày có `y = 0` và số ngày bị điền 0, để báo cáo trung thực.
+
+### 3. Kiểm chứng giả thuyết mùa vụ năm — KẾT QUẢ MẠNH NHẤT
+
+Đây là phát hiện quan trọng nhất của ngày 03/10.
+
+| Mô hình | RMSE với 1 năm | RMSE với 5 năm | Cải thiện |
+|---------|----------------|----------------|-----------|
+| **Prophet** | 23,20 | **9,98** | **−57%** |
+| XGBoost | 16,47 | 10,91 | −34% |
+| ARIMA | 19,36 | 18,36 | −5% |
+
+**Thứ hạng đã đảo ngược:**
+
+| | 1 năm | 5 năm |
+|---|-------|-------|
+| Thứ nhất | XGBoost (16,47) | **Prophet (9,98)** |
+| Thứ hai | ARIMA (19,36) | XGBoost (10,91) |
+| Thứ ba | Prophet (23,20) | ARIMA (18,36) |
+
+→ Prophet đi từ **hạng 3** lên **hạng 1** chỉ nhờ thêm dữ liệu, **không đổi tham số**.
+
+Nếu không kiểm tra cảnh báo của Prophet và cứ giữ 1 năm, đồ án sẽ kết luận sai rằng Prophet không phù hợp với bài toán này.
+
+### 4. Tune lại Prophet trên 5 năm
+
+**Cách chạy:** `python ai-model/scripts/tune_prophet.py --product 15 --store 1` (18,5 giây)
+
+| Cách chọn | cps | mode | yearly | RMSE_val | RMSE_test |
+|-----------|-----|------|--------|----------|-----------|
+| **Theo validation (đúng)** | **0,01** | **multiplicative** | **20** | **10,49** | **10,23** |
+| Theo test (rò rỉ dữ liệu) | 0,5 | additive | True/10 | 11,47 | 9,76 |
+| Bộ đã tune trên 1 năm | 0,01 | additive | 20 | 10,60 | 9,92 |
+
+**Đã chọn theo validation.** Không chọn theo test dù cho RMSE tốt hơn 0,47 — chọn bằng tập đánh giá là rò rỉ dữ liệu, con số báo cáo sẽ không còn trung thực.
+
+#### Prophet đã bám đảo tham số khi đủ dữ liệu
+
+| Mức | 1 năm | 5 năm |
+|-----|-------|-------|
+| RMSE thấp nhất | 23,20 | 9,76 |
+| RMSE cao nhất | 243,27 | 10,51 |
+| **Độ biến động** | **10,5 lần** | **chỉ 8%** |
+
+`changepoint_prior_scale = 0.5` từng gây RMSE 243,27, giờ chỉ 9,76. Dữ liệu dài giúp xu hướng được ước lượng tốt hơn.
+
+### 5. Files đã tạo / sửa
+
+| File | Nội dung |
+|------|----------|
+| `ai-model/scripts/train_models.py` | Hỗ trợ 5 năm, reindex, tách theo mốc ngày, CSV phẳng |
+| `ai-model/scripts/tune_prophet.py` | Grid search 18 bộ, tách rõ validation vs test |
+| `scripts/import_kaggle.py` | Thêm cờ `--all-years` |
+| `ai-model/outputs/prophet_tuning_p15_s1.csv` | 18 bộ trên **1 năm** (đối chiếu) |
+| `ai-model/outputs/prophet_tuning_5y_p15_s1.csv` | 18 bộ trên **5 năm** |
+| `ai-model/outputs/model_metrics_p15_s1.csv` | Kết quả test 1 cặp |
+
+### 6. Bài học quan trọng
+
+1. **Prophet cần ≥ 2 năm dữ liệu để ước lượng mùa vụ năm.** Chỉ có 1 năm thì mô hình không biết mùa vụ lặp lại thế nào — đây là nguyên nhân gốc khiến Prophet kém hơn, **không phải do tham số**.
+2. **Dữ liệu dài làm mô hình bám đảo hơn.** Biến động RMSE giữa các bộ tham số giảm từ 10,5 lần xuống 8%.
+3. **Chọn tham số theo validation, không theo test.** Dù chọn theo test cho số đẹp hơn, đó là rò rỉ dữ liệu.
+4. **`yearly_seasonality=True` chính là `fourier_order=10`.** 18 lần chạy chỉ cho 12 kết quả khác nhau — xác nhận bằng dữ liệu, không phải giả định.
+5. **Bảo vệ sự toàn vẹn dữ liệu thay vì nới ràng buộc.** 1 dòng `sales = 0` vi phạm `CHECK (quantity > 0)` → bỏ dòng, không đổi schema.
+
+### 7. Trạng thái hiện tại — DỪNG LẠI
+
+| Việc | Trạng thái |
+|------|------------|
+| Import 5 năm | ✅ Xong |
+| Sửa script cho 5 năm | ✅ Xong |
+| Tune Prophet trên 5 năm | ✅ Xong |
+| Test 1 cặp | ✅ Xong |
+| **Chạy 100 cặp** | ⏸ **CHỜ DUYỆT** |
+| **Dự báo 30 ngày (01/01–30/01/2018)** | ⏸ Chờ |
+| **Ghi vào bảng `forecasts`** | ⏸ Chờ |
+| Tài liệu đánh giá model | ⏸ Chờ |
+
+Ước tính chạy 100 cặp: **~9 phút** (5,4 giây/cặp).
 
 ---
 
