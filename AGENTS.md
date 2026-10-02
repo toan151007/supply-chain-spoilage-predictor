@@ -56,7 +56,8 @@ Mục tiêu: Dự báo nhu cầu, tối ưu nhập hàng, giảm lãng phí th�
 - [x] T3: Viết sơ đồ kiến trúc hệ thống (hoàn thành 5/10)
 - [x] T4 (phần 1): Viết xong Chương 1 (docs/02-bao-cao/chuong-1-tong-quan.md) — hoàn thành 6/10
 - [x] T4 (phần 2): Viết xong Chương 2 (docs/02-bao-cao/chuong-2-co-so-ly-thuyet.md) — hoàn thành 6/10
-- [ ] Viết SQL Schema (đang làm)
+- [x] D1: Viết SQL Schema 10 bảng (database/01-schema/02-create-tables.sql) — hoàn thành 02/10
+- [ ] Viết seed data mẫu (database/02-seed/seed-data.sql)
 - [ ] Setup Backend FastAPI
 - [ ] Setup Frontend React
 - [ ] Tích hợp AI Model

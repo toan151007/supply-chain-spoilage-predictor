@@ -16,7 +16,7 @@
 | T3 — Sơ đồ kiến trúc | ✅ Xong | Commit `31df9f7` |
 | T4 phần 1 — Chương 1 | ✅ Xong | Commit `f55dce4` |
 | T4 phần 2 — Chương 2 | ✅ Xong | Commit `40020ca` |
-| SQL Schema | ⬜ Chưa làm | **Task kế tiếp** |
+| SQL Schema (10 bảng) | ✅ Xong | `database/01-schema/02-create-tables.sql` — xem `git log` |
 | Backend FastAPI | ⬜ Chưa làm | |
 | Frontend React | ⬜ Chưa làm | |
 | AI Model | ⬜ Chưa làm | |
@@ -90,34 +90,51 @@ Không phải việc bận gấp, nhưng **bắt buộc làm trước khi nộp 
 
 ## 6. Task ngày mai — theo thứ tự đề xuất
 
-### Ưu tiên 1: SQL Schema (task đang ghi "đang làm" từ đầu)
+### ✅ Ưu tiên 1: SQL Schema — ĐÃ XONG
 
-Tạo `database/01-schema/02-create-tables.sql` theo lược đồ đã thống nhất tại `docs/03-thiet-ke/kien-truc-he-thong.md` (mục 7) và Chương 3 sẽ dùng lại.
+File: `database/01-schema/02-create-tables.sql`
 
-**9 bảng đã thống nhất:**
+**10 bảng (đã thêm `stores` — quyết định 30/09, hỗ trợ chuỗi nhiều cửa hàng):**
 
-| Bảng | Ghi chú chính |
-|------|---------------|
-| `users` | Tài khoản người dùng |
-| `categories` | Phân loại sản phẩm |
-| `products` | Có `expiry_date`, `min_stock`, `max_stock` |
-| `inventory` | Tồn kho hiện tại, unique theo (product_id, store_id) |
-| `inventory_transactions` | Lịch sử nhập/xuất — **bảng quan trọng nhất cho dự báo** |
-| `orders` | Đơn hàng |
-| `order_items` | Chi tiết đơn hàng |
-| `forecasts` | Kết quả dự báo + model đã dùng |
-| `alerts` | Cảnh báo hết hạn / tồn kho bất thường |
+| # | Bảng | Ghi chú chính |
+|---|------|---------------|
+| 1 | `stores` | **THÊM MỚI** — chi nhánh/cửa hàng, thực thể gốc cho toàn bộ dữ liệu |
+| 2 | `users` | Tài khoản, role owner/manager/staff, `store_id` NULL = quản lý toàn hệ thống |
+| 3 | `categories` | Phân loại nhiều cấp (tự tham chiếu `parent_category_id`) |
+| 4 | `products` | **KHÔNG có `expiry_date`** — có `shelf_life_days`, `min_stock`, `max_stock`, `reorder_point` |
+| 5 | `inventory` | Tồn kho theo LÔ HÀNG. UNIQUE `(store_id, product_id, expiry_date)` |
+| 6 | `inventory_transactions` | **Quan trọng nhất cho dự báo.** import/export/adjustment/disposal |
+| 7 | `orders` | `order_type`: sale / purchase (gộp cả bán và nhập) |
+| 8 | `order_items` | `line_total` dùng GENERATED ALWAYS AS STORED (PostgreSQL 12+) |
+| 9 | `forecasts` | Lưu kết quả TỪNG mô hình để so sánh công bằng + `recommended_import_qty` |
+| 10 | `alerts` | 5 loại cảnh báo, phục vụ real-time qua WebSocket |
 
-**Yêu cầu cần nhớ:**
-- Chuẩn 3NF, khoá chính/khoá ngoại rõ ràng
-- Chỉ mục trên `product_id`, `expiry_date`, `transaction_date`
-- `NUMERIC` cho số lượng chính xác (không dùng FLOAT cho tồn kho)
-- Timestamptz cho mọi cột thời gian
-- Comment `COMMENT ON TABLE/COLUMN` bằng tiếng Việt (rất thuyết phục khi bảo vệ đồ án)
+**Ngoài 10 bảng, file còn có:**
+- Hàm `fn_update_updated_at()` + 6 trigger tự cập nhật `updated_at`
+- Hàm `fn_generate_inventory_alerts(days)` — sinh cảnh báo theo 4 quy tắc, chống trùng
+- 4 view: `v_daily_sales` (nguồn dữ liệu cho dự báo), `v_low_stock`, `v_expiring_inventory`, `v_product_stock_summary`
+- Script kiểm tra: đếm số bảng, liệt kê khoá ngoại
 
-**Kèm theo nên làm:** `database/02-seed/seed-data.sql` — dữ liệu mẫu đủ 6–12 tháng để test mô hình dự báo ngay.
+**Quyết định thiết kế quan trọng đã chốt:**
+1. **Thêm bảng `stores`** → hỗ trợ chuỗi nhiều cửa hàng, thay vì chỉ 1 cửa hàng
+2. **`expiry_date` đặt ở `inventory` + `inventory_transactions`**, KHÔNG ở `products` — vì hạn sử dụng thuộc về từng lô hàng tại từng cửa hàng, không phải thuộc tính bất biến của sản phẩm
+3. Dùng **CHECK constraint** thay vì PG `ENUM` — dễ migrate, tương thích SQLAlchemy ORM
+4. `NUMERIC` mọi số lượng (không FLOAT), `TIMESTAMPTZ` mọi cột thời gian
+5. `order_items` UNIQUE `(order_id, product_id)` — 1 sản phẩm 1 dòng trong đơn
 
-### Ưu tiên 2: Chương 3 — Phân tích và thiết kế hệ thống
+> ⚠️ **Cần cập nhật `docs/03-thiet-ke/kien-truc-he-thong.md` mục 7** — nơi đang ghi 9 bảng, chưa có `stores` và còn ghi `products` có `expiry_date`. Chưa sửa vì cần đồng bộ với Chương 3.
+
+### Ưu tiên 2: Seed data (nên làm ngay)
+
+Tạo `database/02-seed/seed-data.sql` — dữ liệu mẫu:
+- 3 cửa hàng, 8 nhóm sản phẩm, ~30 sản phẩm (thực phẩm tươi sống + đồ uống hạn ngắn)
+- Dữ liệu giao dịch **ít nhất 12 tháng** theo ngày, có mùa vụ Tết rõ rệt để mô hình dự báo học được
+- Cố tình tạo một vài tình huống hết hàng để kiểm tra hiện tượng censored demand
+- 1 tài khoản cho mỗi role (owner/manager/staff)
+
+Có thể sinh dữ liệu bằng Python (pandas + faker) thay vì viết tay — nhanh và linh hoạt hơn.
+
+### Ưu tiên 3: Chương 3 — Phân tích và thiết kế hệ thống
 
 Tạo `docs/02-bao-cao/chuong-3-phan-tich-thiet-ke.md`:
 - 3.1 Phân tích yêu cầu nghiệp vụ
@@ -129,12 +146,12 @@ Tạo `docs/02-bao-cao/chuong-3-phan-tich-thiet-ke.md`:
 
 *(Phần sơ đồ Use Case / Sequence / kiến trúc đã có sẵn ở `docs/03-thiet-ke/kien-truc-he-thong.md` — tham chiếu lại, không cần vẽ lại.)*
 
-### Ưu tiên 3: Setup Backend FastAPI
+### Ưu tiên 4: Setup Backend FastAPI
 
 - `backend/requirements.txt`
 - `backend/app/main.py` — FastAPI + CORS cho `localhost:3000` + WebSocket
 - `backend/app/config.py`, `database.py`
-- `backend/app/models/` — SQLAlchemy models theo 9 bảng
+- `backend/app/models/` — SQLAlchemy models theo **10 bảng**
 - `backend/app/routers/` — prefix `/api/v1/`
 
 > **Lưu ý AGENTS.md:** Không sửa `config.py` / `.env` mà không hỏi trước. Mọi truy vấn DB phải qua ORM, **không raw SQL trong routers**.
