@@ -93,10 +93,17 @@ f55dce4  T4.1: Chapter 1
 | psycopg2-binary | 2.9.13 |
 | Node.js | v24.15.0 · npm 11.12.1 |
 | PostgreSQL | 18.6 · service `postgresql-x64-18` · port 5432 |
-| Database | `spoilage_predictor` · 10 bảng · đang rỗng |
+| statsmodels | 0.15.0 (ARIMA) |
+| scikit-learn | 1.9.1 |
+| XGBoost | 3.4.1 |
+| Prophet | 1.4.0 (kèm CmdStan 2.37.0) |
+| Database | `spoilage_predictor` · 10 bảng |
 | Xác thực | `scram-sha-256` |
 
-**Cần cài thêm:** `fastapi`, `uvicorn`, `pydantic` · mô hình: `prophet`, `xgboost`, `scikit-learn`, `statsmodels`, `matplotlib`
+✅ Python 3.14.7 chạy được đủ 3 mô hình — **không cần lùi phiên bản**.
+**Còn thiếu:** `fastapi`, `uvicorn`, `pydantic` (cho backend B1).
+
+**Dữ liệu trong DB (02/10/2026):** categories 8 · stores 10 · products 50 · users 3 · orders 3.650 · order_items 182.500 · inventory 1.330 · inventory_transactions 11.412 · alerts 518 · **forecasts 0 (đang xây)**
 
 🔒 **Mật khẩu database nằm trong `.env` cục bộ — KHÔNG ghi vào repo này.**
 
@@ -143,6 +150,8 @@ Dữ liệu test đã `TRUNCATE`, DB sẵn sàng cho seed.
 | ~~D3~~ | ✅ Import Kaggle 2017 → 3.650 orders + 182.500 order_items | Xong |
 | **D4** | Seed `inventory` + `inventory_transactions` | ✅ Xong — xem mục 8d |
 | D5 | Chạy lại `fn_generate_inventory_alerts()` | ✅ Xong (đã gọi trong seed-inventory.sql) |
+| **M1** | Train 3 mô hình (Prophet / XGBoost / ARIMA) — 100 cặp | 🔴 Đang làm |
+| **M2** | Dự báo 30 ngày + ghi vào bảng `forecasts` | 🔴 Chờ M1 |
 | B1 | Setup backend FastAPI | 🟡 TB |
 | B2 | Kết nối backend với database (SQLAlchemy) | 🟡 TB |
 | T2 | README con cho từng thư mục | 🟢 Thấp |
@@ -336,6 +345,71 @@ Backup trước khi làm: `pg_dump` ra thư mục temp (14,7 MB), không đưa v
 | **`v_daily_sales`** | **Đầu vào DUY NHẤT cho mô hình dự báo** |
 | `inventory` | Tồn kho hiện tại theo lô |
 | `inventory_transactions` | Nhật ký biến động — phân tích tồn kho, cảnh báo hết hạn, FIFO. **KHÔNG** dùng để dự báo |
+
+---
+
+## 8f. Chọn 10 sản phẩm huấn luyện (đã chốt)
+
+`product_id`: **[45, 8, 15, 13, 25, 11, 28, 48, 38, 18]**
+
+### ⚠️ Lỗi tôi đã mắc phải và cách sửa
+
+Tôi từng đề xuất 3 sản phẩm bổ sung là **13, 25, 22** mà **không hề kiểm tra** xem chúng có thực sự nằm trong top HS_tuần của nhóm Beverages hay không. Khi chạy `scripts/confirm_products.py` mới phát hiện:
+
+| Đề xuất của tôi | HS_tuần | Hạng thật |
+|-----------------|----------|-----------|
+| 13 | 1,971 | hạng 3 ✅ đúng |
+| 25 | 1,955 | hạng 4 ❌ |
+| 22 | 1,919 | **hạng 10/11** ❌ sai rõ ràng |
+
+**Bài học:** đề xuất phải kèm bằng chứng kiểm chứng, không được dựa vào cảm tính.
+
+### Kết luận điều tra mùa vụ
+
+Tiêu chí "hệ số biến động mùa vụ" **không dùng được** để chọn sản phẩm:
+
+| Mức đo | Hệ số | Độ rộng giữa 50 sản phẩm |
+|--------|-------|--------------------------|
+| Theo tháng | 1,85 – 1,95 | **0,098** → không phân biệt được |
+| Theo tuần | 1,88 – 2,03 | 0,153 → phân biệt rất yếu |
+| Theo ngày trong tuần | 1,52 | yếu hơn mùa vụ tháng |
+
+**Lý do:** mùa vụ Walmart chạy theo thời tiết và ngày lễ quốc gia, tác động **đồng đều lên mọi mặt hàng**. Không sản phẩm nào "mùa vụ riêng" hơn sản phẩm khác.
+
+### Tiêu chí thay thế đã dùng
+
+1. Loại sản phẩm doanh số năm < 1.000
+2. Chọn sản phẩm doanh số cao nhất của **từng nhóm** → đủ 7/7 nhóm hàng
+3. Bổ sung để đủ 10, ưu tiên doanh số cao
+
+Lý do bỏ tiêu chí HS_tuần: chênh lệch HS giữa các sản phẩm **< 4%**, trong khi chênh lệch doanh số lên tới **3 lần** (105k vs 346k). Doanh số quan trọng hơn nhiều.
+
+### Độ phủ dữ liệu — rất tốt
+
+| Kiểm tra | Kết quả |
+|----------|---------|
+| Số cặp (sản phẩm × cửa hàng) | **100 / 100** đủ |
+| Số ngày mỗi cặp | **365 / 365** — không thiếu ngày nào |
+| Lượng nhỏ nhất 1 cặp | 14.759 sản phẩm/năm |
+| Ngày bán = 0 | **0** → không có censored demand |
+
+### ⚠️ Censored demand — cần nêu rõ trong Chương 4
+
+Chương 1 và 2 trình bày censored demand như vấn đề **lý thuyết**. Dữ liệu Kaggle **không có** hiện tượng này (0 ngày bán = 0).
+
+**Cách trình bày trong Chương 4:** *"Trong dữ liệu thực tế, không xảy ra censored demand. Đây là hạn chế của dataset Kaggle so với dữ liệu bán lẻ thực tế, nơi hiện tượng này có thể xảy ra."*
+
+**Không sửa Chương 1, 2** — đó là nội dung lý thuyết chung, đúng và cần giữ.
+
+### Files liên quan
+
+| File | Vai trò |
+|------|---------|
+| `scripts/check_ml_env.py` | Kiểm tra môi trường ML |
+| `scripts/select_products.py` | Chọn theo HS mùa vụ (tiêu chí ban đầu — không dùng) |
+| `scripts/investigate_selection.py` | Điều tra vì sao tiêu chí không phân biệt được |
+| `scripts/selection_options.py` | Tính 2 phương án chọn |
+| `scripts/confirm_products.py` | Kiểm chứng danh sách cuối + độ phủ dữ liệu |
 
 ---
 

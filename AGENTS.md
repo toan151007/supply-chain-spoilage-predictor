@@ -66,7 +66,15 @@ Mục tiêu: Dự báo nhu cầu, tối ưu nhập hàng, giảm lãng phí th�
 | Database | `spoilage_predictor` · 10 bảng đã tạo · đang rỗng |
 | Xác thực | `scram-sha-256` · mật khẩu nằm trong `.env` cục bộ, KHÔNG commit |
 
-Cần cài thêm: `fastapi`, `uvicorn`, `pydantic`. Cần cài cho mô hình: `prophet`, `xgboost`, `scikit-learn`, `statsmodels`, `matplotlib`.
+| statsmodels | 0.15.0 (ARIMA) |
+| scikit-learn | 1.9.1 |
+| XGBoost | 3.4.1 |
+| Prophet | 1.4.0 (kèm CmdStan 2.37.0) |
+
+✅ **Python 3.14.7 chạy được đủ 3 mô hình — KHÔNG cần lùi phiên bản.**
+Còn thiếu: `fastapi`, `uvicorn`, `pydantic` (cho backend B1).
+
+Kiểm tra lại môi trường ML: `python scripts/check_ml_env.py`
 
 ## Dataset Kaggle
 
@@ -90,6 +98,46 @@ Cần cài thêm: `fastapi`, `uvicorn`, `pydantic`. Cần cài cho mô hình: `p
 - **KHÔNG dùng LSTM** trong hệ thống (chỉ trình bày lý thuyết — dữ liệu quá nhỏ)
 - **`expiry_date`** đặt ở `inventory` + `inventory_transactions`, không đặt ở `products`
 - **CHECK constraint** thay vì PostgreSQL `ENUM` (dễ migrate, tương thích SQLAlchemy)
+
+## 10 sản phẩm dùng để huấn luyện mô hình (đã chốt 02/10/2026)
+
+`product_id`: **[45, 8, 15, 13, 25, 11, 28, 48, 38, 18]**
+
+| # | product_id | Sản phẩm | Nhóm | Doanh số 2017 | BQ/ngày |
+|---|-----------|----------|------|---------------|---------|
+| 1 | 45 | Khan uot tre em | Baby Care | 331.783 | 909,0 |
+| 2 | 8 | Thit bo | Fresh Food | 316.911 | 868,2 |
+| 3 | 15 | Ca phe sua dinh huong | Beverages | 361.586 | 990,6 |
+| 4 | 13 | Nuoc sui 330ml | Beverages | 346.565 | 949,5 |
+| 5 | 25 | Ruou dua co | Beverages | 330.786 | 906,3 |
+| 6 | 11 | Nuoc loc 500ml | Beverages | 286.882 | 785,7 |
+| 7 | 28 | Keo mut | Snacks | 360.768 | 988,4 |
+| 8 | 48 | Kem danh rang | Personal Care | 211.365 | 579,1 |
+| 9 | 38 | Sua tam the | Household | 331.005 | 906,9 |
+| 10 | 18 | Sua chua 500g | Dairy | 346.448 | 949,2 |
+
+**Đủ 7/7 nhóm hàng · 100 cặp (sản phẩm × cửa hàng) · mỗi cặp đủ 365 ngày.**
+
+### ⚠️ Về hiện tượng censored demand
+
+Chương 1 và Chương 2 trình bày censored demand như một vấn đề **lý thuyết**. **Dữ liệu Kaggle không có hiện tượng này** — đã kiểm tra, có **0 ngày** bán bằng 0 sản phẩm.
+
+Khi viết Chương 4 phải ghi rõ: *"Trong dữ liệu thực tế, không xảy ra censored demand. Đây là hạn chế của dataset Kaggle so với dữ liệu bán lẻ thực tế, nơi hiện tượng này có thể xảy ra."*
+
+Không sửa Chương 1, 2 — đó là nội dung lý thuyết chung, đúng và cần giữ.
+
+### ⚠️ Về mùa vụ
+
+Mua vụ của Walmart **tác động đồng đều lên mọi mặt hàng**:
+
+| Mức | Hệ số biến động | Nhận xét |
+|------|------------------|----------|
+| Theo tháng (cả 50 sản phẩm) | 1,85 – 1,95 (rộng 0,098) | **Không phân biệt được sản phẩm nào** |
+| Theo tuần | 1,88 – 2,03 (rộng 0,153) | Phân biệt rất yếu |
+| Theo ngày trong tuần | 1,52 | Yếu hơn mùa vụ tháng |
+| Theo tháng (toàn hệ thống) | 1,90 · tháng 7 cao nhất, tháng 1 thấp nhất | |
+
+Vì vậy **không dùng được** tiêu chí "hệ số biến động mùa vụ" để chọn sản phẩm. Đã chọn theo **doanh số năm + đa dạng 7 nhóm hàng**.
 
 ## Known Issues & Gotchas
 
@@ -118,6 +166,9 @@ Cần cài thêm: `fastapi`, `uvicorn`, `pydantic`. Cần cài cho mô hình: `p
 - [x] D3: Import Kaggle 2017 → 3.650 orders + 182.500 order_items (giá MÔ PHỎNG theo nhóm hàng)
 - [x] D4: Seed inventory (1.330 lô) + transactions (11.412) + alerts (518) — đã test `psql -f`
 - [x] Sửa comment SQL sai về nguồn dữ liệu dự báo (migration 004) — dữ liệu không đổi
+- [x] Chọn 10 sản phẩm huấn luyện (điều tra lại tiêu chí mùa vụ — không dùng được)
+- [ ] M1: Train 3 mô hình (Prophet / XGBoost / ARIMA) cho 100 cặp
+- [ ] M2: Dự báo 30 ngày + ghi vào bảng `forecasts`
 - [ ] B1: Setup backend FastAPI
 - [ ] B2: Kết nối backend với database
 - [ ] T2: README con cho từng thư mục
