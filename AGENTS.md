@@ -114,7 +114,7 @@ Cần cài thêm: `fastapi`, `uvicorn`, `pydantic`. Cần cài cho mô hình: `p
 - [x] Tải dataset Kaggle về `datasets/raw/` (không commit — có trong .gitignore)
 - [x] D2: Seed data — categories 8, stores 10, products 50, users 3 (đã test `psql -f`)
 - [x] D3: Import Kaggle 2017 → 3.650 orders + 182.500 order_items (giá MÔ PHỎNG theo nhóm hàng)
-- [ ] D4: Seed `inventory` + `inventory_transactions`
+- [x] D4: Seed inventory (1.330 lô) + transactions (11.412) + alerts (518) — đã test `psql -f`
 - [ ] B1: Setup backend FastAPI
 - [ ] B2: Kết nối backend với database
 - [ ] T2: README con cho từng thư mục

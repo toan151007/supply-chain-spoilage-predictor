@@ -23,7 +23,7 @@
 | Dataset Kaggle | ✅ Đã tải | `datasets/raw/train.csv`, không commit |
 | D2 — Seed data | ✅ Xong | categories 8, stores 10, products 50, users 3 |
 | D3 — Import Kaggle | ✅ Xong | 3.650 orders + 182.500 order_items (năm 2017) |
-| D4 — Seed inventory | ⬜ Chưa làm | inventory + inventory_transactions |
+| D4 — Seed inventory | ✅ Xong | 1.330 lô · 11.412 giao dịch · 518 cảnh báo |
 | B1/B2 — Backend | ⬜ Chưa làm | FastAPI + kết nối DB |
 | T2 — README con | ⬜ Chưa làm | |
 | Frontend React | ⬜ Chưa làm | |
@@ -141,8 +141,8 @@ Dữ liệu test đã `TRUNCATE`, DB sẵn sàng cho seed.
 |----|------|---------|
 | ~~D2~~ | ✅ Seed: categories 8, stores 10, products 50, users 3 | Xong |
 | ~~D3~~ | ✅ Import Kaggle 2017 → 3.650 orders + 182.500 order_items | Xong |
-| **D4** | Seed `inventory` + `inventory_transactions` | 🔴 Cao — cần cho cảnh báo + mô hình |
-| D5 | Chạy `fn_generate_inventory_alerts()` tạo cảnh báo thật | 🟡 TB |
+| **D4** | Seed `inventory` + `inventory_transactions` | ✅ Xong — xem mục 8d |
+| D5 | Chạy lại `fn_generate_inventory_alerts()` | ✅ Xong (đã gọi trong seed-inventory.sql) |
 | B1 | Setup backend FastAPI | 🟡 TB |
 | B2 | Kết nối backend với database (SQLAlchemy) | 🟡 TB |
 | T2 | README con cho từng thư mục | 🟢 Thấp |
@@ -226,6 +226,69 @@ Dataset Kaggle **chỉ có số lượng, không có cột giá**. Script tự g
 | `KeyError: 1` | `code_to_id` khoá theo `order_code` (string) nhưng code truy cập bằng `_tmp_key` (int) | Thêm bảng trung gian `key_to_code` |
 | `pip list` bỏ sót thư viện | Lọc bằng `Select-String` chỉ trả về một phần output | Kiểm tra bằng `python -c "import X; print(X.__version__)"` |
 | Doanh thu báo **15.861 tỷ** thay vì 317 tỷ | `SUM(orders.total_amount)` chạy trên `JOIN order_items` — mỗi đơn có ~50 dòng chi tiết nên tổng bị nhân 50 lần | Tính từ `SUM(order_items.line_total)`, hoặc query `orders` riêng không join |
+| `syntax error at or near "TRUE"` | `CROSS JOIN LATERAL (...) ON TRUE` — `CROSS JOIN` không nhận mệnh đề `ON` | Bỏ `ON TRUE` |
+| `syntax error at or near "CASE"` | Lateral subquery phải có `SELECT` bao quanh, không thể để `CASE` trần | Viết `CROSS JOIN LATERAL (SELECT CASE ... END AS x)` |
+| `duplicate key ... uq_inventory_store_product_expiry` | `LEAST(offset, shelf_life_days)` làm cả 3 lô của một cặp trùng ngày hết hạn | Suy `offset` trực tiếp từ `batch_no` để luôn khác nhau |
+| `duplicate key ... uq_transactions_reference` | `import` và `disposal` cùng dùng `reference_type='manual'` + `reference_id=inventory_id` | Dùng `inventory_id` âm cho `disposal` để tách không gian khoá |
+| 383 cảnh báo `over_stock` thay vì ~51 | `(p*17 + s*37) % 100` không phân bố đều, **và** lượng bình thường 30–600 đã vượt `max_stock` 30–300 | Dùng `md5` cho bucket + tính lượng bình thường từ `max_stock`/`min_stock` |
+
+---
+
+## 8d. Chi tiết seed inventory (D4)
+
+**File:** `database/02-seed/seed-inventory.sql` (chạy **sau** `seed-data.sql`)
+
+```powershell
+psql -U postgres -d spoilage_predictor -v ON_ERROR_STOP=1 -f database/02-seed/seed-inventory.sql
+```
+
+### Kết quả
+
+| Bảng | Số dòng |
+|------|---------|
+| `inventory` | **1.330** |
+| `inventory_transactions` | **11.412** (import 1.330 · export 10.000 · disposal 82) |
+| `alerts` | **518** |
+
+### Kịch bản đã tạo có chủ đích
+
+| Kịch bản | Tỷ lệ | Thực tế | Mục đích |
+|----------|--------|----------|----------|
+| Lô đã hết hạn | ~5% | **6,2%** (82 lô) | Cảnh báo `expired` |
+| Lô sắp hết hạn | ~15% | **24,7%** (328 lô) | Cảnh báo `expiring_soon` |
+| Tồn kho thấp | ~8% cặp | **57 cảnh báo** | Cảnh báo `low_stock` |
+| Tồn kho cao | ~8% cặp | **51 cảnh báo** | Cảnh báo `over_stock` |
+
+⚠️ **Vì sao "sắp hết hạn" là 24,7% chứ không phải 15%?** Vì sản phẩm hạn ngắn (thịt gà 2 ngày, rau muống 3 ngày) **về mặt vật lý không thể** có hạn sử dụng xa hơn 7 ngày. Kịch bản "bình thường" của chúng rơi vào khoảng ≤7 ngày một cách tự nhiên. Đây là hệ quả đúng với thực tế, không phải lỗi.
+
+### Cảnh báo sinh ra
+
+| Loại | Mức độ | Số lượng |
+|------|--------|----------|
+| `expired` | critical | 82 |
+| `expiring_soon` | high | 116 |
+| `expiring_soon` | medium | 212 |
+| `low_stock` | high | 57 |
+| `over_stock` | medium | 51 |
+
+Cột `title` chứa đúng **key i18n**: `alert.title.EXPIRED`, `alert.title.EXPIRING_SOON`, `alert.title.LOW_STOCK`, `alert.title.OVER_STOCK`.
+
+### ⚠️ Dữ liệu MÔ PHỎNG — không phải lịch sử thật
+
+`inventory_transactions` ở đây là **dữ liệu demo tự sinh**, KHÔNG phải lịch sử kho thật, và **không liên quan đến doanh số Kaggle**. Lịch sử bán hàng thật nằm ở `orders` + `order_items`.
+
+**Mô hình dự báo phải lấy dữ liệu từ `v_daily_sales`** (đọc `orders`/`order_items`), không dùng bảng này.
+
+### Nguyên tắc thiết kế
+
+| Nguyên tắc | Giải thích |
+|------------|------------|
+| Không dùng `random()` | Mọi giá trị suy ra từ `md5(product_id, store_id, batch_no)` → chạy lại cho kết quả giống hệt |
+| Số lô theo hạn sử dụng | Hạn ≤3 ngày → 1 lô · ≤10 ngày → 2 lô · còn lại → 3 lô. Cửa hàng không giữ 3 lô rau muống cùng hạn |
+| Offset hết hạn theo `batch_no` | `-1,-2,-3` hoặc `1,2,3` hoặc `shelf-1,shelf-2,shelf-3` → luôn khác nhau, tránh vi phạm `UNIQUE (store_id, product_id, expiry_date)` |
+| Kịch bản quyết ở mức **cặp** (sản phẩm × cửa hàng) | Quy tắc cảnh báo so sánh **TỔNG** tồn kho với `min_stock`/`max_stock`. Nếu tính ở mức lô thì 3 lô bình thường luôn vượt ngưỡng và không cảnh báo nào bắn |
+| Lượng bình thường bám `max_stock` | `q = max(45% × max_stock, 150% × min_stock) / số lô`. Dùng khoảng ngẫu nhiên phẳng (10–200/lô) sẽ cho tổng 30–600, vượt `max_stock` (30–300) ở hầu hết cặp → 383 cảnh báo `over_stock` thay vì 51 |
+| `disposal` dùng `inventory_id` âm | Tách không gian khoá khỏi giao dịch `import` (cùng `reference_type='manual'`) |
 
 ---
 
