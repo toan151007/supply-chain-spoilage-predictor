@@ -43,6 +43,15 @@ Mục tiêu: Dự báo nhu cầu, tối ưu nhập hàng, giảm lãng phí th�
 - Đặt tên file Python: snake_case. Tên React component: PascalCase.
 - Trước khi commit, chạy `git status` để kiểm tra.
 
+## SQL Rules (BẮT BUỘC TUÂN THỦ)
+
+- Trước khi viết INDEX / VIEW / FUNCTION, phải kiểm tra cột đã tồn tại trong CREATE TABLE chưa.
+- KHÔNG tham chiếu cột không tồn tại. Chỉ dùng cột của bảng trong đúng JOIN đó.
+- Sau khi viết file SQL, PHẢI tự test bằng `psql -f file.sql` trước khi commit.
+- Nếu có lỗi, sửa ngay, không để lỗi sang task khác.
+- File SQL giữ ASCII (comment tiếng Anh) để chạy được trên Windows PowerShell.
+- Muốn thêm tiếng Việt vào SQL thì dùng cơ chế i18n: lưu KEY, dịch ở `backend/app/i18n/vi.json`.
+
 ## Known Issues & Gotchas
 
 - Token Antigravity có giới hạn → cần commit thường xuyên.
