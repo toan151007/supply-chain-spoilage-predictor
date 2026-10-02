@@ -111,17 +111,21 @@ Kiểm tra lại môi trường ML: `python scripts/check_ml_env.py`
 | Đặc trưng XGBoost | `lag_1..7`, `lag_14`, `lag_28`, `roll_mean_7/28`, `dow`, `month`, `is_weekend`, `trend`, `is_holiday` |
 | Chọn tham số | **Theo validation**, không theo test (tránh rò rỉ dữ liệu) |
 
-### Kết quả test 1 cặp (product 15, store 1)
+### Kết quả đánh giá 100 cặp (đã chạy đầy đủ 03/10/2026)
 
-| Mô hình | RMSE | MAE | MAPE |
-|---------|------|-----|------|
-| **Prophet** | **9,98** | **7,99** | **10,10%** |
-| XGBoost | 10,91 | 8,67 | 10,62% |
-| ARIMA | 18,36 | 15,37 | 20,65% |
+| Mô hình | RMSE | MAE | MAPE | Số cặp thắng |
+|---------|------|-----|------|--------------|
+| **Prophet** | **9,97** | **7,94** | **10,43%** | **97 / 100** |
+| XGBoost | 10,98 | 8,77 | 11,69% | 3 / 100 |
+| ARIMA | 20,20 | 16,44 | 23,77% | 0 / 100 |
+
+**Prophet là mô hình chính** (không phải XGBoost như Chương 2 dự kiến).
+XGBoost chỉ thắng 3 cặp: (45,2), (13,7), (28,4) — ở 59 cặp chênh lệch < 1,0 RMSE.
+Chi tiết: `docs/05-tham-khao/ket-qua-danh-gia-model.md`
 
 ## ⚠️ Bài học quan trọng (nhớ khi làm tiếp)
 
-1. **Prophet cần ≥ 2 năm dữ liệu để ước lượng mùa vụ năm.** Với 1 năm, Prophet báo *"Yearly seasonality is enabled with less than 730 days"* và RMSE 23,20. Thêm 4 năm dữ liệu → RMSE **9,98** (−57%), và đi từ **hạng 3 lên hạng 1**. Nguyên nhân khiến Prophet kém là **thiếu dữ liệu**, không phải tham số.
+1. **Prophet cần ≥ 2 năm dữ liệu để ước lượng mùa vụ năm.** Với 1 năm, Prophet báo *"Yearly seasonality is enabled with less than 730 days"* và RMSE 23,20. Thêm 4 năm dữ liệu → RMSE **9,97** (−57%), và đi từ **hạng 3 lên hạng 1** (đã xác nhận trên 100 cặp). Nguyên nhân khiến Prophet kém là **thiếu dữ liệu**, không phải tham số.
 2. **Dữ liệu dài làm mô hình bám đảo hơn.** Biến động RMSE giữa các bộ tham số giảm từ **10,5 lần** (1 năm) xuống **8%** (5 năm).
 3. **Chọn tham số theo validation, không theo test.** Tune trên test cho RMSE thấp hơn 0,47 nhưng đó là rò rỉ dữ liệu — con số báo cáo sẽ không còn trung thực.
 4. **`yearly_seasonality=True` chính là `fourier_order=10`.** 18 lần chạy chỉ cho 12 kết quả khác nhau (đã xác nhận bằng dữ liệu).
@@ -178,6 +182,8 @@ Vì vậy **không dùng được** tiêu chí "hệ số biến động mùa v�
 - Không ghi mật khẩu database vào bất kỳ file nào trong repo.
 - PowerShell máy này KHÔNG hỗ trợ `&&` — dùng `;`.
 - pgAdmin giữ session thì `DROP DATABASE` bị lỗi → dùng `TRUNCATE`.
+- **`max_stock` trong seed data KHÔNG cùng thang đo với Kaggle.** Seed đặt `max_stock` 48–300, nhưng nhu cầu thực tế 861–2.793/ngày → `max_stock` chỉ bằng **0,5–3 ngày bán**. Hệ quả: **100/100 cặp bị `max_stock` chặn** khi tính `recommended_import_qty` (nhu cầu thuần 232.397 → đề xuất sau cap chỉ 7.286). Đây là hạn chế dữ liệu, KHÔNG phải lỗi mô hình. Khi viết báo cáo phải nêu rõ.
+- **pandas 3.0**: `pd.DataFrame({"ds": <DataFrame>})` sẽ báo `ValueError: If using all scalar values, you must pass an index` — phải truyền **Series** (`df["sale_date"]`).
 
 ## Current Progress
 
@@ -200,9 +206,9 @@ Vì vậy **không dùng được** tiêu chí "hệ số biến động mùa v�
 - [x] M0: Import lại dataset Kaggle **5 năm** (2013–2017) — 912.999 dòng, 1.826 ngày
 - [x] M0: Tune Prophet trên 5 năm → `cps=0.01, multiplicative, yearly=20`
 - [x] M0: Test 1 cặp — Prophet RMSE 9,98 (thắng), XGBoost 10,91, ARIMA 18,36
-- [ ] M1: Chạy 100 cặp (~9 phút) — ⏸ **CHỜ DUYỆT**
-- [ ] M2: Dự báo 30 ngày (01/01–30/01/2018) + ghi bảng `forecasts` — ⏸ chờ
-- [ ] M3: Tạo `docs/05-tham-khao/ket-qua-danh-gia-model.md` — ⏸ chờ
+- [x] M1: Chạy **100 cặp** trong 13,2 phút — Prophet RMSE 9,97 (thắng 97/100)
+- [x] M2: Dự báo 30 ngày (01/01–30/01/2018) → **3.000 dòng** trong bảng `forecasts`
+- [x] M3: `docs/05-tham-khao/ket-qua-danh-gia-model.md`
 - [ ] B1: Setup backend FastAPI
 - [ ] B2: Kết nối backend với database
 - [ ] T2: README con cho từng thư mục

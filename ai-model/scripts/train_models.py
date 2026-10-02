@@ -6,13 +6,20 @@ Mo hinh so sanh (dung 3 mo hinh da chot o Chuong 2):
     - XGBoost     : mo hinh chinh, su dung dac trung ngoai + feature importance
     - ARIMA       : mo hinh doi chung thong ke
 
-Cau hinh da chot (02/10/2026):
-    - Chia time-series 80/20: train 292 ngay dau, test 73 ngay cuoi.
-      KHONG chia ngau nhien: se bi ro ri du lieu tuong lai vao tap train.
+Cau hinh da chot (03/10/2026):
+    - Dung TOAN BO 5 nam du lieu (2013-2017) de Prophet uoc luong duoc mua
+      vu nam. Can it nhat 730 ngay, neu chi 1 nam Prophet bao loi va RMSE
+      tu 9,98 tang len 23,20.
+    - Chia theo moc NGAY 2017-10-01: train 1.734 ngay, test 92 ngay.
+      KHONG chia 80/20 va KHONG chia ngau nhien: tach ngay giu cac mua,
+      va ngau nhien se lam roi du lieu tuong lai vao tap train.
+    - Reindex chuoi ve dung 1.826 ngay lien tuc, ngay thieu duoc dien 0.
+      View v_daily_sales chi co dong cho ngay co phat sinh giao dich, nen
+      khong reindex thi cac ham lag/rolling se lech ngay va hoc sai.
     - Dung bo ngay le MY cho ca Prophet va XGBoost de so sanh cong bang.
       Luu y: day la du lieu Hoa Ky, khong phai Viet Nam.
-    - 8 nhom dac trung cho XGBoost: lag_1..7, lag_14, lag_28, roll_mean_7,
-      roll_mean_28, dow, month, is_weekend, trend.
+    - 15 dac trung cho XGBoost: lag_1..7, lag_14, lag_28, roll_mean_7,
+      roll_mean_28, dow, month, is_weekend, trend, is_holiday.
 
 Cach chay:
     # test 1 cap truoc
@@ -46,7 +53,6 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 # 10 san pham da chot - xem AGENTS.md
 PRODUCT_IDS = [45, 8, 15, 13, 25, 11, 28, 48, 38, 18]
 
-TRAIN_RATIO = 0.8
 FORECAST_HORIZON = 30
 
 # Moc chia tap: dung 5 nam du lieu (2013-2017) de Prophet uoc luong duoc
@@ -56,12 +62,19 @@ TEST_START_DATE = "2017-10-01"
 DATA_START = "2013-01-01"
 DATA_END = "2018-01-01"
 
-# Tham so Prophet da duyet qua grid search 18 bo tren du lieu 1 nam.
-# Sau khi chuyen sang 5 nam, mua vu nam se xac dinh duoc, nen giu nguyen
-# tham so da duyet de so sanh cong bang.
+# Tham so Prophet da duyet qua grid search 18 bo tren du lieu 5 NAM
+# (2013-2017) va CHON THEO TAP VALIDATION - xem tune_prophet.py
+# va ai-model/outputs/prophet_tuning_5y_p15_s1.csv.
+#
+#   cps 0,01 + additive           -> RMSE_val 10,60 | RMSE_test  9,92
+#   cps 0,5  + additive           -> RMSE_val 11,47 | RMSE_test  9,76  <- bien theo test = ro ri du lieu
+#   cps 0,01 + multiplicative + 20-> RMSE_val 10,49 | RMSE_test 10,23  <- CHON
+#
+# Khong chon bo co RMSE_test thap hon, vi chon tham so tren tap test la
+# ro ri du lieu: con so bao cao se khong con trung thuc.
 PROPHET_PARAMS = {
     "changepoint_prior_scale": 0.01,
-    "seasonality_mode": "additive",
+    "seasonality_mode": "multiplicative",
     "yearly_seasonality": 20,
 }
 

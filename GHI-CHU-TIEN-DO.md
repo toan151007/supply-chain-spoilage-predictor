@@ -27,7 +27,7 @@
 | B1/B2 — Backend | ⬜ Chưa làm | FastAPI + kết nối DB |
 | T2 — README con | ⬜ Chưa làm | |
 | Frontend React | ⬜ Chưa làm | |
-| AI Model | ⬜ Chưa làm | |
+| AI Model | ✅ Xong | M1 100 cặp · M2 3.000 dòng forecasts · M3 tài liệu |
 
 ---
 
@@ -150,8 +150,9 @@ Dữ liệu test đã `TRUNCATE`, DB sẵn sàng cho seed.
 | ~~D3~~ | ✅ Import Kaggle 2017 → 3.650 orders + 182.500 order_items | Xong |
 | **D4** | Seed `inventory` + `inventory_transactions` | ✅ Xong — xem mục 8d |
 | D5 | Chạy lại `fn_generate_inventory_alerts()` | ✅ Xong (đã gọi trong seed-inventory.sql) |
-| **M1** | Train 3 mô hình (Prophet / XGBoost / ARIMA) — 100 cặp | 🔴 Đang làm |
-| **M2** | Dự báo 30 ngày + ghi vào bảng `forecasts` | 🔴 Chờ M1 |
+| ~~M1~~ | Train 3 mô hình — 100 cặp | ✅ Xong — xem mục 8i |
+| ~~M2~~ | Dự báo 30 ngày + ghi bảng `forecasts` | ✅ Xong 3.000 dòng — xem mục 8i |
+| ~~M3~~ | Tài liệu đánh giá mô hình | ✅ Xong — xem mục 8i |
 | B1 | Setup backend FastAPI | 🟡 TB |
 | B2 | Kết nối backend với database (SQLAlchemy) | 🟡 TB |
 | T2 | README con cho từng thư mục | 🟢 Thấp |
@@ -528,7 +529,127 @@ Nếu không kiểm tra cảnh báo của Prophet và cứ giữ 1 năm, đồ �
 
 ---
 
-## 8h. Kết thúc phiên làm việc 03/10/2026
+## 8i. Hoàn thành M1 + M2 + M3 (03/10/2026 — phiên sau)
+
+### M1 — Chạy 100 cặp ✅
+
+**Lệnh:** `python ai-model/scripts/train_models.py --all` → **13,2 phút** (ước tính ban đầu 9 phút)
+
+**Sửa trước khi chạy:** `train_models.py` còn để `seasonality_mode="additive"` — lệch với config đã chốt trong AGENTS.md. Đã sửa thành `multiplicative`. Cũng xóa biến chết `TRAIN_RATIO = 0.8` và viết lại docstring cho đúng (5 năm, mốc `2017-10-01`, 15 đặc trưng).
+
+**Kết quả — KHÔNG cặp nào lỗi, không có cột NaN:**
+
+| Mô hình | RMSE | MAE | MAPE | RMSE min | RMSE max | SD |
+|---------|------|-----|------|----------|----------|-----|
+| **Prophet** | **9,97** | **7,94** | **10,43%** | 6,62 | 12,81 | 1,43 |
+| XGBoost | 10,98 | 8,77 | 11,69% | 7,39 | 15,14 | 1,70 |
+| ARIMA | 20,20 | 16,44 | 23,77% | 9,94 | 35,84 | 4,96 |
+
+**Số cặp thắng: Prophet 97 · XGBoost 3 · ARIMA 0**
+
+3 cặp XGBoost thắng: `(45,2)` · `(13,7)` · `(28,4)`
+
+#### 🔴 Kết quả đảo ngược kỳ vọng của Chương 2
+
+Chương 2 chốt **XGBoost = mô hình chính**. Kết quả thực tế: **Prophet thắng áp đảo 97/100**.
+
+| | Chương 2 dự kiến | Thực tế 100 cặp |
+|---|------------------|-----------------|
+| Mô hình chính | XGBoost | **Prophet** |
+| Đối chứng | Prophet, ARIMA | XGBoost, ARIMA |
+
+**Lý do:** XGBoost dựa trên `lag_1..lag_28`, rất mạnh ở chế độ one-step nhưng khi dự báo 30 ngày liên tục phải đệ quy → sai lệch tích luỹ. Prophet vốn là mô hình đa bước, có `yearly_seasonality` sẵn.
+
+Chênh lệch trung bình chỉ **1,02 RMSE**; ở **59/100 cặp** chênh lệch < 1,0 — tức dưới 1 sản phẩm/ngày trên quy mô bán ~1.000/ngày. Không đủ bù để bác bỏ Prophet.
+
+→ **Cần sửa Chương 2 mục phân vai trò mô hình**, hoặc giữ nguyên và giải thích rõ ở Chương 4 rằng kết quả thực nghiệm đã đảo ngược dự kiến ban đầu.
+
+### M2 — Dự báo 30 ngày + ghi bảng `forecasts` ✅
+
+**Script mới:** `ai-model/scripts/forecast_next_month.py`
+
+```powershell
+python ai-model/scripts/forecast_next_month.py --dry-run   # xem trước, không ghi
+python ai-model/scripts/forecast_next_month.py --replace   # xóa dữ liệu cũ rồi ghi
+```
+
+**Kết quả:** **3.000 dòng** trong bảng `forecasts` = 100 cặp × 30 ngày · 01/01/2018 → 30/01/2018 · horizon 1→30
+
+| model_name | Số dòng |
+|-----------|---------|
+| prophet | 2.910 |
+| xgboost | 90 |
+
+Thời gian: 1,7 phút.
+
+**Chỉ ghi model tốt nhất mỗi cặp** → 100 × 30 = 3.000, không phải 9.000 (9.000 sẽ là ghi cả 3 model cho mỗi cặp).
+
+#### Lỗi đã gặp
+
+| Lỗi | Nguyên nhân | Cách xử |
+|-----|-------------|----------|
+| `ValueError: If using all scalar values, you must pass an index` (97/100 cặp fail) | `pd.DataFrame({"ds": future_dates})` — truyền **cả DataFrame** vào dict. pandas 3.0 coi đây là giá trị scalar | Truyền **Series**: `pd.DataFrame({"ds": future_dates["sale_date"]})` |
+
+Lưu ý: `train_models.py` dùng `future["sale_date"]` (Series) nên chạy được. Chỉ script M2 mắc lỗi này.
+
+#### ⚠️ `recommended_import_qty` bị `max_stock` chặn 100/100 cặp
+
+| Chỉ số | Giá trị |
+|--------|---------|
+| Tổng nhu cầu dự báo 30 ngày | 191.582 |
+| Tổng tồn kho hiện tại | 11.304 |
+| **Tổng nhu cầu thuần** (chưa cap) | **232.397** |
+| **Tổng đề xuất nhập** (sau cap) | **7.286** |
+
+**Nguyên nhân:** seed data đặt `max_stock` trong khoảng **48–300**, nhưng nhu cầu thực tế của Kaggle là **861–2.793/ngày**. Tức `max_stock` chỉ tương đương **0,5–3 ngày bán**.
+
+**Đây là hạn chế của dữ liệu seed, KHÔNG phải lỗi mô hình dự báo.** Seed `inventory` được thiết kế như tồn kho cửa hàng nhỏ, không cùng thang đo với doanh thu Walmart.
+
+→ Đã thêm cột `raw_need` (nhu cầu chưa cap) vào `forecast_summary_30d.csv` để lưu vết. **Khi viết báo cáo phải nêu rõ hạn chế này**, nếu không số liệu `recommended_import_qty` sẽ gây hiểu nhầm là mô hình dự báo thiếu.
+
+#### Công thức `recommended_import_qty`
+
+```
+ngày d : MAX(0, nhu_cầu_tích_luỹ(d) + tồn_kho_an_toàn − tồn_hiện_tại)
+         MIN( với max_stock − tồn_hiện_tại )         ← chặn trên
+         MIN( với nhu_cầu_trong_hạn_sử_dụng )      ← chặn hạn
+
+tồn_kho_an_toàn = Σ (upper_bound − predicted) trên 30 ngày
+```
+
+Khoảng tin cậy 95%: Prophet lấy trực tiếp `yhat_lower/upper`; XGBoost dùng `±1,96 × RMSE(tap train)`; ARIMA dùng `±1,96 × σ(resid)`.
+
+**XGBoost dự báo ĐỆ QUY** — ngày N+1 dùng giá trị *dự báo* của ngày N cho đặc trưng lag. Dùng số thực tương lai sẽ là rò rỉ dữ liệu, RMSE đẹp giả.
+
+### M3 — Tài liệu đánh giá mô hình ✅
+
+**File:** `docs/05-tham-khao/ket-qua-danh-gia-model.md`
+
+Nội dung: phương pháp (time-series split theo mốc ngày, chọn tham số theo validation) · bảng so sánh 3 mô hình · số cặp thắng · 3 insight chính · hạn chế.
+
+**3 insight chính:**
+1. **Độ dài chuỗi quyết định thứ hạng, không phải thuật toán** — Prophet hạng 3 → hạng 1 nhờ thêm 4 năm dữ liệu, không đổi tham số
+2. **ARIMA không phù hợp khi chuỗi có mùa vụ mạnh** — `seasonal_order=(0,0,0,0)` không mô hình hóa được mùa vụ năm, RMSE gấp 2,02 lần
+3. **XGBoost có lợi thế ở chuỗi ngắn nhưng suy giảm khi dự báo xa** — đệ quy 30 ngày làm sai lệch tích luỹ
+
+### Bảng dữ liệu sau M2
+
+| Bảng | Số dòng |
+|------|---------|
+| categories | 8 |
+| stores | 10 |
+| products | 50 |
+| users | 3 |
+| orders | 18.260 |
+| order_items | 912.999 |
+| inventory | 1.330 |
+| inventory_transactions | 11.412 |
+| alerts | 518 |
+| **forecasts** | **3.000** ← mới |
+
+---
+
+## 8h. Kết thúc phiên làm việc 03/10/2026 (phiên trước)
 
 ### Trạng thái Git
 

@@ -133,3 +133,920 @@ NameError: name 'split' is not defined
 2026-10-02 23:47:18,439 | INFO |   xgboost : RMSE=    4.95  MAE=    3.96  MAPE= 27.33%  (0.9s)
 2026-10-02 23:47:19,369 | INFO |   arima   : RMSE=    6.57  MAE=    5.68  MAPE= 41.40%  (0.9s)
 2026-10-02 23:47:19,369 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=4.56)
+2026-10-03 00:30:29,210 | INFO | ============================================================
+2026-10-03 00:30:29,210 | INFO | Bat dau chay
+2026-10-03 00:31:41,776 | INFO | ============================================================
+2026-10-03 00:31:41,777 | INFO | Bat dau chay
+2026-10-03 00:31:42,390 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:31:42,391 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:31:42,391 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:31:42,744 | ERROR | Importing plotly failed. Interactive plots will not work.
+2026-10-03 00:31:50,080 | INFO | Chain [1] start processing
+2026-10-03 00:31:51,118 | INFO | Chain [1] done processing
+2026-10-03 00:31:51,398 | INFO |   prophet : RMSE=   10.30  MAE=    8.29  MAPE= 10.33%  (9.0s)
+2026-10-03 00:31:57,770 | INFO |   xgboost : RMSE=   10.91  MAE=    8.67  MAPE= 10.62%  (6.4s)
+2026-10-03 00:32:05,649 | INFO |   arima   : RMSE=   18.36  MAE=   15.37  MAPE= 20.65%  (7.9s)
+2026-10-03 00:32:05,650 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=10.30)
+2026-10-03 00:32:15,854 | INFO | ============================================================
+2026-10-03 00:32:15,854 | INFO | Bat dau chay
+2026-10-03 00:32:16,155 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:32:16,155 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:32:16,155 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:32:16,528 | ERROR | Importing plotly failed. Interactive plots will not work.
+2026-10-03 00:32:16,904 | INFO | Chain [1] start processing
+2026-10-03 00:32:17,037 | INFO | Chain [1] done processing
+2026-10-03 00:32:17,099 | INFO |   prophet : RMSE=    9.58  MAE=    7.60  MAPE= 10.85%  (0.9s)
+2026-10-03 00:32:20,547 | INFO |   xgboost : RMSE=   10.55  MAE=    8.49  MAPE= 12.04%  (3.4s)
+2026-10-03 00:32:27,561 | INFO |   arima   : RMSE=   18.45  MAE=   14.47  MAPE= 22.74%  (7.0s)
+2026-10-03 00:32:27,562 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=9.58)
+2026-10-03 00:32:27,617 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:32:27,618 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:32:27,619 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:32:28,355 | INFO | Chain [1] start processing
+2026-10-03 00:32:28,534 | INFO | Chain [1] done processing
+2026-10-03 00:32:28,781 | INFO |   prophet : RMSE=   12.63  MAE=   10.21  MAPE=  9.92%  (1.2s)
+2026-10-03 00:32:29,949 | INFO |   xgboost : RMSE=   12.36  MAE=    9.88  MAPE=  9.50%  (1.2s)
+2026-10-03 00:32:36,088 | INFO |   arima   : RMSE=   27.41  MAE=   22.04  MAPE= 23.71%  (6.1s)
+2026-10-03 00:32:36,089 | INFO |   -> MO HINH TOT NHAT: XGBOOST (RMSE=12.36)
+2026-10-03 00:32:36,143 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:32:36,145 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:32:36,145 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:32:36,885 | INFO | Chain [1] start processing
+2026-10-03 00:32:37,119 | INFO | Chain [1] done processing
+2026-10-03 00:32:37,263 | INFO |   prophet : RMSE=   12.15  MAE=    9.38  MAPE= 10.24%  (1.1s)
+2026-10-03 00:32:38,545 | INFO |   xgboost : RMSE=   12.69  MAE=    9.96  MAPE= 10.96%  (1.3s)
+2026-10-03 00:32:44,652 | INFO |   arima   : RMSE=   18.56  MAE=   15.11  MAPE= 17.82%  (6.1s)
+2026-10-03 00:32:44,653 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=12.15)
+2026-10-03 00:32:44,687 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:32:44,687 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:32:44,687 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:32:45,328 | INFO | Chain [1] start processing
+2026-10-03 00:32:45,547 | INFO | Chain [1] done processing
+2026-10-03 00:32:45,648 | INFO |   prophet : RMSE=   10.65  MAE=    8.67  MAPE= 10.48%  (1.0s)
+2026-10-03 00:32:46,943 | INFO |   xgboost : RMSE=   11.50  MAE=    9.10  MAPE= 11.26%  (1.3s)
+2026-10-03 00:32:52,904 | INFO |   arima   : RMSE=   23.61  MAE=   18.19  MAPE= 25.27%  (6.0s)
+2026-10-03 00:32:52,904 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=10.65)
+2026-10-03 00:32:52,942 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:32:52,944 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:32:52,944 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:32:53,563 | INFO | Chain [1] start processing
+2026-10-03 00:32:53,771 | INFO | Chain [1] done processing
+2026-10-03 00:32:53,876 | INFO |   prophet : RMSE=    8.39  MAE=    6.41  MAPE= 10.15%  (0.9s)
+2026-10-03 00:32:55,117 | INFO |   xgboost : RMSE=    9.70  MAE=    7.62  MAPE= 12.98%  (1.2s)
+2026-10-03 00:33:00,106 | INFO |   arima   : RMSE=   21.91  MAE=   17.87  MAPE= 33.64%  (5.0s)
+2026-10-03 00:33:00,106 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=8.39)
+2026-10-03 00:33:00,152 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:33:00,152 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:33:00,152 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:33:00,675 | INFO | Chain [1] start processing
+2026-10-03 00:33:00,854 | INFO | Chain [1] done processing
+2026-10-03 00:33:01,004 | INFO |   prophet : RMSE=    9.19  MAE=    7.24  MAPE= 12.12%  (0.9s)
+2026-10-03 00:33:02,243 | INFO |   xgboost : RMSE=    9.26  MAE=    7.44  MAPE= 12.47%  (1.2s)
+2026-10-03 00:33:08,065 | INFO |   arima   : RMSE=   21.22  MAE=   18.15  MAPE= 34.34%  (5.8s)
+2026-10-03 00:33:08,065 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=9.19)
+2026-10-03 00:33:08,103 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:33:08,104 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:33:08,104 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:33:08,719 | INFO | Chain [1] start processing
+2026-10-03 00:33:08,878 | INFO | Chain [1] done processing
+2026-10-03 00:33:08,980 | INFO |   prophet : RMSE=    8.68  MAE=    6.86  MAPE= 12.12%  (0.9s)
+2026-10-03 00:33:10,195 | INFO |   xgboost : RMSE=    9.10  MAE=    7.44  MAPE= 13.34%  (1.2s)
+2026-10-03 00:33:15,907 | INFO |   arima   : RMSE=   18.12  MAE=   14.81  MAPE= 30.44%  (5.7s)
+2026-10-03 00:33:15,907 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=8.68)
+2026-10-03 00:33:15,946 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:33:15,947 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:33:15,947 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:33:16,521 | INFO | Chain [1] start processing
+2026-10-03 00:33:16,653 | INFO | Chain [1] done processing
+2026-10-03 00:33:16,970 | INFO |   prophet : RMSE=   11.52  MAE=    9.15  MAPE=  9.61%  (1.0s)
+2026-10-03 00:33:18,243 | INFO |   xgboost : RMSE=   12.29  MAE=   10.05  MAPE= 10.59%  (1.3s)
+2026-10-03 00:33:23,744 | INFO |   arima   : RMSE=   25.34  MAE=   20.46  MAPE= 24.38%  (5.5s)
+2026-10-03 00:33:23,745 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=11.52)
+2026-10-03 00:33:23,779 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:33:23,780 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:33:23,780 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:33:24,371 | INFO | Chain [1] start processing
+2026-10-03 00:33:24,531 | INFO | Chain [1] done processing
+2026-10-03 00:33:24,620 | INFO |   prophet : RMSE=    9.93  MAE=    8.00  MAPE=  9.38%  (0.8s)
+2026-10-03 00:33:25,891 | INFO |   xgboost : RMSE=   11.47  MAE=    8.80  MAPE= 10.67%  (1.3s)
+2026-10-03 00:33:31,281 | INFO |   arima   : RMSE=   26.28  MAE=   20.92  MAPE= 28.44%  (5.4s)
+2026-10-03 00:33:31,281 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=9.93)
+2026-10-03 00:33:31,311 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:33:31,312 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:33:31,312 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:33:31,898 | INFO | Chain [1] start processing
+2026-10-03 00:33:32,021 | INFO | Chain [1] done processing
+2026-10-03 00:33:32,140 | INFO |   prophet : RMSE=   11.03  MAE=    8.92  MAPE=  9.99%  (0.8s)
+2026-10-03 00:33:33,404 | INFO |   xgboost : RMSE=   11.24  MAE=    8.87  MAPE=  9.82%  (1.3s)
+2026-10-03 00:33:38,883 | INFO |   arima   : RMSE=   21.25  MAE=   17.53  MAPE= 21.27%  (5.5s)
+2026-10-03 00:33:38,883 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=11.03)
+2026-10-03 00:33:38,936 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:33:38,936 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:33:38,936 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:33:39,554 | INFO | Chain [1] start processing
+2026-10-03 00:33:39,709 | INFO | Chain [1] done processing
+2026-10-03 00:33:39,833 | INFO |   prophet : RMSE=    9.57  MAE=    7.80  MAPE= 11.52%  (0.9s)
+2026-10-03 00:33:41,120 | INFO |   xgboost : RMSE=   10.80  MAE=    8.72  MAPE= 12.99%  (1.3s)
+2026-10-03 00:33:46,986 | INFO |   arima   : RMSE=   16.73  MAE=   13.92  MAPE= 22.13%  (5.9s)
+2026-10-03 00:33:46,986 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=9.57)
+2026-10-03 00:33:47,027 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:33:47,029 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:33:47,029 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:33:47,610 | INFO | Chain [1] start processing
+2026-10-03 00:33:47,779 | INFO | Chain [1] done processing
+2026-10-03 00:33:47,870 | INFO |   prophet : RMSE=   11.17  MAE=    9.05  MAPE=  8.80%  (0.8s)
+2026-10-03 00:33:49,088 | INFO |   xgboost : RMSE=   12.28  MAE=    9.88  MAPE= 10.34%  (1.2s)
+2026-10-03 00:33:54,452 | INFO |   arima   : RMSE=   21.14  MAE=   16.86  MAPE= 18.90%  (5.4s)
+2026-10-03 00:33:54,453 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=11.17)
+2026-10-03 00:33:54,499 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:33:54,499 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:33:54,499 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:33:55,402 | INFO | Chain [1] start processing
+2026-10-03 00:33:55,659 | INFO | Chain [1] done processing
+2026-10-03 00:33:55,881 | INFO |   prophet : RMSE=    9.70  MAE=    7.75  MAPE=  8.60%  (1.4s)
+2026-10-03 00:33:57,292 | INFO |   xgboost : RMSE=   12.56  MAE=   10.50  MAPE= 12.50%  (1.4s)
+2026-10-03 00:34:02,521 | INFO |   arima   : RMSE=   20.33  MAE=   16.10  MAPE= 20.80%  (5.2s)
+2026-10-03 00:34:02,521 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=9.70)
+2026-10-03 00:34:02,554 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:34:02,555 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:34:02,555 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:34:03,119 | INFO | Chain [1] start processing
+2026-10-03 00:34:03,362 | INFO | Chain [1] done processing
+2026-10-03 00:34:03,767 | INFO |   prophet : RMSE=   10.13  MAE=    8.35  MAPE= 10.21%  (1.2s)
+2026-10-03 00:34:04,991 | INFO |   xgboost : RMSE=   11.99  MAE=    9.99  MAPE= 12.43%  (1.2s)
+2026-10-03 00:34:10,734 | INFO |   arima   : RMSE=   22.22  MAE=   17.70  MAPE= 24.71%  (5.7s)
+2026-10-03 00:34:10,734 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=10.13)
+2026-10-03 00:34:10,781 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:34:10,782 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:34:10,782 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:34:11,449 | INFO | Chain [1] start processing
+2026-10-03 00:34:11,670 | INFO | Chain [1] done processing
+2026-10-03 00:34:11,992 | INFO |   prophet : RMSE=    8.69  MAE=    6.96  MAPE= 12.29%  (1.2s)
+2026-10-03 00:34:13,078 | INFO |   xgboost : RMSE=    9.72  MAE=    7.92  MAPE= 14.55%  (1.1s)
+2026-10-03 00:34:17,478 | INFO |   arima   : RMSE=   14.09  MAE=   11.61  MAPE= 22.26%  (4.4s)
+2026-10-03 00:34:17,478 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=8.69)
+2026-10-03 00:34:17,521 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:34:17,523 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:34:17,523 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:34:18,088 | INFO | Chain [1] start processing
+2026-10-03 00:34:18,238 | INFO | Chain [1] done processing
+2026-10-03 00:34:18,419 | INFO |   prophet : RMSE=    8.43  MAE=    6.42  MAPE= 10.95%  (0.9s)
+2026-10-03 00:34:19,503 | INFO |   xgboost : RMSE=    9.02  MAE=    6.79  MAPE= 11.55%  (1.1s)
+2026-10-03 00:34:24,858 | INFO |   arima   : RMSE=   13.72  MAE=   11.40  MAPE= 20.39%  (5.4s)
+2026-10-03 00:34:24,859 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=8.43)
+2026-10-03 00:34:24,899 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:34:24,901 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:34:24,902 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:34:25,683 | INFO | Chain [1] start processing
+2026-10-03 00:34:26,768 | INFO | Chain [1] done processing
+2026-10-03 00:34:26,909 | INFO |   prophet : RMSE=    8.01  MAE=    6.44  MAPE= 12.68%  (2.0s)
+2026-10-03 00:34:28,090 | INFO |   xgboost : RMSE=    8.52  MAE=    6.64  MAPE= 13.28%  (1.2s)
+2026-10-03 00:34:31,971 | INFO |   arima   : RMSE=   15.92  MAE=   13.02  MAPE= 28.23%  (3.9s)
+2026-10-03 00:34:31,972 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=8.01)
+2026-10-03 00:34:32,014 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:34:32,015 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:34:32,016 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:34:32,675 | INFO | Chain [1] start processing
+2026-10-03 00:34:32,921 | INFO | Chain [1] done processing
+2026-10-03 00:34:33,092 | INFO |   prophet : RMSE=   11.08  MAE=    8.92  MAPE=  8.99%  (1.1s)
+2026-10-03 00:34:34,376 | INFO |   xgboost : RMSE=   12.03  MAE=    9.78  MAPE= 10.09%  (1.3s)
+2026-10-03 00:34:40,849 | INFO |   arima   : RMSE=   24.89  MAE=   20.43  MAPE= 24.23%  (6.5s)
+2026-10-03 00:34:40,850 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=11.08)
+2026-10-03 00:34:40,907 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:34:40,909 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:34:40,909 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:34:41,663 | INFO | Chain [1] start processing
+2026-10-03 00:34:41,861 | INFO | Chain [1] done processing
+2026-10-03 00:34:42,052 | INFO |   prophet : RMSE=    9.59  MAE=    7.52  MAPE=  9.03%  (1.1s)
+2026-10-03 00:34:43,695 | INFO |   xgboost : RMSE=    9.93  MAE=    7.86  MAPE=  9.61%  (1.6s)
+2026-10-03 00:34:49,546 | INFO |   arima   : RMSE=   18.23  MAE=   14.75  MAPE= 20.02%  (5.9s)
+2026-10-03 00:34:49,546 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=9.59)
+2026-10-03 00:34:49,583 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:34:49,585 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:34:49,585 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:34:50,269 | INFO | Chain [1] start processing
+2026-10-03 00:34:50,446 | INFO | Chain [1] done processing
+2026-10-03 00:34:50,664 | INFO |   prophet : RMSE=   11.16  MAE=    8.66  MAPE= 10.07%  (1.1s)
+2026-10-03 00:34:52,111 | INFO |   xgboost : RMSE=   12.96  MAE=   10.43  MAPE= 12.59%  (1.4s)
+2026-10-03 00:34:59,064 | INFO |   arima   : RMSE=   31.69  MAE=   26.11  MAPE= 35.02%  (7.0s)
+2026-10-03 00:34:59,064 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=11.16)
+2026-10-03 00:34:59,096 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:34:59,098 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:34:59,098 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:34:59,779 | INFO | Chain [1] start processing
+2026-10-03 00:35:00,018 | INFO | Chain [1] done processing
+2026-10-03 00:35:00,258 | INFO |   prophet : RMSE=   10.30  MAE=    8.29  MAPE= 10.33%  (1.2s)
+2026-10-03 00:35:01,797 | INFO |   xgboost : RMSE=   10.91  MAE=    8.67  MAPE= 10.62%  (1.5s)
+2026-10-03 00:35:09,283 | INFO |   arima   : RMSE=   18.36  MAE=   15.37  MAPE= 20.65%  (7.5s)
+2026-10-03 00:35:09,283 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=10.30)
+2026-10-03 00:35:09,336 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:35:09,337 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:35:09,337 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:35:10,101 | INFO | Chain [1] start processing
+2026-10-03 00:35:10,248 | INFO | Chain [1] done processing
+2026-10-03 00:35:10,583 | INFO |   prophet : RMSE=   10.91  MAE=    8.72  MAPE=  7.67%  (1.2s)
+2026-10-03 00:35:12,142 | INFO |   xgboost : RMSE=   12.57  MAE=    9.84  MAPE=  8.91%  (1.6s)
+2026-10-03 00:35:18,603 | INFO |   arima   : RMSE=   23.39  MAE=   18.83  MAPE= 18.07%  (6.5s)
+2026-10-03 00:35:18,604 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=10.91)
+2026-10-03 00:35:18,678 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:35:18,680 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:35:18,680 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:35:19,424 | INFO | Chain [1] start processing
+2026-10-03 00:35:19,634 | INFO | Chain [1] done processing
+2026-10-03 00:35:19,789 | INFO |   prophet : RMSE=   12.09  MAE=    9.66  MAPE=  9.39%  (1.1s)
+2026-10-03 00:35:21,321 | INFO |   xgboost : RMSE=   13.78  MAE=   10.93  MAPE= 11.09%  (1.5s)
+2026-10-03 00:35:28,011 | INFO |   arima   : RMSE=   23.24  MAE=   19.80  MAPE= 20.48%  (6.7s)
+2026-10-03 00:35:28,012 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=12.09)
+2026-10-03 00:35:28,050 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:35:28,051 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:35:28,052 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:35:28,633 | INFO | Chain [1] start processing
+2026-10-03 00:35:28,827 | INFO | Chain [1] done processing
+2026-10-03 00:35:29,177 | INFO |   prophet : RMSE=   10.22  MAE=    8.15  MAPE=  8.18%  (1.1s)
+2026-10-03 00:35:30,464 | INFO |   xgboost : RMSE=   11.11  MAE=    8.32  MAPE=  8.84%  (1.3s)
+2026-10-03 00:35:35,886 | INFO |   arima   : RMSE=   23.83  MAE=   18.68  MAPE= 22.70%  (5.4s)
+2026-10-03 00:35:35,887 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=10.22)
+2026-10-03 00:35:35,939 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:35:35,941 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:35:35,941 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:35:36,628 | INFO | Chain [1] start processing
+2026-10-03 00:35:36,785 | INFO | Chain [1] done processing
+2026-10-03 00:35:36,917 | INFO |   prophet : RMSE=    9.78  MAE=    7.89  MAPE= 11.47%  (1.0s)
+2026-10-03 00:35:38,213 | INFO |   xgboost : RMSE=   10.45  MAE=    8.21  MAPE= 11.81%  (1.3s)
+2026-10-03 00:35:46,163 | INFO |   arima   : RMSE=   13.60  MAE=   11.04  MAPE= 16.31%  (7.9s)
+2026-10-03 00:35:46,164 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=9.78)
+2026-10-03 00:35:46,214 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:35:46,216 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:35:46,216 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:35:46,898 | INFO | Chain [1] start processing
+2026-10-03 00:35:47,041 | INFO | Chain [1] done processing
+2026-10-03 00:35:47,127 | INFO |   prophet : RMSE=    9.40  MAE=    7.75  MAPE= 12.26%  (0.9s)
+2026-10-03 00:35:48,393 | INFO |   xgboost : RMSE=   11.35  MAE=    9.08  MAPE= 14.77%  (1.3s)
+2026-10-03 00:35:54,560 | INFO |   arima   : RMSE=   21.30  MAE=   17.36  MAPE= 30.67%  (6.2s)
+2026-10-03 00:35:54,561 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=9.40)
+2026-10-03 00:35:54,609 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:35:54,611 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:35:54,611 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:35:55,263 | INFO | Chain [1] start processing
+2026-10-03 00:35:55,571 | INFO | Chain [1] done processing
+2026-10-03 00:35:55,658 | INFO |   prophet : RMSE=    7.69  MAE=    6.14  MAPE= 10.26%  (1.0s)
+2026-10-03 00:35:56,925 | INFO |   xgboost : RMSE=    8.30  MAE=    6.52  MAPE= 10.67%  (1.3s)
+2026-10-03 00:36:02,046 | INFO |   arima   : RMSE=   17.10  MAE=   13.76  MAPE= 26.09%  (5.1s)
+2026-10-03 00:36:02,047 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=7.69)
+2026-10-03 00:36:02,093 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:36:02,095 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:36:02,095 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:36:02,744 | INFO | Chain [1] start processing
+2026-10-03 00:36:02,921 | INFO | Chain [1] done processing
+2026-10-03 00:36:03,009 | INFO |   prophet : RMSE=   11.80  MAE=    9.59  MAPE=  8.75%  (0.9s)
+2026-10-03 00:36:04,313 | INFO |   xgboost : RMSE=   13.30  MAE=   10.63  MAPE=  9.67%  (1.3s)
+2026-10-03 00:36:11,207 | INFO |   arima   : RMSE=   24.57  MAE=   20.06  MAPE= 20.48%  (6.9s)
+2026-10-03 00:36:11,207 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=11.80)
+2026-10-03 00:36:11,256 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:36:11,257 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:36:11,258 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:36:11,919 | INFO | Chain [1] start processing
+2026-10-03 00:36:12,081 | INFO | Chain [1] done processing
+2026-10-03 00:36:12,245 | INFO |   prophet : RMSE=   11.20  MAE=    8.86  MAPE=  9.13%  (1.0s)
+2026-10-03 00:36:13,518 | INFO |   xgboost : RMSE=   12.93  MAE=   10.63  MAPE= 11.27%  (1.3s)
+2026-10-03 00:36:19,556 | INFO |   arima   : RMSE=   26.46  MAE=   21.46  MAPE= 26.06%  (6.0s)
+2026-10-03 00:36:19,557 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=11.20)
+2026-10-03 00:36:19,597 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:36:19,599 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:36:19,599 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:36:20,281 | INFO | Chain [1] start processing
+2026-10-03 00:36:20,506 | INFO | Chain [1] done processing
+2026-10-03 00:36:20,642 | INFO |   prophet : RMSE=   11.80  MAE=    9.51  MAPE=  9.34%  (1.0s)
+2026-10-03 00:36:21,945 | INFO |   xgboost : RMSE=   11.90  MAE=    9.39  MAPE=  9.42%  (1.3s)
+2026-10-03 00:36:28,405 | INFO |   arima   : RMSE=   21.70  MAE=   17.53  MAPE= 19.36%  (6.5s)
+2026-10-03 00:36:28,405 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=11.80)
+2026-10-03 00:36:28,440 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:36:28,441 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:36:28,441 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:36:29,138 | INFO | Chain [1] start processing
+2026-10-03 00:36:29,351 | INFO | Chain [1] done processing
+2026-10-03 00:36:29,485 | INFO |   prophet : RMSE=   10.08  MAE=    8.13  MAPE= 10.90%  (1.0s)
+2026-10-03 00:36:30,770 | INFO |   xgboost : RMSE=   11.00  MAE=    8.49  MAPE= 11.21%  (1.3s)
+2026-10-03 00:36:37,845 | INFO |   arima   : RMSE=   18.52  MAE=   15.41  MAPE= 22.58%  (7.1s)
+2026-10-03 00:36:37,845 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=10.08)
+2026-10-03 00:36:37,888 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:36:37,890 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:36:37,890 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:36:38,534 | INFO | Chain [1] start processing
+2026-10-03 00:36:38,655 | INFO | Chain [1] done processing
+2026-10-03 00:36:38,791 | INFO |   prophet : RMSE=   11.12  MAE=    8.88  MAPE=  8.57%  (0.9s)
+2026-10-03 00:36:40,093 | INFO |   xgboost : RMSE=   11.87  MAE=    9.52  MAPE=  9.20%  (1.3s)
+2026-10-03 00:36:46,020 | INFO |   arima   : RMSE=   24.90  MAE=   20.12  MAPE= 21.16%  (5.9s)
+2026-10-03 00:36:46,020 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=11.12)
+2026-10-03 00:36:46,065 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:36:46,066 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:36:46,066 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:36:46,715 | INFO | Chain [1] start processing
+2026-10-03 00:36:46,876 | INFO | Chain [1] done processing
+2026-10-03 00:36:46,999 | INFO |   prophet : RMSE=   11.11  MAE=    8.58  MAPE=  9.12%  (0.9s)
+2026-10-03 00:36:48,301 | INFO |   xgboost : RMSE=   12.39  MAE=    9.77  MAPE= 10.47%  (1.3s)
+2026-10-03 00:36:53,940 | INFO |   arima   : RMSE=   21.58  MAE=   18.07  MAPE= 20.43%  (5.6s)
+2026-10-03 00:36:53,940 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=11.11)
+2026-10-03 00:36:53,982 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:36:53,982 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:36:53,983 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:36:54,561 | INFO | Chain [1] start processing
+2026-10-03 00:36:54,705 | INFO | Chain [1] done processing
+2026-10-03 00:36:54,835 | INFO |   prophet : RMSE=   10.19  MAE=    8.08  MAPE=  9.26%  (0.9s)
+2026-10-03 00:36:56,161 | INFO |   xgboost : RMSE=   11.97  MAE=    9.34  MAPE= 10.43%  (1.3s)
+2026-10-03 00:37:02,970 | INFO |   arima   : RMSE=   19.23  MAE=   15.96  MAPE= 18.04%  (6.8s)
+2026-10-03 00:37:02,970 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=10.19)
+2026-10-03 00:37:03,002 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:37:03,003 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:37:03,003 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:37:03,633 | INFO | Chain [1] start processing
+2026-10-03 00:37:03,883 | INFO | Chain [1] done processing
+2026-10-03 00:37:04,049 | INFO |   prophet : RMSE=   10.43  MAE=    8.68  MAPE= 13.65%  (1.0s)
+2026-10-03 00:37:05,255 | INFO |   xgboost : RMSE=   11.06  MAE=    8.91  MAPE= 13.94%  (1.2s)
+2026-10-03 00:37:11,115 | INFO |   arima   : RMSE=   17.00  MAE=   13.98  MAPE= 24.73%  (5.9s)
+2026-10-03 00:37:11,116 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=10.43)
+2026-10-03 00:37:11,152 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:37:11,154 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:37:11,154 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:37:11,814 | INFO | Chain [1] start processing
+2026-10-03 00:37:11,983 | INFO | Chain [1] done processing
+2026-10-03 00:37:12,074 | INFO |   prophet : RMSE=    9.63  MAE=    8.03  MAPE= 12.30%  (0.9s)
+2026-10-03 00:37:13,322 | INFO |   xgboost : RMSE=   10.42  MAE=    8.36  MAPE= 12.88%  (1.2s)
+2026-10-03 00:37:18,156 | INFO |   arima   : RMSE=   20.95  MAE=   17.51  MAPE= 30.68%  (4.8s)
+2026-10-03 00:37:18,156 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=9.63)
+2026-10-03 00:37:18,193 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:37:18,194 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:37:18,195 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:37:18,839 | INFO | Chain [1] start processing
+2026-10-03 00:37:18,985 | INFO | Chain [1] done processing
+2026-10-03 00:37:19,306 | INFO |   prophet : RMSE=    9.17  MAE=    7.83  MAPE= 13.83%  (1.1s)
+2026-10-03 00:37:20,597 | INFO |   xgboost : RMSE=    8.13  MAE=    6.55  MAPE= 11.40%  (1.3s)
+2026-10-03 00:37:27,003 | INFO |   arima   : RMSE=   15.56  MAE=   12.82  MAPE= 25.17%  (6.4s)
+2026-10-03 00:37:27,004 | INFO |   -> MO HINH TOT NHAT: XGBOOST (RMSE=8.13)
+2026-10-03 00:37:27,039 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:37:27,040 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:37:27,040 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:37:27,656 | INFO | Chain [1] start processing
+2026-10-03 00:37:27,823 | INFO | Chain [1] done processing
+2026-10-03 00:37:27,918 | INFO |   prophet : RMSE=   11.64  MAE=    9.10  MAPE=  8.94%  (0.9s)
+2026-10-03 00:37:29,185 | INFO |   xgboost : RMSE=   13.00  MAE=   10.39  MAPE= 10.07%  (1.3s)
+2026-10-03 00:37:34,502 | INFO |   arima   : RMSE=   23.92  MAE=   19.78  MAPE= 20.90%  (5.3s)
+2026-10-03 00:37:34,503 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=11.64)
+2026-10-03 00:37:34,546 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:37:34,547 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:37:34,547 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:37:35,171 | INFO | Chain [1] start processing
+2026-10-03 00:37:35,309 | INFO | Chain [1] done processing
+2026-10-03 00:37:35,394 | INFO |   prophet : RMSE=   10.27  MAE=    8.39  MAPE=  9.84%  (0.8s)
+2026-10-03 00:37:36,677 | INFO |   xgboost : RMSE=   13.26  MAE=   10.75  MAPE= 12.85%  (1.3s)
+2026-10-03 00:37:42,423 | INFO |   arima   : RMSE=   32.64  MAE=   27.26  MAPE= 35.21%  (5.7s)
+2026-10-03 00:37:42,423 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=10.27)
+2026-10-03 00:37:42,471 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:37:42,473 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:37:42,473 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:37:43,136 | INFO | Chain [1] start processing
+2026-10-03 00:37:43,313 | INFO | Chain [1] done processing
+2026-10-03 00:37:43,407 | INFO |   prophet : RMSE=   10.13  MAE=    7.98  MAPE=  8.15%  (0.9s)
+2026-10-03 00:37:44,678 | INFO |   xgboost : RMSE=   11.52  MAE=    9.18  MAPE=  9.59%  (1.3s)
+2026-10-03 00:37:50,719 | INFO |   arima   : RMSE=   28.04  MAE=   22.78  MAPE= 26.81%  (6.0s)
+2026-10-03 00:37:50,720 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=10.13)
+2026-10-03 00:37:50,758 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:37:50,759 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:37:50,759 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:37:51,360 | INFO | Chain [1] start processing
+2026-10-03 00:37:51,506 | INFO | Chain [1] done processing
+2026-10-03 00:37:51,614 | INFO |   prophet : RMSE=    9.70  MAE=    7.86  MAPE= 10.70%  (0.9s)
+2026-10-03 00:37:52,884 | INFO |   xgboost : RMSE=   10.26  MAE=    8.55  MAPE= 11.94%  (1.3s)
+2026-10-03 00:37:58,508 | INFO |   arima   : RMSE=   16.14  MAE=   13.10  MAPE= 19.35%  (5.6s)
+2026-10-03 00:37:58,509 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=9.70)
+2026-10-03 00:37:58,548 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:37:58,550 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:37:58,550 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:37:59,201 | INFO | Chain [1] start processing
+2026-10-03 00:37:59,371 | INFO | Chain [1] done processing
+2026-10-03 00:37:59,496 | INFO |   prophet : RMSE=   12.81  MAE=   10.67  MAPE= 10.03%  (0.9s)
+2026-10-03 00:38:00,760 | INFO |   xgboost : RMSE=   15.14  MAE=   12.17  MAPE= 11.98%  (1.3s)
+2026-10-03 00:38:07,051 | INFO |   arima   : RMSE=   26.42  MAE=   21.36  MAPE= 23.25%  (6.3s)
+2026-10-03 00:38:07,051 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=12.81)
+2026-10-03 00:38:07,086 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:38:07,087 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:38:07,087 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:38:07,717 | INFO | Chain [1] start processing
+2026-10-03 00:38:07,914 | INFO | Chain [1] done processing
+2026-10-03 00:38:08,038 | INFO |   prophet : RMSE=    9.82  MAE=    7.95  MAPE=  8.89%  (1.0s)
+2026-10-03 00:38:09,145 | INFO |   xgboost : RMSE=   11.33  MAE=    9.11  MAPE= 10.42%  (1.1s)
+2026-10-03 00:38:14,505 | INFO |   arima   : RMSE=   19.32  MAE=   15.87  MAPE= 19.03%  (5.4s)
+2026-10-03 00:38:14,505 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=9.82)
+2026-10-03 00:38:14,543 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:38:14,544 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:38:14,544 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:38:15,048 | INFO | Chain [1] start processing
+2026-10-03 00:38:15,232 | INFO | Chain [1] done processing
+2026-10-03 00:38:15,374 | INFO |   prophet : RMSE=   11.12  MAE=    8.87  MAPE= 10.32%  (0.8s)
+2026-10-03 00:38:16,472 | INFO |   xgboost : RMSE=   11.60  MAE=    9.03  MAPE= 10.89%  (1.1s)
+2026-10-03 00:38:20,858 | INFO |   arima   : RMSE=   19.44  MAE=   15.70  MAPE= 20.48%  (4.4s)
+2026-10-03 00:38:20,859 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=11.12)
+2026-10-03 00:38:20,890 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:38:20,890 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:38:20,890 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:38:21,425 | INFO | Chain [1] start processing
+2026-10-03 00:38:21,616 | INFO | Chain [1] done processing
+2026-10-03 00:38:21,745 | INFO |   prophet : RMSE=    8.92  MAE=    7.02  MAPE= 12.00%  (0.9s)
+2026-10-03 00:38:22,878 | INFO |   xgboost : RMSE=   10.66  MAE=    8.26  MAPE= 15.16%  (1.1s)
+2026-10-03 00:38:28,383 | INFO |   arima   : RMSE=   18.92  MAE=   15.29  MAPE= 30.23%  (5.5s)
+2026-10-03 00:38:28,383 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=8.92)
+2026-10-03 00:38:28,421 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:38:28,422 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:38:28,422 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:38:28,932 | INFO | Chain [1] start processing
+2026-10-03 00:38:29,155 | INFO | Chain [1] done processing
+2026-10-03 00:38:29,267 | INFO |   prophet : RMSE=    8.37  MAE=    6.15  MAPE=  9.90%  (0.8s)
+2026-10-03 00:38:30,411 | INFO |   xgboost : RMSE=    9.24  MAE=    6.96  MAPE= 10.98%  (1.1s)
+2026-10-03 00:38:35,612 | INFO |   arima   : RMSE=   15.09  MAE=   12.15  MAPE= 22.10%  (5.2s)
+2026-10-03 00:38:35,613 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=8.37)
+2026-10-03 00:38:35,645 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:38:35,647 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:38:35,647 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:38:36,209 | INFO | Chain [1] start processing
+2026-10-03 00:38:36,399 | INFO | Chain [1] done processing
+2026-10-03 00:38:36,501 | INFO |   prophet : RMSE=    8.61  MAE=    6.96  MAPE= 12.46%  (0.9s)
+2026-10-03 00:38:37,747 | INFO |   xgboost : RMSE=    9.48  MAE=    7.70  MAPE= 13.61%  (1.2s)
+2026-10-03 00:38:42,822 | INFO |   arima   : RMSE=   15.76  MAE=   12.95  MAPE= 26.35%  (5.1s)
+2026-10-03 00:38:42,822 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=8.61)
+2026-10-03 00:38:42,858 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:38:42,859 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:38:42,859 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:38:43,401 | INFO | Chain [1] start processing
+2026-10-03 00:38:43,583 | INFO | Chain [1] done processing
+2026-10-03 00:38:43,695 | INFO |   prophet : RMSE=   10.78  MAE=    8.28  MAPE=  8.33%  (0.8s)
+2026-10-03 00:38:44,994 | INFO |   xgboost : RMSE=   12.64  MAE=    9.70  MAPE= 10.11%  (1.3s)
+2026-10-03 00:38:51,000 | INFO |   arima   : RMSE=   23.00  MAE=   18.64  MAPE= 21.09%  (6.0s)
+2026-10-03 00:38:51,000 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=10.78)
+2026-10-03 00:38:51,035 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:38:51,036 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:38:51,036 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:38:51,622 | INFO | Chain [1] start processing
+2026-10-03 00:38:51,845 | INFO | Chain [1] done processing
+2026-10-03 00:38:51,936 | INFO |   prophet : RMSE=   11.57  MAE=    9.16  MAPE= 10.70%  (0.9s)
+2026-10-03 00:38:53,133 | INFO |   xgboost : RMSE=   12.09  MAE=    9.91  MAPE= 11.65%  (1.2s)
+2026-10-03 00:38:58,313 | INFO |   arima   : RMSE=   21.70  MAE=   17.49  MAPE= 23.15%  (5.2s)
+2026-10-03 00:38:58,314 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=11.57)
+2026-10-03 00:38:58,365 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:38:58,366 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:38:58,367 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:38:58,967 | INFO | Chain [1] start processing
+2026-10-03 00:38:59,123 | INFO | Chain [1] done processing
+2026-10-03 00:38:59,234 | INFO |   prophet : RMSE=   11.26  MAE=    9.13  MAPE= 10.50%  (0.9s)
+2026-10-03 00:39:00,613 | INFO |   xgboost : RMSE=   12.84  MAE=   10.27  MAPE= 11.89%  (1.4s)
+2026-10-03 00:39:05,143 | INFO |   arima   : RMSE=   22.09  MAE=   18.58  MAPE= 23.23%  (4.5s)
+2026-10-03 00:39:05,143 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=11.26)
+2026-10-03 00:39:05,183 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:39:05,184 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:39:05,184 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:39:05,771 | INFO | Chain [1] start processing
+2026-10-03 00:39:05,913 | INFO | Chain [1] done processing
+2026-10-03 00:39:06,005 | INFO |   prophet : RMSE=    9.36  MAE=    7.46  MAPE= 12.23%  (0.8s)
+2026-10-03 00:39:07,245 | INFO |   xgboost : RMSE=    9.75  MAE=    7.71  MAPE= 12.55%  (1.2s)
+2026-10-03 00:39:11,652 | INFO |   arima   : RMSE=   17.22  MAE=   14.12  MAPE= 25.23%  (4.4s)
+2026-10-03 00:39:11,652 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=9.36)
+2026-10-03 00:39:11,689 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:39:11,691 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:39:11,691 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:39:12,255 | INFO | Chain [1] start processing
+2026-10-03 00:39:12,421 | INFO | Chain [1] done processing
+2026-10-03 00:39:12,503 | INFO |   prophet : RMSE=   10.48  MAE=    7.90  MAPE=  9.24%  (0.8s)
+2026-10-03 00:39:13,726 | INFO |   xgboost : RMSE=   11.20  MAE=    8.54  MAPE= 10.12%  (1.2s)
+2026-10-03 00:39:19,550 | INFO |   arima   : RMSE=   23.74  MAE=   18.23  MAPE= 23.97%  (5.8s)
+2026-10-03 00:39:19,551 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=10.48)
+2026-10-03 00:39:19,596 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:39:19,597 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:39:19,597 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:39:20,199 | INFO | Chain [1] start processing
+2026-10-03 00:39:20,399 | INFO | Chain [1] done processing
+2026-10-03 00:39:20,555 | INFO |   prophet : RMSE=    9.81  MAE=    7.91  MAPE=  9.66%  (1.0s)
+2026-10-03 00:39:21,797 | INFO |   xgboost : RMSE=   11.48  MAE=    8.95  MAPE= 11.25%  (1.2s)
+2026-10-03 00:39:27,461 | INFO |   arima   : RMSE=   18.51  MAE=   14.74  MAPE= 20.75%  (5.7s)
+2026-10-03 00:39:27,461 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=9.81)
+2026-10-03 00:39:27,506 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:39:27,508 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:39:27,508 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:39:28,062 | INFO | Chain [1] start processing
+2026-10-03 00:39:28,236 | INFO | Chain [1] done processing
+2026-10-03 00:39:28,331 | INFO |   prophet : RMSE=   10.20  MAE=    8.36  MAPE= 11.03%  (0.8s)
+2026-10-03 00:39:29,434 | INFO |   xgboost : RMSE=   10.71  MAE=    8.80  MAPE= 12.05%  (1.1s)
+2026-10-03 00:39:34,781 | INFO |   arima   : RMSE=   19.60  MAE=   15.86  MAPE= 23.72%  (5.3s)
+2026-10-03 00:39:34,782 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=10.20)
+2026-10-03 00:39:34,811 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:39:34,812 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:39:34,812 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:39:35,336 | INFO | Chain [1] start processing
+2026-10-03 00:39:35,502 | INFO | Chain [1] done processing
+2026-10-03 00:39:35,636 | INFO |   prophet : RMSE=    7.67  MAE=    6.26  MAPE= 11.95%  (0.8s)
+2026-10-03 00:39:36,806 | INFO |   xgboost : RMSE=    8.61  MAE=    7.27  MAPE= 14.18%  (1.2s)
+2026-10-03 00:39:42,091 | INFO |   arima   : RMSE=   13.75  MAE=   10.97  MAPE= 24.26%  (5.3s)
+2026-10-03 00:39:42,091 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=7.67)
+2026-10-03 00:39:42,135 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:39:42,137 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:39:42,137 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:39:42,801 | INFO | Chain [1] start processing
+2026-10-03 00:39:42,984 | INFO | Chain [1] done processing
+2026-10-03 00:39:43,287 | INFO |   prophet : RMSE=    8.39  MAE=    6.72  MAPE= 13.11%  (1.1s)
+2026-10-03 00:39:44,467 | INFO |   xgboost : RMSE=    9.51  MAE=    7.63  MAPE= 14.63%  (1.2s)
+2026-10-03 00:39:50,277 | INFO |   arima   : RMSE=   14.21  MAE=   11.55  MAPE= 25.41%  (5.8s)
+2026-10-03 00:39:50,277 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=8.39)
+2026-10-03 00:39:50,319 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:39:50,321 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:39:50,321 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:39:50,901 | INFO | Chain [1] start processing
+2026-10-03 00:39:51,092 | INFO | Chain [1] done processing
+2026-10-03 00:39:51,220 | INFO |   prophet : RMSE=    7.89  MAE=    6.10  MAPE= 12.35%  (0.9s)
+2026-10-03 00:39:52,416 | INFO |   xgboost : RMSE=    8.07  MAE=    6.51  MAPE= 13.18%  (1.2s)
+2026-10-03 00:39:58,321 | INFO |   arima   : RMSE=   14.34  MAE=   11.68  MAPE= 27.57%  (5.9s)
+2026-10-03 00:39:58,321 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=7.89)
+2026-10-03 00:39:58,364 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:39:58,365 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:39:58,365 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:39:58,951 | INFO | Chain [1] start processing
+2026-10-03 00:39:59,172 | INFO | Chain [1] done processing
+2026-10-03 00:39:59,269 | INFO |   prophet : RMSE=    9.72  MAE=    7.78  MAPE=  8.86%  (0.9s)
+2026-10-03 00:40:00,558 | INFO |   xgboost : RMSE=   10.80  MAE=    8.66  MAPE=  9.56%  (1.3s)
+2026-10-03 00:40:06,309 | INFO |   arima   : RMSE=   18.24  MAE=   15.44  MAPE= 18.24%  (5.8s)
+2026-10-03 00:40:06,309 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=9.72)
+2026-10-03 00:40:06,357 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:40:06,358 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:40:06,359 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:40:06,742 | INFO | Chain [1] start processing
+2026-10-03 00:40:06,916 | INFO | Chain [1] done processing
+2026-10-03 00:40:06,969 | INFO |   prophet : RMSE=    9.48  MAE=    7.42  MAPE=  9.68%  (0.6s)
+2026-10-03 00:40:07,352 | INFO |   xgboost : RMSE=    9.92  MAE=    7.60  MAPE=  9.93%  (0.4s)
+2026-10-03 00:40:10,116 | INFO |   arima   : RMSE=   15.18  MAE=   12.36  MAPE= 17.06%  (2.8s)
+2026-10-03 00:40:10,116 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=9.48)
+2026-10-03 00:40:10,157 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:40:10,158 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:40:10,159 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:40:10,831 | INFO | Chain [1] start processing
+2026-10-03 00:40:11,007 | INFO | Chain [1] done processing
+2026-10-03 00:40:11,214 | INFO |   prophet : RMSE=   10.29  MAE=    8.20  MAPE= 10.00%  (1.1s)
+2026-10-03 00:40:12,392 | INFO |   xgboost : RMSE=   10.50  MAE=    8.34  MAPE= 10.04%  (1.2s)
+2026-10-03 00:40:17,849 | INFO |   arima   : RMSE=   17.85  MAE=   14.54  MAPE= 19.79%  (5.5s)
+2026-10-03 00:40:17,849 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=10.29)
+2026-10-03 00:40:17,884 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:40:17,885 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:40:17,885 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:40:18,494 | INFO | Chain [1] start processing
+2026-10-03 00:40:18,641 | INFO | Chain [1] done processing
+2026-10-03 00:40:18,947 | INFO |   prophet : RMSE=   10.64  MAE=    7.95  MAPE=  9.51%  (1.1s)
+2026-10-03 00:40:20,189 | INFO |   xgboost : RMSE=   11.21  MAE=    8.41  MAPE= 10.23%  (1.2s)
+2026-10-03 00:40:25,638 | INFO |   arima   : RMSE=   20.61  MAE=   16.18  MAPE= 22.60%  (5.4s)
+2026-10-03 00:40:25,638 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=10.64)
+2026-10-03 00:40:25,677 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:40:25,678 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:40:25,678 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:40:26,207 | INFO | Chain [1] start processing
+2026-10-03 00:40:26,392 | INFO | Chain [1] done processing
+2026-10-03 00:40:26,559 | INFO |   prophet : RMSE=   11.33  MAE=    9.54  MAPE=  8.43%  (0.9s)
+2026-10-03 00:40:27,692 | INFO |   xgboost : RMSE=   14.54  MAE=   12.10  MAPE= 11.15%  (1.1s)
+2026-10-03 00:40:33,066 | INFO |   arima   : RMSE=   35.84  MAE=   28.45  MAPE= 29.50%  (5.4s)
+2026-10-03 00:40:33,066 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=11.33)
+2026-10-03 00:40:33,103 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:40:33,104 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:40:33,104 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:40:33,671 | INFO | Chain [1] start processing
+2026-10-03 00:40:33,855 | INFO | Chain [1] done processing
+2026-10-03 00:40:33,944 | INFO |   prophet : RMSE=   11.86  MAE=    9.46  MAPE=  9.67%  (0.8s)
+2026-10-03 00:40:35,252 | INFO |   xgboost : RMSE=   12.70  MAE=   10.25  MAPE= 10.66%  (1.3s)
+2026-10-03 00:40:40,590 | INFO |   arima   : RMSE=   24.14  MAE=   19.91  MAPE= 22.10%  (5.3s)
+2026-10-03 00:40:40,591 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=11.86)
+2026-10-03 00:40:40,626 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:40:40,627 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:40:40,627 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:40:41,253 | INFO | Chain [1] start processing
+2026-10-03 00:40:41,479 | INFO | Chain [1] done processing
+2026-10-03 00:40:41,623 | INFO |   prophet : RMSE=   12.30  MAE=    9.90  MAPE= 10.80%  (1.0s)
+2026-10-03 00:40:42,818 | INFO |   xgboost : RMSE=   11.65  MAE=    9.90  MAPE= 10.83%  (1.2s)
+2026-10-03 00:40:48,312 | INFO |   arima   : RMSE=   21.61  MAE=   16.92  MAPE= 20.99%  (5.5s)
+2026-10-03 00:40:48,312 | INFO |   -> MO HINH TOT NHAT: XGBOOST (RMSE=11.65)
+2026-10-03 00:40:48,373 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:40:48,375 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:40:48,375 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:40:49,042 | INFO | Chain [1] start processing
+2026-10-03 00:40:49,192 | INFO | Chain [1] done processing
+2026-10-03 00:40:49,338 | INFO |   prophet : RMSE=    8.95  MAE=    7.24  MAPE= 10.97%  (1.0s)
+2026-10-03 00:40:50,573 | INFO |   xgboost : RMSE=    9.66  MAE=    7.90  MAPE= 12.22%  (1.2s)
+2026-10-03 00:40:56,399 | INFO |   arima   : RMSE=   18.71  MAE=   14.85  MAPE= 25.50%  (5.8s)
+2026-10-03 00:40:56,399 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=8.95)
+2026-10-03 00:40:56,445 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:40:56,447 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:40:56,447 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:40:57,042 | INFO | Chain [1] start processing
+2026-10-03 00:40:57,186 | INFO | Chain [1] done processing
+2026-10-03 00:40:57,320 | INFO |   prophet : RMSE=    9.13  MAE=    7.41  MAPE= 10.96%  (0.9s)
+2026-10-03 00:40:58,510 | INFO |   xgboost : RMSE=   10.08  MAE=    8.36  MAPE= 13.10%  (1.2s)
+2026-10-03 00:41:04,109 | INFO |   arima   : RMSE=   21.26  MAE=   17.51  MAPE= 30.42%  (5.6s)
+2026-10-03 00:41:04,110 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=9.13)
+2026-10-03 00:41:04,155 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:41:04,157 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:41:04,157 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:41:04,792 | INFO | Chain [1] start processing
+2026-10-03 00:41:04,942 | INFO | Chain [1] done processing
+2026-10-03 00:41:05,036 | INFO |   prophet : RMSE=    8.42  MAE=    6.50  MAPE= 10.57%  (0.9s)
+2026-10-03 00:41:06,216 | INFO |   xgboost : RMSE=    9.04  MAE=    7.15  MAPE= 12.08%  (1.2s)
+2026-10-03 00:41:12,411 | INFO |   arima   : RMSE=   15.08  MAE=   12.79  MAPE= 22.74%  (6.2s)
+2026-10-03 00:41:12,412 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=8.42)
+2026-10-03 00:41:12,469 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:41:12,471 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:41:12,471 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:41:13,208 | INFO | Chain [1] start processing
+2026-10-03 00:41:13,384 | INFO | Chain [1] done processing
+2026-10-03 00:41:13,563 | INFO |   prophet : RMSE=   12.63  MAE=    9.88  MAPE=  9.28%  (1.1s)
+2026-10-03 00:41:14,692 | INFO |   xgboost : RMSE=   13.39  MAE=   10.78  MAPE=  9.83%  (1.1s)
+2026-10-03 00:41:19,782 | INFO |   arima   : RMSE=   23.26  MAE=   19.70  MAPE= 18.20%  (5.1s)
+2026-10-03 00:41:19,782 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=12.63)
+2026-10-03 00:41:19,821 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:41:19,822 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:41:19,822 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:41:20,551 | INFO | Chain [1] start processing
+2026-10-03 00:41:20,810 | INFO | Chain [1] done processing
+2026-10-03 00:41:20,936 | INFO |   prophet : RMSE=   10.27  MAE=    7.75  MAPE=  8.35%  (1.1s)
+2026-10-03 00:41:22,093 | INFO |   xgboost : RMSE=   10.55  MAE=    8.46  MAPE=  9.09%  (1.2s)
+2026-10-03 00:41:27,063 | INFO |   arima   : RMSE=   20.91  MAE=   17.53  MAPE= 19.95%  (5.0s)
+2026-10-03 00:41:27,063 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=10.27)
+2026-10-03 00:41:27,102 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:41:27,102 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:41:27,102 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:41:27,696 | INFO | Chain [1] start processing
+2026-10-03 00:41:27,838 | INFO | Chain [1] done processing
+2026-10-03 00:41:27,928 | INFO |   prophet : RMSE=   10.31  MAE=    8.09  MAPE=  8.27%  (0.8s)
+2026-10-03 00:41:29,182 | INFO |   xgboost : RMSE=   12.13  MAE=    9.74  MAPE=  9.91%  (1.3s)
+2026-10-03 00:41:34,425 | INFO |   arima   : RMSE=   26.09  MAE=   20.90  MAPE= 23.75%  (5.2s)
+2026-10-03 00:41:34,426 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=10.31)
+2026-10-03 00:41:34,473 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:41:34,475 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:41:34,475 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:41:35,093 | INFO | Chain [1] start processing
+2026-10-03 00:41:35,248 | INFO | Chain [1] done processing
+2026-10-03 00:41:35,386 | INFO |   prophet : RMSE=    6.62  MAE=    5.17  MAPE= 11.91%  (0.9s)
+2026-10-03 00:41:36,577 | INFO |   xgboost : RMSE=    7.50  MAE=    6.26  MAPE= 13.90%  (1.2s)
+2026-10-03 00:41:42,439 | INFO |   arima   : RMSE=   13.35  MAE=   10.82  MAPE= 27.38%  (5.9s)
+2026-10-03 00:41:42,439 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=6.62)
+2026-10-03 00:41:42,470 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:41:42,471 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:41:42,471 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:41:43,066 | INFO | Chain [1] start processing
+2026-10-03 00:41:43,251 | INFO | Chain [1] done processing
+2026-10-03 00:41:43,334 | INFO |   prophet : RMSE=    8.11  MAE=    6.60  MAPE=  9.75%  (0.9s)
+2026-10-03 00:41:43,812 | INFO |   xgboost : RMSE=    9.80  MAE=    7.85  MAPE= 12.36%  (0.5s)
+2026-10-03 00:41:46,024 | INFO |   arima   : RMSE=   21.13  MAE=   17.31  MAPE= 30.05%  (2.2s)
+2026-10-03 00:41:46,025 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=8.11)
+2026-10-03 00:41:46,047 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:41:46,048 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:41:46,048 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:41:46,332 | INFO | Chain [1] start processing
+2026-10-03 00:41:46,426 | INFO | Chain [1] done processing
+2026-10-03 00:41:46,493 | INFO |   prophet : RMSE=    8.59  MAE=    6.61  MAPE= 11.52%  (0.4s)
+2026-10-03 00:41:47,534 | INFO |   xgboost : RMSE=    9.01  MAE=    6.86  MAPE= 12.29%  (1.0s)
+2026-10-03 00:41:53,574 | INFO |   arima   : RMSE=   14.87  MAE=   11.98  MAPE= 22.88%  (6.0s)
+2026-10-03 00:41:53,574 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=8.59)
+2026-10-03 00:41:53,619 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:41:53,620 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:41:53,620 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:41:54,205 | INFO | Chain [1] start processing
+2026-10-03 00:41:54,387 | INFO | Chain [1] done processing
+2026-10-03 00:41:54,577 | INFO |   prophet : RMSE=    8.14  MAE=    6.32  MAPE= 12.15%  (1.0s)
+2026-10-03 00:41:55,758 | INFO |   xgboost : RMSE=    8.91  MAE=    6.76  MAPE= 13.50%  (1.2s)
+2026-10-03 00:42:02,075 | INFO |   arima   : RMSE=   18.89  MAE=   15.85  MAPE= 34.39%  (6.3s)
+2026-10-03 00:42:02,076 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=8.14)
+2026-10-03 00:42:02,118 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:42:02,120 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:42:02,120 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:42:02,900 | INFO | Chain [1] start processing
+2026-10-03 00:42:03,090 | INFO | Chain [1] done processing
+2026-10-03 00:42:03,282 | INFO |   prophet : RMSE=    6.94  MAE=    5.48  MAPE= 13.35%  (1.2s)
+2026-10-03 00:42:04,695 | INFO |   xgboost : RMSE=    7.54  MAE=    5.69  MAPE= 13.86%  (1.4s)
+2026-10-03 00:42:10,523 | INFO |   arima   : RMSE=   11.84  MAE=    9.71  MAPE= 27.33%  (5.8s)
+2026-10-03 00:42:10,524 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=6.94)
+2026-10-03 00:42:10,553 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:42:10,554 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:42:10,554 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:42:11,102 | INFO | Chain [1] start processing
+2026-10-03 00:42:11,262 | INFO | Chain [1] done processing
+2026-10-03 00:42:11,572 | INFO |   prophet : RMSE=    6.65  MAE=    5.35  MAPE= 13.89%  (1.0s)
+2026-10-03 00:42:12,917 | INFO |   xgboost : RMSE=    7.39  MAE=    5.71  MAPE= 15.04%  (1.3s)
+2026-10-03 00:42:18,034 | INFO |   arima   : RMSE=   10.60  MAE=    8.55  MAPE= 24.64%  (5.1s)
+2026-10-03 00:42:18,034 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=6.65)
+2026-10-03 00:42:18,083 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:42:18,084 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:42:18,085 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:42:18,812 | INFO | Chain [1] start processing
+2026-10-03 00:42:19,012 | INFO | Chain [1] done processing
+2026-10-03 00:42:19,209 | INFO |   prophet : RMSE=    6.62  MAE=    5.30  MAPE= 14.62%  (1.1s)
+2026-10-03 00:42:20,348 | INFO |   xgboost : RMSE=    7.41  MAE=    6.15  MAPE= 17.64%  (1.1s)
+2026-10-03 00:42:25,634 | INFO |   arima   : RMSE=    9.94  MAE=    8.24  MAPE= 25.63%  (5.3s)
+2026-10-03 00:42:25,635 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=6.62)
+2026-10-03 00:42:25,680 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:42:25,681 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:42:25,681 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:42:26,347 | INFO | Chain [1] start processing
+2026-10-03 00:42:26,596 | INFO | Chain [1] done processing
+2026-10-03 00:42:26,783 | INFO |   prophet : RMSE=    9.57  MAE=    7.46  MAPE= 12.23%  (1.1s)
+2026-10-03 00:42:28,038 | INFO |   xgboost : RMSE=   11.03  MAE=    8.39  MAPE= 14.28%  (1.3s)
+2026-10-03 00:42:33,719 | INFO |   arima   : RMSE=   15.28  MAE=   12.36  MAPE= 19.87%  (5.7s)
+2026-10-03 00:42:33,720 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=9.57)
+2026-10-03 00:42:33,765 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:42:33,766 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:42:33,766 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:42:34,373 | INFO | Chain [1] start processing
+2026-10-03 00:42:34,564 | INFO | Chain [1] done processing
+2026-10-03 00:42:34,685 | INFO |   prophet : RMSE=    7.94  MAE=    6.21  MAPE= 11.30%  (0.9s)
+2026-10-03 00:42:35,927 | INFO |   xgboost : RMSE=    8.32  MAE=    6.86  MAPE= 12.70%  (1.2s)
+2026-10-03 00:42:41,941 | INFO |   arima   : RMSE=   13.07  MAE=   10.98  MAPE= 21.86%  (6.0s)
+2026-10-03 00:42:41,942 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=7.94)
+2026-10-03 00:42:41,982 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:42:41,983 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:42:41,983 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:42:42,642 | INFO | Chain [1] start processing
+2026-10-03 00:42:42,778 | INFO | Chain [1] done processing
+2026-10-03 00:42:42,921 | INFO |   prophet : RMSE=    8.45  MAE=    6.69  MAPE= 11.64%  (0.9s)
+2026-10-03 00:42:44,192 | INFO |   xgboost : RMSE=    9.00  MAE=    7.36  MAPE= 13.15%  (1.3s)
+2026-10-03 00:42:51,452 | INFO |   arima   : RMSE=   14.43  MAE=   11.79  MAPE= 22.74%  (7.3s)
+2026-10-03 00:42:51,452 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=8.45)
+2026-10-03 00:42:51,490 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:42:51,490 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:42:51,491 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:42:52,134 | INFO | Chain [1] start processing
+2026-10-03 00:42:52,276 | INFO | Chain [1] done processing
+2026-10-03 00:42:52,356 | INFO |   prophet : RMSE=   10.63  MAE=    8.32  MAPE= 10.92%  (0.9s)
+2026-10-03 00:42:53,610 | INFO |   xgboost : RMSE=   11.61  MAE=    9.62  MAPE= 13.46%  (1.3s)
+2026-10-03 00:42:58,485 | INFO |   arima   : RMSE=   17.99  MAE=   14.68  MAPE= 22.01%  (4.9s)
+2026-10-03 00:42:58,486 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=10.63)
+2026-10-03 00:42:58,532 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:42:58,533 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:42:58,534 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:42:59,147 | INFO | Chain [1] start processing
+2026-10-03 00:42:59,294 | INFO | Chain [1] done processing
+2026-10-03 00:42:59,427 | INFO |   prophet : RMSE=   11.50  MAE=    9.29  MAPE=  8.79%  (0.9s)
+2026-10-03 00:43:00,791 | INFO |   xgboost : RMSE=   12.45  MAE=   10.02  MAPE=  9.94%  (1.4s)
+2026-10-03 00:43:07,393 | INFO |   arima   : RMSE=   27.41  MAE=   21.20  MAPE= 23.37%  (6.6s)
+2026-10-03 00:43:07,393 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=11.50)
+2026-10-03 00:43:07,437 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:43:07,438 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:43:07,438 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:43:08,087 | INFO | Chain [1] start processing
+2026-10-03 00:43:08,235 | INFO | Chain [1] done processing
+2026-10-03 00:43:08,552 | INFO |   prophet : RMSE=   11.12  MAE=    8.67  MAPE=  9.02%  (1.1s)
+2026-10-03 00:43:09,864 | INFO |   xgboost : RMSE=   12.40  MAE=    9.92  MAPE= 10.72%  (1.3s)
+2026-10-03 00:43:16,659 | INFO |   arima   : RMSE=   21.47  MAE=   17.85  MAPE= 21.02%  (6.8s)
+2026-10-03 00:43:16,659 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=11.12)
+2026-10-03 00:43:16,703 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:43:16,704 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:43:16,704 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:43:17,328 | INFO | Chain [1] start processing
+2026-10-03 00:43:17,486 | INFO | Chain [1] done processing
+2026-10-03 00:43:17,575 | INFO |   prophet : RMSE=   10.32  MAE=    7.68  MAPE=  9.41%  (0.9s)
+2026-10-03 00:43:18,859 | INFO |   xgboost : RMSE=   10.70  MAE=    8.40  MAPE= 10.08%  (1.3s)
+2026-10-03 00:43:23,760 | INFO |   arima   : RMSE=   19.89  MAE=   16.47  MAPE= 21.33%  (4.9s)
+2026-10-03 00:43:23,760 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=10.32)
+2026-10-03 00:43:23,797 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:43:23,798 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:43:23,798 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:43:24,294 | INFO | Chain [1] start processing
+2026-10-03 00:43:24,485 | INFO | Chain [1] done processing
+2026-10-03 00:43:24,616 | INFO |   prophet : RMSE=    9.15  MAE=    7.00  MAPE= 11.50%  (0.8s)
+2026-10-03 00:43:25,887 | INFO |   xgboost : RMSE=   10.20  MAE=    8.05  MAPE= 13.70%  (1.3s)
+2026-10-03 00:43:31,669 | INFO |   arima   : RMSE=   19.09  MAE=   15.69  MAPE= 29.30%  (5.8s)
+2026-10-03 00:43:31,669 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=9.15)
+2026-10-03 00:43:31,714 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:43:31,715 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:43:31,716 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:43:32,118 | INFO | Chain [1] start processing
+2026-10-03 00:43:32,249 | INFO | Chain [1] done processing
+2026-10-03 00:43:32,570 | INFO |   prophet : RMSE=    9.41  MAE=    7.47  MAPE= 12.61%  (0.9s)
+2026-10-03 00:43:33,848 | INFO |   xgboost : RMSE=   10.50  MAE=    8.47  MAPE= 14.52%  (1.3s)
+2026-10-03 00:43:39,317 | INFO |   arima   : RMSE=   16.49  MAE=   13.31  MAPE= 25.11%  (5.5s)
+2026-10-03 00:43:39,318 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=9.41)
+2026-10-03 00:43:39,353 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:43:39,355 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:43:39,355 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:43:39,950 | INFO | Chain [1] start processing
+2026-10-03 00:43:40,108 | INFO | Chain [1] done processing
+2026-10-03 00:43:40,202 | INFO |   prophet : RMSE=    8.86  MAE=    7.38  MAPE= 13.33%  (0.8s)
+2026-10-03 00:43:41,455 | INFO |   xgboost : RMSE=   10.07  MAE=    8.30  MAPE= 15.59%  (1.3s)
+2026-10-03 00:43:47,748 | INFO |   arima   : RMSE=   17.80  MAE=   14.31  MAPE= 30.56%  (6.3s)
+2026-10-03 00:43:47,748 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=8.86)
+2026-10-03 00:43:47,780 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:43:47,781 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:43:47,781 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:43:48,367 | INFO | Chain [1] start processing
+2026-10-03 00:43:48,564 | INFO | Chain [1] done processing
+2026-10-03 00:43:48,651 | INFO |   prophet : RMSE=   11.14  MAE=    8.75  MAPE=  8.26%  (0.9s)
+2026-10-03 00:43:49,938 | INFO |   xgboost : RMSE=   12.78  MAE=   10.40  MAPE= 10.20%  (1.3s)
+2026-10-03 00:43:56,966 | INFO |   arima   : RMSE=   21.58  MAE=   17.96  MAPE= 19.25%  (7.0s)
+2026-10-03 00:43:56,967 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=11.14)
+2026-10-03 00:43:57,001 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:43:57,002 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:43:57,002 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:43:57,630 | INFO | Chain [1] start processing
+2026-10-03 00:43:57,893 | INFO | Chain [1] done processing
+2026-10-03 00:43:58,027 | INFO |   prophet : RMSE=   11.19  MAE=    8.95  MAPE= 10.46%  (1.0s)
+2026-10-03 00:43:59,349 | INFO |   xgboost : RMSE=   13.03  MAE=   10.39  MAPE= 12.62%  (1.3s)
+2026-10-03 00:44:05,680 | INFO |   arima   : RMSE=   24.02  MAE=   19.38  MAPE= 26.08%  (6.3s)
+2026-10-03 00:44:05,681 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=11.19)
+2026-10-03 00:44:05,725 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:44:05,725 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:44:05,726 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:44:06,287 | INFO | Chain [1] start processing
+2026-10-03 00:44:06,474 | INFO | Chain [1] done processing
+2026-10-03 00:44:06,572 | INFO |   prophet : RMSE=   11.49  MAE=    9.03  MAPE=  9.58%  (0.8s)
+2026-10-03 00:44:07,867 | INFO |   xgboost : RMSE=   11.92  MAE=    9.37  MAPE= 10.59%  (1.3s)
+2026-10-03 00:44:13,249 | INFO |   arima   : RMSE=   18.35  MAE=   14.80  MAPE= 16.68%  (5.4s)
+2026-10-03 00:44:13,249 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=11.49)
+2026-10-03 00:44:13,283 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:44:13,284 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:44:13,284 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:44:13,841 | INFO | Chain [1] start processing
+2026-10-03 00:44:14,015 | INFO | Chain [1] done processing
+2026-10-03 00:44:14,103 | INFO |   prophet : RMSE=    9.66  MAE=    7.50  MAPE=  9.47%  (0.8s)
+2026-10-03 00:44:15,573 | INFO |   xgboost : RMSE=   11.39  MAE=    8.87  MAPE= 11.83%  (1.5s)
+2026-10-03 00:44:20,985 | INFO |   arima   : RMSE=   20.29  MAE=   16.33  MAPE= 24.19%  (5.4s)
+2026-10-03 00:44:20,985 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=9.66)
+2026-10-03 00:44:21,028 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:44:21,029 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:44:21,029 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:44:21,558 | INFO | Chain [1] start processing
+2026-10-03 00:44:21,693 | INFO | Chain [1] done processing
+2026-10-03 00:44:21,803 | INFO |   prophet : RMSE=   10.51  MAE=    8.34  MAPE=  7.59%  (0.8s)
+2026-10-03 00:44:23,105 | INFO |   xgboost : RMSE=   12.40  MAE=   10.04  MAPE=  9.07%  (1.3s)
+2026-10-03 00:44:29,820 | INFO |   arima   : RMSE=   33.73  MAE=   27.07  MAPE= 28.08%  (6.7s)
+2026-10-03 00:44:29,821 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=10.51)
+2026-10-03 00:44:29,862 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:44:29,862 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:44:29,862 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:44:30,452 | INFO | Chain [1] start processing
+2026-10-03 00:44:30,692 | INFO | Chain [1] done processing
+2026-10-03 00:44:30,785 | INFO |   prophet : RMSE=   12.03  MAE=    9.68  MAPE= 10.08%  (0.9s)
+2026-10-03 00:44:32,071 | INFO |   xgboost : RMSE=   13.58  MAE=   11.17  MAPE= 11.79%  (1.3s)
+2026-10-03 00:44:37,649 | INFO |   arima   : RMSE=   23.61  MAE=   19.22  MAPE= 22.78%  (5.6s)
+2026-10-03 00:44:37,649 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=12.03)
+2026-10-03 00:44:37,697 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:44:37,699 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:44:37,699 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:44:38,324 | INFO | Chain [1] start processing
+2026-10-03 00:44:38,461 | INFO | Chain [1] done processing
+2026-10-03 00:44:38,548 | INFO |   prophet : RMSE=   11.40  MAE=    9.93  MAPE= 11.28%  (0.8s)
+2026-10-03 00:44:39,813 | INFO |   xgboost : RMSE=   12.09  MAE=   10.10  MAPE= 11.50%  (1.3s)
+2026-10-03 00:44:45,558 | INFO |   arima   : RMSE=   20.37  MAE=   17.00  MAPE= 20.69%  (5.7s)
+2026-10-03 00:44:45,559 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=11.40)
+2026-10-03 00:44:45,603 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:44:45,603 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:44:45,603 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:44:46,241 | INFO | Chain [1] start processing
+2026-10-03 00:44:46,388 | INFO | Chain [1] done processing
+2026-10-03 00:44:46,515 | INFO |   prophet : RMSE=    8.50  MAE=    6.71  MAPE= 10.44%  (0.9s)
+2026-10-03 00:44:47,773 | INFO |   xgboost : RMSE=    9.22  MAE=    7.29  MAPE= 11.20%  (1.3s)
+2026-10-03 00:44:53,025 | INFO |   arima   : RMSE=   13.90  MAE=   11.78  MAPE= 19.32%  (5.3s)
+2026-10-03 00:44:53,026 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=8.50)
+2026-10-03 00:44:53,061 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:44:53,062 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:44:53,062 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:44:53,650 | INFO | Chain [1] start processing
+2026-10-03 00:44:53,797 | INFO | Chain [1] done processing
+2026-10-03 00:44:53,886 | INFO |   prophet : RMSE=    9.78  MAE=    7.70  MAPE= 11.77%  (0.8s)
+2026-10-03 00:44:55,100 | INFO |   xgboost : RMSE=   10.13  MAE=    8.29  MAPE= 12.97%  (1.2s)
+2026-10-03 00:45:00,041 | INFO |   arima   : RMSE=   15.82  MAE=   12.62  MAPE= 21.85%  (4.9s)
+2026-10-03 00:45:00,041 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=9.78)
+2026-10-03 00:45:00,074 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:45:00,074 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:45:00,075 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:45:00,634 | INFO | Chain [1] start processing
+2026-10-03 00:45:00,854 | INFO | Chain [1] done processing
+2026-10-03 00:45:00,939 | INFO |   prophet : RMSE=    7.72  MAE=    6.40  MAPE= 10.84%  (0.9s)
+2026-10-03 00:45:02,172 | INFO |   xgboost : RMSE=    8.36  MAE=    6.90  MAPE= 11.82%  (1.2s)
+2026-10-03 00:45:07,355 | INFO |   arima   : RMSE=   12.96  MAE=   10.46  MAPE= 19.25%  (5.2s)
+2026-10-03 00:45:07,355 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=7.72)
+2026-10-03 00:45:07,417 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:45:07,419 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:45:07,419 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:45:08,105 | INFO | Chain [1] start processing
+2026-10-03 00:45:08,310 | INFO | Chain [1] done processing
+2026-10-03 00:45:08,461 | INFO |   prophet : RMSE=   11.01  MAE=    8.64  MAPE=  8.41%  (1.0s)
+2026-10-03 00:45:09,764 | INFO |   xgboost : RMSE=   13.45  MAE=   10.69  MAPE= 10.62%  (1.3s)
+2026-10-03 00:45:15,185 | INFO |   arima   : RMSE=   28.24  MAE=   22.89  MAPE= 25.72%  (5.4s)
+2026-10-03 00:45:15,185 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=11.01)
+2026-10-03 00:45:15,219 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:45:15,219 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:45:15,219 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:45:15,823 | INFO | Chain [1] start processing
+2026-10-03 00:45:15,954 | INFO | Chain [1] done processing
+2026-10-03 00:45:16,045 | INFO |   prophet : RMSE=   11.40  MAE=    9.14  MAPE= 10.35%  (0.8s)
+2026-10-03 00:45:17,302 | INFO |   xgboost : RMSE=   13.25  MAE=   10.04  MAPE= 11.16%  (1.3s)
+2026-10-03 00:45:23,333 | INFO |   arima   : RMSE=   25.20  MAE=   20.21  MAPE= 26.24%  (6.0s)
+2026-10-03 00:45:23,334 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=11.40)
+2026-10-03 00:45:23,361 | INFO |   chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+2026-10-03 00:45:23,362 | INFO |   split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+2026-10-03 00:45:23,362 | INFO |   ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+2026-10-03 00:45:24,009 | INFO | Chain [1] start processing
+2026-10-03 00:45:24,164 | INFO | Chain [1] done processing
+2026-10-03 00:45:24,287 | INFO |   prophet : RMSE=    9.78  MAE=    7.77  MAPE=  8.27%  (0.9s)
+2026-10-03 00:45:25,606 | INFO |   xgboost : RMSE=   10.63  MAE=    8.53  MAPE=  9.23%  (1.3s)
+2026-10-03 00:45:31,040 | INFO |   arima   : RMSE=   23.20  MAE=   18.46  MAPE= 22.40%  (5.4s)
+2026-10-03 00:45:31,041 | INFO |   -> MO HINH TOT NHAT: PROPHET (RMSE=9.78)
