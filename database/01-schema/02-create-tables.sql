@@ -659,7 +659,8 @@ COMMENT ON FUNCTION fn_generate_inventory_alerts(INTEGER) IS
 CREATE OR REPLACE VIEW v_daily_sales AS
 SELECT
     o.store_id,
-    p.store_code,
+    s.store_code,
+    s.store_name,
     oi.product_id,
     p.product_code,
     p.product_name,
@@ -673,9 +674,10 @@ SELECT
 FROM orders o
 JOIN order_items oi ON oi.order_id = o.order_id
 JOIN products  p   ON p.product_id = oi.product_id
+JOIN stores    s   ON s.store_id   = o.store_id
 WHERE o.status = 'completed'
   AND o.order_type = 'sale'
-GROUP BY o.store_id, p.store_code, oi.product_id, p.product_code,
+GROUP BY o.store_id, s.store_code, s.store_name, oi.product_id, p.product_code,
          p.product_name, p.unit, o.order_date;
 
 COMMENT ON VIEW v_daily_sales IS 'Daily revenue and quantity sold - input data for the demand forecasting model';
