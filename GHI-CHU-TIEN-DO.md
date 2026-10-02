@@ -528,6 +528,51 @@ Nếu không kiểm tra cảnh báo của Prophet và cứ giữ 1 năm, đồ �
 
 ---
 
+## 8h. Kết thúc phiên làm việc 03/10/2026
+
+### Trạng thái Git
+
+| Mục | Kết quả |
+|-----|---------|
+| Commit cuối | `f46e479` — "docs: cap nhat tien do ngay 03/10/2026" |
+| Working tree | Sạch, khớp 100% với `origin/main` |
+| Số commit từ đầu dự án | 13 |
+
+### Kiểm tra bảo toàn dữ liệu
+
+| Bảng | Số dòng |
+|------|---------|
+| `categories` | 8 |
+| `stores` | 10 |
+| `products` | 50 |
+| `users` | 3 |
+| `orders` | 18.260 |
+| `order_items` | 912.999 |
+| `inventory` | 1.330 |
+| `inventory_transactions` | 11.412 |
+| `alerts` | 518 |
+| `forecasts` | **0** ← đang chờ chạy 100 cặp |
+
+### Đã làm trong phiên 03/10
+
+1. Import lại dataset Kaggle **5 năm** (2013–2017) — 912.999 dòng, đối chiếu khớp tuyệt đối với CSV
+2. Sửa `train_models.py`: reindex 1.826 ngày, tách tập theo mốc `2017-10-01`, CSV phẳng
+3. Tune Prophet trên 5 năm → `cps=0.01, multiplicative, yearly=20`
+4. Kiểm chứng giả thuyết: Prophet RMSE **23,20 → 9,98** (−57%), từ hạng 3 lên hạng 1
+
+### Việc tiếp theo (chờ duyệt)
+
+| Mã | Việc | Ước lượng |
+|----|------|-----------|
+| M1 | Chạy 100 cặp (10 sản phẩm × 10 cửa hàng) | ~9 phút |
+| M2 | Dự báo 30 ngày 01/01–30/01/2018 + tính `recommended_import_qty` + ghi bảng `forecasts` | ~3 phút |
+| M3 | Tạo `docs/05-tham-khao/ket-qua-danh-gia-model.md` | ~10 phút |
+| B1 | Setup backend FastAPI (cần cài `fastapi`, `uvicorn`, `pydantic`) | |
+
+**Sau khi M1–M3 xong**, có thể viết Chương 3 và Chương 4 của báo cáo.
+
+---
+
 ## 9. ⚠️ Việc cần tra cứu / xác minh
 
 Không gấp, nhưng **bắt buộc làm trước khi nộp báo cáo**:

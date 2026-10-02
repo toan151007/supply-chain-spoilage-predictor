@@ -126,6 +126,8 @@ Kiểm tra lại môi trường ML: `python scripts/check_ml_env.py`
 3. **Chọn tham số theo validation, không theo test.** Tune trên test cho RMSE thấp hơn 0,47 nhưng đó là rò rỉ dữ liệu — con số báo cáo sẽ không còn trung thực.
 4. **`yearly_seasonality=True` chính là `fourier_order=10`.** 18 lần chạy chỉ cho 12 kết quả khác nhau (đã xác nhận bằng dữ liệu).
 5. **Bảo vệ toàn vẹn dữ liệu thay vì nới ràng buộc.** 1 dòng `sales = 0` vi phạm `CHECK (quantity > 0)` → bỏ dòng, **không** sửa schema.
+6. **Reindex chuỗi thời gian trước khi train.** View `v_daily_sales` chỉ có dòng cho ngày **có phát sinh giao dịch**. Cặp (product 4, store 6) thiếu ngày 15/01/2014 vì dòng `sales = 0` đã bị bỏ. Phải `reindex` về đủ 1.826 ngày và điền **0** — nếu không, các hàm lag/rolling sẽ lệch ngày và mô hình học sai. Đây cũng là nơi hiện tượng **censored demand** xuất hiện trong thực tế.
+7. **Tách tập theo mốc ngày, không dùng 80/20 cố định.** Với dữ liệu nhiều năm, 80/20 không bảo đảm test rơi vào một mùa cụ thể. Mốc `2017-10-01` giúp test rơi vào Q4 — dễ giải thích và đúng nghiệp vụ.
 
 ## 10 sản phẩm dùng để huấn luyện mô hình (đã chốt 02/10/2026)
 
