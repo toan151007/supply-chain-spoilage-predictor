@@ -24,6 +24,10 @@
 | D2 — Seed data | ✅ Xong | categories 8, stores 10, products 50, users 3 |
 | D3 — Import Kaggle | ✅ Xong | 3.650 orders + 182.500 order_items (năm 2017) |
 | D4 — Seed inventory | ✅ Xong | 1.330 lô · 11.412 giao dịch · 518 cảnh báo |
+| **M1 — Train 100 cặp** | ✅ Xong | Prophet thắng 97/100 · RMSE 9,97 · 13,2 phút · commit `47b4775` |
+| **M2 — Dự báo 30 ngày** | ✅ Xong | 3.000 dòng trong bảng `forecasts` |
+| **M3 — Tài liệu đánh giá** | ✅ Xong | `docs/05-tham-khao/ket-qua-danh-gia-model.md` |
+| **Quyết định Chương 4** | ✅ Xong | Giữ nguyên Chương 2 + `max_stock`, ghi chú hạn chế — mục 8j |
 | B1/B2 — Backend | ⬜ Chưa làm | FastAPI + kết nối DB |
 | T2 — README con | ⬜ Chưa làm | |
 | Frontend React | ⬜ Chưa làm | |
@@ -34,6 +38,9 @@
 ## 2. Lịch sử commit
 
 ```
+47b4775  feat(ai): chay 100 cap, du bao 30 ngay, danh gia 3 mo hinh
+8e392c6  docs: cap nhat tien do truoc khi ket thuc session
+f46e479  docs: cap nhat tien do ngay 03/10/2026
 aaec0c6  docs(agents): Add mandatory SQL rules
 cebd8e7  fix(sql): Join stores in v_daily_sales
 9372a0d  feat(i18n): Store i18n keys, add vi.json
@@ -649,6 +656,61 @@ Nội dung: phương pháp (time-series split theo mốc ngày, chọn tham số
 
 ---
 
+## 8j. ⛔ Quyết định 03/10/2026 — viết Chương 4 thế nào
+
+Hai vấn đề phát hiện sau M1/M2 đã được quyết định: **giữ nguyên dữ liệu và tài liệu, ghi chú vào Chương 4.**
+
+### Quyết định 1 — KHÔNG sửa Chương 2
+
+Chương 2 chốt **XGBoost = mô hình chính**. Kết quả thực nghiệm: **Prophet thắng 97/100 cặp**.
+
+| | |
+|---|---|
+| Chương 2 (lý thuyết) | XGBoost là mô hình chính — **giữ nguyên** |
+| Chương 4 (thực nghiệm) | Trình bày kết quả thật: Prophet thắng |
+
+**Lý do không sửa Chương 2:**
+
+| # | Lý do |
+|---|-------|
+| 1 | Chương 2 là cơ sở lý thuyết — trình bày cả 5 mô hình, **không cần chốt** model nào là chính |
+| 2 | Chương 4 là kết quả thực nghiệm — nói đúng điều thực nghiệm cho thấy |
+| 3 | Dự đoán ban đầu ≠ kết quả thực tế → **thể hiện quá trình nghiên cứu khoa học** |
+| 4 | GVHD đánh giá cao sự trung thực |
+
+**Cách viết ở Chương 4 — phải nêu 3 điều:**
+
+1. **Nêu rõ đảo ngược kỳ vọng.** Đừng lấp đầy bằng cách sửa giả định ban đầu — đó là giấu dấu vết nghiên cứu.
+2. **Giải thích cơ chế, không chỉ nêu kết quả:**
+
+   | Mô hình | Đặc điểm | Hệ quả khi dự báo 30 ngày |
+   |---------|-----------|---------------------------|
+   | XGBoost | Phụ thuộc `lag_1..lag_28` | Phải **đệ quy** — dùng giá trị dự báo ngày trước cho ngày sau → sai lệch tích luỹ dần |
+   | Prophet | Mô hình **đa bước** sẵn có | Không gặp hạn chế này |
+
+   Ngoài ra XGBoost chỉ thắng 3/100 cặp, và ở **59 cặp chênh lệch < 1,0 RMSE** — tức dưới 1 sản phẩm/ngày trên quy mô bán ~1.000/ngày, không có ý nghĩa nghiệp vụ.
+3. **Kết luận:** triển khai Prophet làm mô hình chính.
+
+### Quyết định 2 — KHÔNG sửa `max_stock` trong seed
+
+| | |
+|---|---|
+| `max_stock` trong seed | 48 – 300 (đặt **độc lập** với doanh số Kaggle) |
+| Nhu cầu thực tế | 861 – 2.793 / ngày |
+| → `max_stock` tương đương | **0,5 – 3 ngày bán** |
+| Hệ quả | **100/100 cặp bị cap** |
+| Tổng nhu cầu thuần | 232.397 |
+| Tổng đề xuất nhập sau cap | 7.286 |
+
+**Đây là hạn chế của dữ liệu, KHÔNG phải lỗi đồ án.** Sửa `max_stock` phải seed lại `inventory` — tốn thời gian, không đáng.
+
+**Cách viết ở Chương 4 — phải nêu rõ:**
+- `recommended_import_qty` trong DB **bị nén bởi `max_stock`, không phản ánh đúng nhu cầu dự báo**
+- Cột `raw_need` trong `ai-model/outputs/forecast_summary_30d.csv` giữ nhu cầu chưa cap để đối chiếu
+- **Nếu không nói rõ, người đọc sẽ hiểu nhầm rằng mô hình dự báo thiếu chính xác**
+
+---
+
 ## 8h. Kết thúc phiên làm việc 03/10/2026 (phiên trước)
 
 ### Trạng thái Git
@@ -712,8 +774,10 @@ Không gấp, nhưng **bắt buộc làm trước khi nộp báo cáo**:
 
 | Việc | Vấn đề |
 |------|--------|
-| **Thuật ngữ trong Chương 2** | Tài liệu nhắc bảng `sales`, schema dùng `orders` + `order_items`. Cần sửa Chương 2 cho nhất quán, hoặc thêm bảng `sales` |
+| ~~**Thuật ngữ trong Chương 2**~~ | ✅ **Đã xử lý** — Chương 2 **không nhắc tên bảng nào** (0 lần `inventory_transactions`, 0 lần `sales`). Vấn đề thật nằm ở comment SQL, đã sửa qua migration 004. Xem mục 8e |
 | ~~`unit_price = 0` trong import~~ | ✅ **Đã xử lý** — chuyển sang gán giá mô phỏng theo nhóm hàng (mục 8b) |
+| ~~**Vai trò mô hình (XGBoost vs Prophet)**~~ | ✅ **Đã xử lý** — giữ nguyên Chương 2, giải thích ở Chương 4. Xem mục 8j |
+| ~~**`max_stock` không khớp thang đo Kaggle**~~ | ✅ **Đã xử lý** — giữ nguyên seed, ghi chú hạn chế ở Chương 4. Xem mục 8j |
 | **`docs/03-thiet-ke/kien-truc-he-thong.md` mục 7** | Đang ghi 9 bảng, chưa có `stores`, còn ghi `products` có `expiry_date` → lệch với schema hiện tại |
 
 ---
@@ -765,4 +829,21 @@ cd frontend; npm run dev
 
 ---
 
-*Phiên sau: đọc `AGENTS.md` + file này, chạy `git status`, rồi làm D2 (seed data).*
+## 13. Việc còn lại (cập nhật sau M3)
+
+| Mã | Việc | Ưu tiên |
+|----|------|---------|
+| **B1** | Setup backend FastAPI — cần cài `fastapi`, `uvicorn`, `pydantic` | 🔴 Tiếp theo |
+| **B2** | Kết nối backend với database qua SQLAlchemy | 🔴 Sau B1 |
+| T4.3 | Viết Chương 3 — Thiết kế hệ thống | 🟡 |
+| T4.4 | Viết Chương 4 — Thực nghiệm (**đọc mục 8j trước khi viết**) | 🟡 |
+| F1 | Setup Frontend React | 🟢 |
+| T2 | README con cho từng thư mục | 🟢 |
+
+**Chưa có Chương 3 và 4.** Cả hai đều cần kết quả M1–M3 làm căn cứ — giờ đã đủ.
+
+**Khi viết Chương 4, BẮT BUỘC đọc mục 8j** — đã có 2 quyết định không sửa dữ liệu/tài liệu mà chỉ ghi chú.
+
+---
+
+*Phiên sau: đọc `AGENTS.md` + file này, chạy `git status`, rồi làm B1 (setup backend FastAPI).*

@@ -185,6 +185,29 @@ Vì vậy **không dùng được** tiêu chí "hệ số biến động mùa v�
 - **`max_stock` trong seed data KHÔNG cùng thang đo với Kaggle.** Seed đặt `max_stock` 48–300, nhưng nhu cầu thực tế 861–2.793/ngày → `max_stock` chỉ bằng **0,5–3 ngày bán**. Hệ quả: **100/100 cặp bị `max_stock` chặn** khi tính `recommended_import_qty` (nhu cầu thuần 232.397 → đề xuất sau cap chỉ 7.286). Đây là hạn chế dữ liệu, KHÔNG phải lỗi mô hình. Khi viết báo cáo phải nêu rõ.
 - **pandas 3.0**: `pd.DataFrame({"ds": <DataFrame>})` sẽ báo `ValueError: If using all scalar values, you must pass an index` — phải truyền **Series** (`df["sale_date"]`).
 
+## ⛔ Quyết định đã chốt 03/10/2026 — KHÔNG sửa, ghi chú vào Chương 4
+
+### 1. KHÔNG sửa Chương 2. Giữ nguyên "XGBoost = mô hình chính"
+
+Chương 2 là cơ sở lý thuyết, trình bày cả 5 mô hình, chỉ **kỳ vọng** XGBoost là mô hình chính. Kết quả thực nghiệm ở Chương 4: **Prophet thắng 97/100 cặp**, đảo ngược dự kiến.
+
+**Khi viết Chương 4, phải trình bày đúng như sau:**
+- Nêu rõ đây là **kết quả thực nghiệm đảo ngược kỳ vọng ban đầu** — không giấu, không sửa lại giả định
+- Giải thích cơ chế: XGBoost dựa trên `lag_1..lag_28`, mạnh ở chế độ one-step nhưng **suy giảm khi dự báo 30 ngày liên tục** (phải đệ quy, sai lệch tích luỹ). Prophet vốn là mô hình đa bước và có `yearly_seasonality` sẵn
+- Dẫn chiếu lợi thế của cách trình bày này: dự đoán ban đầu khác kết quả thực tế → **thể hiện quá trình nghiên cứu khoa học**, đúng như GVHD đánh giá cao
+- **KHÔNG sửa Chương 2.** Chương 2 là lý thuyết chung, không sai — sai ở chỗ dự đoán mô hình nào sẽ thắng, và điều đó chính là giá trị của phần thực nghiệm
+
+### 2. KHÔNG sửa `max_stock` trong seed data
+
+`max_stock` trong seed được đặt **độc lập với doanh số Kaggle** (48–300), trong khi nhu cầu thực tế là 861–2.793/ngày. Hệ quả: **100/100 cặp bị cap** khi tính `recommended_import_qty` (nhu cầu thuần 232.397 → đề xuất sau cap 7.286).
+
+**Đây là hạn chế của dữ liệu, KHÔNG phải lỗi đồ án.** Sửa `max_stock` sẽ phải seed lại `inventory` — tốn thời gian, không đáng.
+
+**Khi viết Chương 4, phải nêu rõ:**
+- Con số `recommended_import_qty` trong DB bị nén bởi `max_stock`, **không phản ánh đúng nhu cầu dự báo**
+- Cột `raw_need` trong `ai-model/outputs/forecast_summary_30d.csv` giữ lại nhu cầu chưa cap để đối chiếu
+- Nếu không nói rõ, người đọc sẽ hiểu nhầm rằng mô hình dự báo thiếu chính xác
+
 ## Current Progress
 
 - [x] Cấu trúc thư mục — 8 thư mục gốc + 30+ thư mục con (commit `31df9f7`)
