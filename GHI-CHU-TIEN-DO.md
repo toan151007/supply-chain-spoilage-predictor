@@ -61,6 +61,7 @@ f55dce4  T4.1: Chapter 1
 | `README.md` | Tài liệu chính dự án (11 mục) |
 | `AGENTS.md` | Hướng dẫn AI + tiến độ |
 | `GHI-CHU-TIEN-DO.md` | File này |
+| `docs/04-timeline/CONTEXT-SUMMARY.md` | Tóm tắt toàn bộ dự án — đọc file này trước khi chuyển máy |
 | `docs/03-thiet-ke/kien-truc-he-thong.md` | Kiến trúc, Use Case, Sequence, module, API, DB schema |
 | `docs/02-bao-cao/chuong-1-tong-quan.md` | Chương 1 — Tổng quan đề tài |
 | `docs/02-bao-cao/chuong-2-co-so-ly-thuyet.md` | Chương 2 — Cơ sở lý thuyết |
