@@ -200,6 +200,10 @@ Vì vậy **không dùng được** tiêu chí "hệ số biến động mùa v�
   - `@field_validator(mode="before")` **không cứu được** lỗi này — validator không can thiệp được vào env source của pydantic-settings.
   - Hành vi khi `CORS_ORIGINS=` rỗng: trả `[]` (fail-closed, chặn mọi origin). Muốn dùng mặc định thì **xoá hẳn dòng** khỏi `.env`, đừng để trống.
 - Console Windows dùng cp1252 — khi in chuỗi có dấu tiếng Việt ra terminal sẽ báo `UnicodeEncodeError: charmap`. Thêm `sys.stdout.reconfigure(encoding="utf-8", errors="replace")`.
+- **Cột NUMERIC trả về `Decimal`, không phải `float`.** Khi so sánh/tính toán phải ép `float(...)` cả hai vế, nếu không sẽ nhận `TypeError: unsupported operand type(s) for -: 'float' and 'decimal.Decimal'`.
+- **`order_items.line_total` là GENERATED COLUMN** → model dùng `Computed(..., persisted=True)`. **Không được gán giá trị** cho cột này khi INSERT/UPDATE, DB tự tính: `round(quantity * unit_price * (1 - discount_percent/100), 2)`.
+- **`categories` có quan hệ tự tham chiếu** (`parent_category_id` → chính nó). Bắt buộc chỉ rõ `remote_side` và `foreign_keys` ở cả hai chiều, nếu không SQLAlchemy sẽ không xác định được quan hệ cha/con.
+- **Tên nhóm hàng trong DB là tiếng Anh** (`Food`, `Fresh Food`, `Beverages`…), khác với tên tiếng Việt trong tài liệu. Khi viết test đừng đoán tên — query `categories` trước.
 
 ## ⛔ Quyết định đã chốt 03/10/2026 — KHÔNG sửa, ghi chú vào Chương 4
 
@@ -249,7 +253,8 @@ Chương 2 là cơ sở lý thuyết, trình bày cả 5 mô hình, chỉ **kỳ
 - [x] M2: Dự báo 30 ngày (01/01–30/01/2018) → **3.000 dòng** trong bảng `forecasts`
 - [x] M3: `docs/05-tham-khao/ket-qua-danh-gia-model.md`
 - [x] B1: Setup backend FastAPI — config/database/main + CORS + 3 endpoint health, test thật `localhost:8000/docs` (đã chụp màn hình)
-- [ ] B2: ORM models trong `app/models/` + endpoint nghiep vu `/api/v1/`
+- [x] B2: 10 ORM models trong `app/models/` — test thật 947.590 dòng qua ORM, relationship OK
+- [ ] B3: Endpoint nghiệp vụ dưới prefix `/api/v1/`
 - [ ] T2: README con cho từng thư mục
 - [ ] Setup Frontend React
 - [ ] Tích hợp AI Model

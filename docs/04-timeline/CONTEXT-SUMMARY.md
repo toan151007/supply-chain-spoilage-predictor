@@ -65,6 +65,43 @@ Hệ thống gồm 4 thành phần chính:
 | `backend/app/main.py` | Khởi tạo FastAPI + CORS + gắn 2 router |
 | `backend/app/routers/health.py` | 3 endpoint health check |
 
+### 2.3 Backend ORM Models (B2 — 12/10/2026)
+
+11 file trong `backend/app/models/` — mỗi bảng 1 file + `__init__.py` export tất cả.
+
+| File | Bảng |
+|------|------|
+| `store.py` | `stores` |
+| `category.py` | `categories` |
+| `user.py` | `users` |
+| `product.py` | `products` |
+| `inventory.py` | `inventory` |
+| `inventory_transaction.py` | `inventory_transactions` |
+| `order.py` | `orders` |
+| `order_item.py` | `order_items` |
+| `forecast.py` | `forecasts` |
+| `alert.py` | `alerts` |
+
+**3 điểm kỹ thuật xử lý đặc biệt:**
+
+| Vấn đề | Cách xử lý |
+|---|---|
+| `order_items.line_total` là GENERATED ALWAYS AS ... STORED | `Computed(..., persisted=True)` — DB tự tính, **không gán tay** |
+| `categories.parent_category_id` tự tham chiếu | `remote_side` + `foreign_keys` ở cả 2 chiều `parent`/`children` |
+| Cột `NUMERIC` | Trả về `Decimal` trong Python — ép `float()` khi tính toán |
+
+**Đã test thật** — đọc 947.590 dòng qua ORM, khớp 100% với `pg_stat_user_tables`:
+
+| Bảng | Số dòng | Bảng | Số dòng |
+|------|----------|------|----------|
+| `order_items` | 912.999 | `inventory` | 1.330 |
+| `orders` | 18.260 | `inventory_transactions` | 11.412 |
+| `forecasts` | 3.000 | `alerts` | 518 |
+| `products` | 50 | `stores` | 10 |
+| `categories` | 8 | `users` | 3 |
+
+Relationship đã kiểm chứng: `Order → store`, `Order → items → product`, `Store → {users, inventory, alerts, forecasts}`, `Category → products` + tự tham chiếu (Food có 3 nhóm con).
+
 **Endpoint hiện có:**
 
 | Endpoint | Mục đích | Tiền tố |
@@ -79,7 +116,7 @@ Hệ thống gồm 4 thành phần chính:
 
 Phiên bản: FastAPI 0.143.0 · uvicorn 0.54.0 · pydantic 2.14.1 · pydantic-settings 2.15.0.
 
-### 2.3 Database — 10 bảng
+### 2.4 Database — 10 bảng
 
 Số dòng thực tế trong DB `spoilage_predictor`:
 
@@ -100,7 +137,7 @@ Số dòng thực tế trong DB `spoilage_predictor`:
 
 Các thành phần khác: 6 trigger · 2 hàm · 4 view · 16 khóa ngoại.
 
-### 2.4 AI/ML — kết quả M1 + M2 + M3
+### 2.5 AI/ML — kết quả M1 + M2 + M3
 
 #### M1 — Đánh giá 3 mô hình trên 100 cặp (10 sản phẩm × 10 cửa hàng)
 
@@ -125,7 +162,7 @@ XGBoost chỉ thắng 3 cặp: `(45,2)` · `(13,7)` · `(28,4)`. Ở 59 cặp ch
 
 `docs/05-tham-khao/ket-qua-danh-gia-model.md` — phương pháp đánh giá, bảng so sánh, 3 insight chính, các hạn chế.
 
-### 2.5 10 sản phẩm dùng để huấn luyện
+### 2.6 10 sản phẩm dùng để huấn luyện
 
 Đủ **7/7 nhóm hàng** · 100 cặp (sản phẩm × cửa hàng) · mỗi cặp đủ 365 ngày.
 
@@ -183,8 +220,7 @@ f55dce4  T4.1: Chapter 1
 
 | Mã | Việc | Ưu tiên | Ghi chú |
 |----|------|---------|---------|
-| **B2** | Viết ORM models trong `app/models/` cho 10 bảng | 🔴 Tiếp theo | Kế thừa `Base` từ `app/database.py` |
-| **B3** | Endpoint nghiệp vụ dưới prefix `/api/v1/` | 🔴 Sau B2 | Sản phẩm · tồn kho · dự báo · cảnh báo |
+| **B3** | Endpoint nghiệp vụ dưới prefix `/api/v1/` | 🔴 Tiếp theo | Dùng `Depends(get_db)` · **không raw SQL trong routers** |
 | T4.3 | Viết Chương 3 — Thiết kế hệ thống | 🟡 TB | Cần kết quả M1–M3 làm căn cứ |
 | T4.4 | Viết Chương 4 — Thực nghiệm | 🟡 TB | **BẮT BUỘC đọc mục 8j GHI-CHU-TIEN-DO.md trước** |
 | F1 | Setup Frontend React | 🟢 Thấp | Cần CORS :3000 (đã bật) |

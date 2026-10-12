@@ -29,9 +29,9 @@
 | **M3 — Tài liệu đánh giá** | ✅ Xong | `docs/05-tham-khao/ket-qua-danh-gia-model.md` |
 | **Quyết định Chương 4** | ✅ Xong | Giữ nguyên Chương 2 + `max_stock`, ghi chú hạn chế — mục 8j |
 | **B1 — Setup FastAPI** | ✅ Xong | config · database · main · CORS · health — mục 8k |
+| **B2 — ORM models** | ✅ Xong | 10 model · test 947.590 dòng · mục 8l |
 | **CONTEXT-SUMMARY** | ✅ Xong | `docs/04-timeline/CONTEXT-SUMMARY.md` · commit `8e60e09` |
-| B2 — ORM models | ⬜ Chưa làm | Tiếp theo |
-| B3 — API nghiệp vụ `/api/v1/` | ⬜ Chưa làm | Sau B2 |
+| B3 — API nghiệp vụ `/api/v1/` | ⬜ Chưa làm | Tiếp theo |
 | T2 — README con | ⬜ Chưa làm | |
 | Frontend React | ⬜ Chưa làm | |
 | AI Model | ✅ Xong | M1 100 cặp · M2 3.000 dòng forecasts · M3 tài liệu |
@@ -41,6 +41,8 @@
 ## 2. Lịch sử commit
 
 ```
+4a744ac  fix: CORS_ORIGINS parse trong config.py
+3fac6b8  feat(backend): them .env.example, /api/v1/health, ho tro CORS 2 dinh dang
 0ca104d  feat(backend): setup FastAPI - config, database, CORS, health check
 8e60e09  docs: them CONTEXT-SUMMARY tom tat toan bo du an
 7a95bbf  docs: cap nhat quyet dinh ve Chuong 2 + max_stock
@@ -663,6 +665,141 @@ Nội dung: phương pháp (time-series split theo mốc ngày, chọn tham số
 
 ---
 
+## 8l. B2 — Viết SQLAlchemy Models (12/10/2026) ✅
+
+### Files đã tạo — 11 file
+
+| File | Bảng | Số cột |
+|------|------|--------|
+| `backend/app/models/store.py` | `stores` | 10 |
+| `backend/app/models/category.py` | `categories` | 6 |
+| `backend/app/models/user.py` | `users` | 10 |
+| `backend/app/models/product.py` | `products` | 14 |
+| `backend/app/models/inventory.py` | `inventory` | 9 |
+| `backend/app/models/inventory_transaction.py` | `inventory_transactions` | 13 |
+| `backend/app/models/order.py` | `orders` | 12 |
+| `backend/app/models/order_item.py` | `order_items` | 9 |
+| `backend/app/models/forecast.py` | `forecasts` | 14 |
+| `backend/app/models/alert.py` | `alerts` | 13 |
+| `backend/app/models/__init__.py` | — | Export 10 model + `Base` |
+
+Dùng SQLAlchemy 2.x hiện đại: `Mapped[]` + `mapped_column()` (không dùng `Column()` kiểu cũ).
+
+### 3 điểm kỹ thuật bắt buộc xử lý riêng
+
+#### 1. `order_items.line_total` là GENERATED COLUMN
+
+Trong DB:
+
+```sql
+line_total numeric(18,2) generated always as
+  (round(quantity * unit_price * (1::numeric - discount_percent / 100::numeric), 2)) stored
+```
+
+**Không map như cột thường.** Phải dùng:
+
+```python
+line_total: Mapped[float] = mapped_column(
+    Numeric(18, 2),
+    Computed("round(quantity * unit_price * (1::numeric - discount_percent / 100::numeric), 2)",
+             persisted=True),
+)
+```
+
+Nếu gán giá trị tay → PostgreSQL báo lỗi *"cannot update a generated column"*. Đây là ưu điểm: không thể nào tính tay sai lệch với công thức.
+
+**Đã kiểm chứng:** `quantity=13.000 × unit_price=20000.00 × (1 − 0/100)` → DB trả `260000.00`, tính tay ra `260000.0` → **KHỚP**.
+
+#### 2. `categories` tự tham chiếu
+
+`parent_category_id` trỏ về chính bảng `categories`. Phải chỉ rõ `remote_side` ở chiều "cha", nếu không SQLAlchemy không biết đâu là cha:
+
+```python
+parent: Mapped["Category | None"] = relationship(
+    "Category", back_populates="children",
+    remote_side="Category.category_id",       # BẮT BUỘC
+    foreign_keys=[parent_category_id],
+)
+children: Mapped[list["Category"]] = relationship(
+    "Category", back_populates="parent",
+    foreign_keys=[parent_category_id],
+)
+```
+
+**Đã kiểm chứng:** `Food` có 3 nhóm con — `Fresh Food` (10 sản phẩm), `Beverages` (11), `Snacks` (10). `Food` bản thân có 0 sản phẩm vì sản phẩm được gán vào nhóm con.
+
+#### 3. Cột `NUMERIC` trả về `Decimal`
+
+Không phải `float`. Khi tính toán phải ép kiểu:
+
+```python
+TypeError: unsupported operand type(s) for -: 'float' and 'decimal.Decimal'
+```
+
+Đã gặp lỗi này khi viết script kiểm tra. Sửa bằng cách ép `float()` **cả hai vế** trước khi trừ.
+
+### Kết quả test — 10/10 bảng đọc qua ORM
+
+| Bảng | Số dòng | | Bảng | Số dòng |
+|------|----------|---|------|----------|
+| `order_items` | 912.999 | | `inventory` | 1.330 |
+| `orders` | 18.260 | | `inventory_transactions` | 11.412 |
+| `forecasts` | 3.000 | | `alerts` | 518 |
+| `products` | 50 | | `stores` | 10 |
+| `categories` | 8 | | `users` | 3 |
+| | | | **TỔNG** | **947.590** |
+
+**Đối chiếu `pg_stat_user_tables` — khớp tuyệt đối 10/10 bảng.** Không sửa schema DB, chỉ đọc.
+
+### Test relationship (Bước 5)
+
+`Order → store` (JOIN tự động, không viết SQL):
+
+| order_code | store_name | total_amount | status |
+|------------|-----------|--------------|--------|
+| ORD-2013-000001 | Cửa hàng tiện lợi Q.3 | 37.390.000,00 | completed |
+| ORD-2013-000002 | Cửa hàng tiện lợi Bình Thành | 51.260.000,00 | completed |
+| ORD-2013-000003 | Cửa hàng tiện lợi Thủ Đức | 46.990.000,00 | completed |
+| ORD-2013-000004 | Cửa hàng tiện lợi Tân Bình | 40.190.000,00 | completed |
+| ORD-2013-000005 | Cửa hàng tiện lợi Hai Bà Trưng | 30.535.000,00 | completed |
+
+Quan hệ nhiều tầng `Order → items → product` cũng chạy:
+
+```
+ORD-2013-000001 có 50 dòng chi tiết
+  Rau muống tươi   x13.000 =    260.000,00
+  Rau cải thường   x33.000 =    660.000,00
+  Khoai lang       x15.000 =    300.000,00
+```
+
+Quan hệ ngược từ `Store`: `CH01` có 1 user · 133 lô tồn kho · 48 cảnh báo · 300 dự báo.
+
+### Lỗi của tôi trong lúc test (đã sửa, không ảnh hưởng model)
+
+| Lỗi | Nguyên nhân |
+|---|---|
+| `TypeError: unsupported operand type(s) for -: 'float' and 'decimal.Decimal'` | Ép `float()` một vế trong script test |
+| `AttributeError: 'NoneType' object has no attribute 'products'` | Đoán tên nhóm hàng là `"Drinks"` — nhưng DB dùng **tiếng Anh** (`Food`, `Fresh Food`, `Beverages`). Phải query `categories` trước, không đoán |
+
+### ⚠️ Lệch quy tắc — cần xác nhận
+
+Yêu cầu task: **comment tiếng Anh** cho models.
+Quy tắc dự án (rule 11 trong `GHI-CHU-TIEN-DO.md`): **comment tiếng Việt**.
+
+Tôi làm theo yêu cầu task (tiếng Anh, không dấu để tương thích console Windows cp1252). Các file Python trước đó (`config.py`, `database.py`, `main.py`) cũng đã dùng comment không dấu.
+
+→ **Cần thống nhất lại** khi viết tiếp: giữ tiếng Anh cho toàn bộ code Python, hay đổi về tiếng Việt theo rule 11?
+
+### Ghi chú thêm — `updated_at` không cần set trong Python
+
+Bảng có trigger `trg_*_updated BEFORE UPDATE ... EXECUTE FUNCTION fn_update_updated_at()`. DB tự cập nhật `updated_at` khi UPDATE, không cần gán tay trong ORM (không dùng `onupdate=`).
+
+### Việc tiếp theo — B3
+
+Tạo endpoint nghiệp vụ dưới prefix `/api/v1/`: sản phẩm · tồn kho · dự báo · cảnh báo. Dùng `Depends(get_db)`. **Không viết raw SQL trong routers.**
+
+---
+
 ## 8k. B1 — Setup backend FastAPI (12/10/2026) ✅
 
 ### Cài thư viện
@@ -1056,17 +1193,18 @@ cd frontend; npm run dev
 
 | Mã | Việc | Ưu tiên |
 |----|------|---------|
-| **B2** | Viết ORM models trong `backend/app/models/` cho 10 bảng | 🔴 Tiếp theo |
-| **B3** | Endpoint nghiệp vụ dưới prefix `/api/v1/` | 🔴 Sau B2 |
+| **B3** | Endpoint nghiệp vụ dưới prefix `/api/v1/` | 🔴 Tiếp theo |
 | T4.3 | Viết Chương 3 — Thiết kế hệ thống | 🟡 |
 | T4.4 | Viết Chương 4 — Thực nghiệm (**đọc mục 8j trước khi viết**) | 🟡 |
 | F1 | Setup Frontend React | 🟢 |
 | T2 | README con cho từng thư mục | 🟢 |
 
-**Chưa có Chương 3 và Chương 4.** Đã đủ căn cứ từ M1–M3 + kiến trúc backend.
+**Chưa có Chương 3 và Chương 4.** Đã đủ căn cứ từ M1–M3 + kiến trúc backend + ORM models.
 
 **Khi viết Chương 4, BẮT BUỘC đọc mục 8j** — đã có 2 quyết định không sửa dữ liệu/tài liệu mà chỉ ghi chú.
 
+**Chưa thống nhất:** ngôn ngữ comment trong code Python — tiếng Anh (theo yêu cầu task B2) hay tiếng Việt (rule 11)? Xem mục 8l.
+
 ---
 
-*Phiên sau: đọc `AGENTS.md` + file này, chạy `git status`, rồi làm B2 (ORM models cho 10 bảng).*
+*Phiên sau: đọc `AGENTS.md` + file này, chạy `git status`, rồi làm B3 (API nghiệp vụ `/api/v1/`).*
