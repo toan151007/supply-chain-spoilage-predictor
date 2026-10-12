@@ -17,12 +17,17 @@ Mục tiêu: Dự báo nhu cầu, tối ưu nhập hàng, giảm lãng phí th�
 ## Commands
 
 - Cài đặt backend: `pip install -r backend/requirements.txt`
-- Chạy backend: `uvicorn app.main:app --reload --port 8000`
+- Chạy backend: `cd backend; uvicorn app.main:app --reload --port 8000`
+- Test backend: mở `http://localhost:8000/docs`
 - Cài đặt frontend: `cd frontend && npm install`
 - Chạy frontend: `npm run dev` (cổng 3000)
 - Chạy database: `psql -U postgres -d spoilage_predictor`
 - Import SQL schema: `psql -U postgres -d spoilage_predictor -f database/01-schema/02-create-tables.sql`
 - Chạy AI model: `cd ai-model && jupyter notebook`
+
+> ⚠️ `cd backend` là **bắt buộc** khi chạy uvicorn — các module import
+> theo đường dẫn tuyệt đối `from app.config import settings`.
+> Nếu chạy từ thư mục gốc sẽ báo `ModuleNotFoundError: No module named 'app'`.
 
 ## Project Structure
 
@@ -61,9 +66,13 @@ Mục tiêu: Dự báo nhu cầu, tối ưu nhập hàng, giảm lãng phí th�
 | numpy | 2.5.3 |
 | SQLAlchemy | 2.1.2 |
 | psycopg2-binary | 2.9.13 |
+| FastAPI | 0.143.0 |
+| uvicorn | 0.54.0 (`[standard]` — kèm websockets cho realtime) |
+| pydantic | 2.14.1 |
+| pydantic-settings | 2.15.0 |
 | Node.js | v24.15.0 (npm 11.12.1) |
 | PostgreSQL | 18.6 · service `postgresql-x64-18` · port 5432 |
-| Database | `spoilage_predictor` · 10 bảng đã tạo · đang rỗng |
+| Database | `spoilage_predictor` · 10 bảng · **đã có dữ liệu** (912.999 `order_items` · 3.000 `forecasts`) |
 | Xác thực | `scram-sha-256` · mật khẩu nằm trong `.env` cục bộ, KHÔNG commit |
 
 | statsmodels | 0.15.0 (ARIMA) |
@@ -72,7 +81,7 @@ Mục tiêu: Dự báo nhu cầu, tối ưu nhập hàng, giảm lãng phí th�
 | Prophet | 1.4.0 (kèm CmdStan 2.37.0) |
 
 ✅ **Python 3.14.7 chạy được đủ 3 mô hình — KHÔNG cần lùi phiên bản.**
-Còn thiếu: `fastapi`, `uvicorn`, `pydantic` (cho backend B1).
+✅ Backend B1 đã cài đủ `fastapi`, `uvicorn`, `pydantic` (12/10/2026).
 
 Kiểm tra lại môi trường ML: `python scripts/check_ml_env.py`
 
@@ -184,6 +193,10 @@ Vì vậy **không dùng được** tiêu chí "hệ số biến động mùa v�
 - pgAdmin giữ session thì `DROP DATABASE` bị lỗi → dùng `TRUNCATE`.
 - **`max_stock` trong seed data KHÔNG cùng thang đo với Kaggle.** Seed đặt `max_stock` 48–300, nhưng nhu cầu thực tế 861–2.793/ngày → `max_stock` chỉ bằng **0,5–3 ngày bán**. Hệ quả: **100/100 cặp bị `max_stock` chặn** khi tính `recommended_import_qty` (nhu cầu thuần 232.397 → đề xuất sau cap chỉ 7.286). Đây là hạn chế dữ liệu, KHÔNG phải lỗi mô hình. Khi viết báo cáo phải nêu rõ.
 - **pandas 3.0**: `pd.DataFrame({"ds": <DataFrame>})` sẽ báo `ValueError: If using all scalar values, you must pass an index` — phải truyền **Series** (`df["sale_date"]`).
+- **FastAPI 0.143 đổi cách `include_router`:** `app.routes` giờ chứa một đối tượng `_IncludedRouter` thay vì flatten từng endpoint vào danh sách. **ĐỪNG kiểm tra `app.routes` để xác nhận router đã đăng ký** — hãy gọi thật qua HTTP (`Invoke-WebRequest http://localhost:8000/health`).
+- **Chạy uvicorn phải `cd backend` trước.** Module import theo đường dẫn tuyệt đối `from app.config import settings`; chạy từ thư mục gốc sẽ báo `ModuleNotFoundError: No module named 'app'`.
+- **File `.env` đã tạo ở thư mục gốc** (có trong `.gitignore`) — backend và các script AI/ML đều đọc từ đó. Không cần set `$env:DB_PASSWORD` thủ công khi chạy từ trong `backend/`.
+- Console Windows dùng cp1252 — khi in chuỗi có dấu tiếng Việt ra terminal sẽ báo `UnicodeEncodeError: charmap`. Thêm `sys.stdout.reconfigure(encoding="utf-8", errors="replace")`.
 
 ## ⛔ Quyết định đã chốt 03/10/2026 — KHÔNG sửa, ghi chú vào Chương 4
 
@@ -232,8 +245,8 @@ Chương 2 là cơ sở lý thuyết, trình bày cả 5 mô hình, chỉ **kỳ
 - [x] M1: Chạy **100 cặp** trong 13,2 phút — Prophet RMSE 9,97 (thắng 97/100)
 - [x] M2: Dự báo 30 ngày (01/01–30/01/2018) → **3.000 dòng** trong bảng `forecasts`
 - [x] M3: `docs/05-tham-khao/ket-qua-danh-gia-model.md`
-- [ ] B1: Setup backend FastAPI
-- [ ] B2: Kết nối backend với database
+- [x] B1: Setup backend FastAPI — config/database/main + CORS + health check, test thật `localhost:8000/docs`
+- [ ] B2: ORM models trong `app/models/` + endpoint nghiep vu `/api/v1/`
 - [ ] T2: README con cho từng thư mục
 - [ ] Setup Frontend React
 - [ ] Tích hợp AI Model

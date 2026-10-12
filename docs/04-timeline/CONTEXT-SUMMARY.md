@@ -1,6 +1,6 @@
 # Tóm tắt toàn bộ dự án — Context Summary
 
-> **Cập nhật:** 03/10/2026 · commit `7a95bbf`
+> **Cập nhật:** 12/10/2026 · commit `8e60e09`
 > **Repo:** https://github.com/toan151007/supply-chain-spoilage-predictor
 > **Giai đoạn:** Tuần 1 (05/10 – 16/10/2026)
 > **Ghi chú:** file này là bản tóm tắt ngắn của toàn bộ dự án. Khi chuyển sang máy/AI mới, đọc file này trước, sau đó đọc `AGENTS.md` và `GHI-CHU-TIEN-DO.md` nếu cần chi tiết.
@@ -54,7 +54,31 @@ Hệ thống gồm 4 thành phần chính:
 | — | `docs/05-tham-khao/giai-thich-comment-sql.md` — đối chiếu comment SQL Anh ↔ Việt | ✅ |
 | — | `backend/app/i18n/vi.json` — 9 khóa thông báo cảnh báo | ✅ commit `9372a0d` |
 
-### 2.2 Database — 10 bảng
+### 2.2 Backend FastAPI (B1 — 12/10/2026)
+
+| File | Vai trò |
+|------|---------|
+| `backend/requirements.txt` | 7 thư viện, ghim phiên bản |
+| `backend/app/config.py` | Đọc `.env` qua pydantic-settings · `@lru_cache` · dựng `database_url` |
+| `backend/app/database.py` | `create_engine` + `SessionLocal` + `Base` + `get_db()` + `check_database()` |
+| `backend/app/main.py` | Khởi tạo FastAPI + CORS + gắn router |
+| `backend/app/routers/health.py` | 2 endpoint health check |
+
+**Endpoint hiện có (2, đều ngoài `/api/v1/` vì thuộc hạ tầng):**
+
+| Endpoint | Mục đích |
+|----------|----------|
+| `GET /` | Hướng dẫn nhanh, không hiện trong /docs |
+| `GET /health` | Kiểm tra server còn sống |
+| `GET /health/database` | Kiểm tra kết nối PostgreSQL |
+| `GET /docs` | Swagger UI |
+| `GET /redoc` · `GET /openapi.json` | Tài liệu API |
+
+**Đã test thật** — tất cả trả `200 OK`, kết nối DB `"connected": true`, CORS trả đúng header cho `Origin: http://localhost:3000`.
+
+Phiên bản: FastAPI 0.143.0 · uvicorn 0.54.0 · pydantic 2.14.1 · pydantic-settings 2.15.0.
+
+### 2.3 Database — 10 bảng
 
 Số dòng thực tế trong DB `spoilage_predictor`:
 
@@ -75,7 +99,7 @@ Số dòng thực tế trong DB `spoilage_predictor`:
 
 Các thành phần khác: 6 trigger · 2 hàm · 4 view · 16 khóa ngoại.
 
-### 2.3 AI/ML — kết quả M1 + M2 + M3
+### 2.4 AI/ML — kết quả M1 + M2 + M3
 
 #### M1 — Đánh giá 3 mô hình trên 100 cặp (10 sản phẩm × 10 cửa hàng)
 
@@ -100,7 +124,7 @@ XGBoost chỉ thắng 3 cặp: `(45,2)` · `(13,7)` · `(28,4)`. Ở 59 cặp ch
 
 `docs/05-tham-khao/ket-qua-danh-gia-model.md` — phương pháp đánh giá, bảng so sánh, 3 insight chính, các hạn chế.
 
-### 2.4 10 sản phẩm dùng để huấn luyện
+### 2.5 10 sản phẩm dùng để huấn luyện
 
 Đủ **7/7 nhóm hàng** · 100 cặp (sản phẩm × cửa hàng) · mỗi cặp đủ 365 ngày.
 
@@ -127,19 +151,20 @@ Tiêu chí chọn: doanh số năm cao nhất của **từng nhóm hàng**. **KH
 
 ### Task đang dở
 
-**Không có task nào đang dở dang.** Đã hoàn thành trọn M1 + M2 + M3 và dừng tại mốc chờ duyệt.
+**Không có task nào đang dở dang.** B1 vừa hoàn thành xong, dừng tại mốc chờ duyệt.
 
 ### Trạng thái Git
 
 | Mục | Trạng thái |
 |-----|-----------|
-| Commit cuối | `7a95bbf` — docs: cap nhat quyet dinh ve Chuong 2 + max_stock |
+| Commit cuối | `8e60e09` — docs: them CONTEXT-SUMMARY tom tat toan bo du an |
 | Working tree | Sạch, khớp 100% với `origin/main` |
-| Số commit từ đầu dự án | 23 |
+| Số commit từ đầu dự án | 24 |
 
 Lịch sử commit gần đây:
 
 ```
+8e60e09  docs: them CONTEXT-SUMMARY tom tat toan bo du an
 7a95bbf  docs: cap nhat quyet dinh ve Chuong 2 + max_stock
 47b4775  feat(ai): chay 100 cap, du bao 30 ngay, danh gia 3 mo hinh
 8e392c6  docs: cap nhat tien do truoc khi ket thuc session
@@ -157,14 +182,14 @@ f55dce4  T4.1: Chapter 1
 
 | Mã | Việc | Ưu tiên | Ghi chú |
 |----|------|---------|---------|
-| **B1** | Setup backend FastAPI | 🔴 Tiếp theo | Cần cài `fastapi`, `uvicorn`, `pydantic` |
-| **B2** | Kết nối backend với database qua SQLAlchemy ORM | 🔴 Sau B1 | Mọi API prefix `/api/v1/` |
+| **B2** | Viết ORM models trong `app/models/` cho 10 bảng | 🔴 Tiếp theo | Kế thừa `Base` từ `app/database.py` |
+| **B3** | Endpoint nghiệp vụ dưới prefix `/api/v1/` | 🔴 Sau B2 | Sản phẩm · tồn kho · dự báo · cảnh báo |
 | T4.3 | Viết Chương 3 — Thiết kế hệ thống | 🟡 TB | Cần kết quả M1–M3 làm căn cứ |
 | T4.4 | Viết Chương 4 — Thực nghiệm | 🟡 TB | **BẮT BUỘC đọc mục 8j GHI-CHU-TIEN-DO.md trước** |
-| F1 | Setup Frontend React | 🟢 Thấp | |
+| F1 | Setup Frontend React | 🟢 Thấp | Cần CORS :3000 (đã bật) |
 | T2 | README con cho từng thư mục | 🟢 Thấp | |
 
-**Chưa có Chương 3 và Chương 4.** Sau khi B1–B2 xong sẽ đủ căn cứ viết 2 chương này.
+**Chưa có Chương 3 và Chương 4.** Đã đủ căn cứ từ M1–M3 + kiến trúc backend.
 
 Còn 1 việc tồn đọng: `docs/03-thiet-ke/kien-truc-he-thong.md` mục 7 còn ghi 9 bảng (thiếu `stores`) và ghi `products` có `expiry_date` → lệch schema hiện tại.
 
@@ -264,8 +289,9 @@ python scripts/check_ml_env.py
 python ai-model/scripts/train_models.py --all
 python ai-model/scripts/forecast_next_month.py --replace
 
-# Backend
-cd backend; uvicorn app.main:app --reload --port 8000
+# Backend — PHẢI cd backend trước
+cd backend; python -m uvicorn app.main:app --reload --port 8000
+# Test: http://localhost:8000/docs
 
 # Frontend
 cd frontend; npm run dev
@@ -279,7 +305,11 @@ cd frontend; npm run dev
 | pgAdmin giữ session → `DROP DATABASE` bị lỗi | Dùng `TRUNCATE` |
 | `.env` có thể chưa tồn tại | Tạo file `.env` ở thư mục gốc (đã có trong `.gitignore`) hoặc set `$env:DB_PASSWORD` |
 | Python 3.14.7 chạy được đủ 3 mô hình | ✅ **KHÔNG cần lùi phiên bản** |
-| Thiếu thư viện cho backend | Cài `fastapi`, `uvicorn`, `pydantic` (cho B1) |
+| ✅ Đã cài đủ thư viện backend | FastAPI · uvicorn · pydantic · pydantic-settings (12/10/2026) |
+| **Chạy uvicorn phải `cd backend` trước** | Module import tuyệt đối `from app.config import settings`. Chạy từ thư mục gốc → `ModuleNotFoundError: No module named 'app'` |
+| **FastAPI 0.143 đổi `include_router`** | `app.routes` chứa `_IncludedRouter` thay vì flatten endpoint. **Đừng kiểm tra `app.routes`** để xác nhận router — hãy gọi thật qua HTTP |
+| File `.env` đã tạo ở thư mục gốc | Có trong `.gitignore` · backend và script AI/ML đều đọc từ đó. Không cần set `$env:DB_PASSWORD` khi chạy trong `backend/` |
+| Console Windows cp1252 | In chuỗi tiếng Việt ra terminal → `UnicodeEncodeError: charmap`. Thêm `sys.stdout.reconfigure(encoding="utf-8", errors="replace")` |
 
 ---
 

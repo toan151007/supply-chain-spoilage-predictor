@@ -28,7 +28,10 @@
 | **M2 — Dự báo 30 ngày** | ✅ Xong | 3.000 dòng trong bảng `forecasts` |
 | **M3 — Tài liệu đánh giá** | ✅ Xong | `docs/05-tham-khao/ket-qua-danh-gia-model.md` |
 | **Quyết định Chương 4** | ✅ Xong | Giữ nguyên Chương 2 + `max_stock`, ghi chú hạn chế — mục 8j |
-| B1/B2 — Backend | ⬜ Chưa làm | FastAPI + kết nối DB |
+| **B1 — Setup FastAPI** | ✅ Xong | config · database · main · CORS · health — mục 8k |
+| **CONTEXT-SUMMARY** | ✅ Xong | `docs/04-timeline/CONTEXT-SUMMARY.md` · commit `8e60e09` |
+| B2 — ORM models | ⬜ Chưa làm | Tiếp theo |
+| B3 — API nghiệp vụ `/api/v1/` | ⬜ Chưa làm | Sau B2 |
 | T2 — README con | ⬜ Chưa làm | |
 | Frontend React | ⬜ Chưa làm | |
 | AI Model | ✅ Xong | M1 100 cặp · M2 3.000 dòng forecasts · M3 tài liệu |
@@ -38,6 +41,8 @@
 ## 2. Lịch sử commit
 
 ```
+8e60e09  docs: them CONTEXT-SUMMARY tom tat toan bo du an
+7a95bbf  docs: cap nhat quyet dinh ve Chuong 2 + max_stock
 47b4775  feat(ai): chay 100 cap, du bao 30 ngay, danh gia 3 mo hinh
 8e392c6  docs: cap nhat tien do truoc khi ket thuc session
 f46e479  docs: cap nhat tien do ngay 03/10/2026
@@ -657,6 +662,104 @@ Nội dung: phương pháp (time-series split theo mốc ngày, chọn tham số
 
 ---
 
+## 8k. B1 — Setup backend FastAPI (12/10/2026) ✅
+
+### Cài thư viện
+
+```powershell
+pip install fastapi "uvicorn[standard]" pydantic pydantic-settings sqlalchemy psycopg2-binary
+```
+
+`sqlalchemy` và `psycopg2-binary` đã có sẵn. Phiên bản sau khi cài:
+
+| Thư viện | Phiên bản |
+|----------|-----------|
+| FastAPI | 0.143.0 |
+| uvicorn | 0.54.0 (`[standard]` — kèm websockets cho realtime) |
+| pydantic | 2.14.1 |
+| pydantic-settings | 2.15.0 |
+| SQLAlchemy | 2.1.2 (có sẵn) |
+| psycopg2-binary | 2.9.13 (có sẵn) |
+
+### Files đã tạo
+
+| File | Vai trò |
+|------|--------|
+| `backend/requirements.txt` | 7 thư viện, ghim phiên bản |
+| `backend/app/config.py` | Đọc `.env` qua pydantic-settings · `@lru_cache` · property `database_url` |
+| `backend/app/database.py` | `create_engine` + `SessionLocal` + `Base(DeclarativeBase)` + `get_db()` + `check_database()` |
+| `backend/app/main.py` | Khởi tạo FastAPI + CORS middleware + gắn router |
+| `backend/app/routers/health.py` | 2 endpoint health check |
+| `backend/app/__init__.py` | Package marker |
+| `backend/app/routers/__init__.py` | Package marker |
+
+### Endpoint (đều test thật qua HTTP)
+
+| Endpoint | Kết quả test |
+|----------|-------------|
+| `GET /` | 200 OK |
+| `GET /health` | 200 OK — `{"status":"ok"}` |
+| `GET /health/database` | 200 OK — `"connected": true` |
+| `GET /docs` | 200 OK — Swagger UI render bình thường |
+| `GET /redoc` | 200 OK |
+| `GET /openapi.json` | 200 OK — OpenAPI 3.1.0, 2 paths |
+
+**CORS đã test:** header `Access-Control-Allow-Origin: http://localhost:3000` trả về đúng; preflight `OPTIONS` trả `200` với `Allow-Methods: DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT, QUERY`.
+
+### Endpoint nào KHÔNG có tiền tố `/api/v1/`?
+
+`/health` và `/health/database` **cố ý không** dùng tiền tố — chúng thuộc hạ tầng (kiểm tra server), không phải API nghiệp vụ.
+
+Mọi API nghiệp vụ từ B3 trở đi **bắt buộc** dùng `settings.API_V1_PREFIX` = `/api/v1`.
+
+### Đã tạo file `.env` ở thư mục gốc
+
+`.env` đã có sẵn trong `.gitignore` (`git check-ignore -v .env` xác nhận). Nội dung:
+
+```
+DB_USER / DB_PASSWORD / DB_HOST / DB_PORT / DB_NAME
+CORS_ORIGINS=["http://localhost:3000", ...]
+```
+
+**Xác minh:** backend chạy được mà **không cần** set `$env:DB_PASSWORD` — đã test bằng cách xoá biến môi trường rồi khởi động uvicorn, kết quả `"connected": true`.
+
+### Lỗi / bất ngờ đã gặp
+
+| Vấn đề | Giải thích | Xử lý |
+|---------|-----------|-------|
+| `app.routes` không liệt kê `/health` | **FastAPI 0.143 đổi cách `include_router`** — giờ tạo đối tượng `_IncludedRouter` thay vì flatten endpoint vào `app.routes` | **ĐỪNG kiểm tra `app.routes`** để xác nhận router. Gọi thật qua HTTP mới đáng tin |
+| `ModuleNotFoundError: No module named 'app'` | Chạy `python -c "from app.main import ..."` từ thư mục gốc | Phải `cd backend` trước — module import tuyệt đối `from app.config import settings` |
+| `UnicodeEncodeError: 'charmap' codec` | In `repr(module)` có đường dẫn tiếng Việt ra console cp1252 | `sys.stdout.reconfigure(encoding="utf-8", errors="replace")` hoặc set `$env:PYTHONIOENCODING="utf-8"` |
+
+### Cải thiện trong lúc làm
+
+`check_database()` ban đầu trả `bool`. Đã đổi thành trả `(bool, str | None)`:
+
+- Trả **tên lớp exception** (`OperationalError`, `InterfaceError`…) để chẩn đoán được
+- **KHÔNG** trả `str(exc)` — message psycopg2 có thể chứa thông tin kết nối nhạy cảm, không nên đưa vào HTTP response
+
+Test với mật khẩu sai (port 8001):
+
+```json
+{"status":"degraded","database":{"host":"localhost","port":5432,
+ "database":"spoilage_predictor","connected":false,"error":"OperationalError"}}
+```
+
+Đồng thời `GET /health` vẫn trả `"status":"ok"` — server không crash khi DB hỏng, phù hợp thiết kế health check.
+
+### Đã sửa trong AGENTS.md
+
+- Bảng môi trường: thêm FastAPI/uvicorn/pydantic/pydantic-settings
+- Sửa "Database đang rỗng" → "**đã có dữ liệu** (912.999 `order_items` · 3.000 `forecasts`)"
+- Bỏ dòng "Còn thiếu: fastapi, uvicorn, pydantic"
+- Thêm gotcha: `_IncludedRouter`, `cd backend`, `.env`, console cp1252
+
+### Việc tiếp theo — B2
+
+Viết ORM models trong `backend/app/models/` cho 10 bảng, kế thừa `Base` từ `app/database.py`. Sau đó B3 mới tạo endpoint nghiệp vụ dưới `/api/v1/`.
+
+---
+
 ## 8j. ⛔ Quyết định 03/10/2026 — viết Chương 4 thế nào
 
 Hai vấn đề phát hiện sau M1/M2 đã được quyết định: **giữ nguyên dữ liệu và tài liệu, ghi chú vào Chương 4.**
@@ -800,8 +903,9 @@ psql -U postgres -h localhost -d spoilage_predictor -c "SELECT count(*) FROM ord
 # Xoá dữ liệu test (pgAdmin giữ session thì không DROP được)
 psql -U postgres -h localhost -d spoilage_predictor -c "TRUNCATE alerts, forecasts, order_items, orders, inventory_transactions, inventory, products, categories, users, stores RESTART IDENTITY CASCADE;"
 
-# Backend
-cd backend; uvicorn app.main:app --reload --port 8000
+# Backend — PHẢI cd backend trước
+cd backend; python -m uvicorn app.main:app --reload --port 8000
+# Test: http://localhost:8000/docs
 
 # Frontend
 cd frontend; npm run dev
@@ -830,21 +934,21 @@ cd frontend; npm run dev
 
 ---
 
-## 13. Việc còn lại (cập nhật sau M3)
+## 13. Việc còn lại (cập nhật sau B1 — 12/10/2026)
 
 | Mã | Việc | Ưu tiên |
 |----|------|---------|
-| **B1** | Setup backend FastAPI — cần cài `fastapi`, `uvicorn`, `pydantic` | 🔴 Tiếp theo |
-| **B2** | Kết nối backend với database qua SQLAlchemy | 🔴 Sau B1 |
+| **B2** | Viết ORM models trong `backend/app/models/` cho 10 bảng | 🔴 Tiếp theo |
+| **B3** | Endpoint nghiệp vụ dưới prefix `/api/v1/` | 🔴 Sau B2 |
 | T4.3 | Viết Chương 3 — Thiết kế hệ thống | 🟡 |
 | T4.4 | Viết Chương 4 — Thực nghiệm (**đọc mục 8j trước khi viết**) | 🟡 |
 | F1 | Setup Frontend React | 🟢 |
 | T2 | README con cho từng thư mục | 🟢 |
 
-**Chưa có Chương 3 và 4.** Cả hai đều cần kết quả M1–M3 làm căn cứ — giờ đã đủ.
+**Chưa có Chương 3 và Chương 4.** Đã đủ căn cứ từ M1–M3 + kiến trúc backend.
 
 **Khi viết Chương 4, BẮT BUỘC đọc mục 8j** — đã có 2 quyết định không sửa dữ liệu/tài liệu mà chỉ ghi chú.
 
 ---
 
-*Phiên sau: đọc `AGENTS.md` + file này, chạy `git status`, rồi làm B1 (setup backend FastAPI).*
+*Phiên sau: đọc `AGENTS.md` + file này, chạy `git status`, rồi làm B2 (ORM models cho 10 bảng).*
