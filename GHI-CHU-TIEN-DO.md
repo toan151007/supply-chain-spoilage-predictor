@@ -720,23 +720,68 @@ Cứng 30 ngày. Nếu API cho `days=90` sẽ âm thầm trả đúng kết qu�
 | Expiring `days=30` | 564 lô (hết view) | ✅ |
 | `by_severity` cộng lại | 518 = `total` | ✅ |
 
-### ⚠️ Phát hiện con số trong AGENTS.md bị sai
+### ❌ SAI LẦM CỦA TÔI — báo nhầm AGENTS.md là có số liệu sai
 
-Kiểm tra SP15 năm 2017 cho kết quả **361.586**, khác với **331.783** đang ghi trong AGENTS.md.
+Ban đầu tôi báo: *"Kiểm tra SP15 năm 2017 cho kết quả 361.586, khác với 331.783 đang ghi trong AGENTS.md → AGENTS.md SAI."*
 
-Đã đối chiếu lại **CSV gốc**:
+**Kết luận đó SAI.** AGENTS.md không sai gì cả.
+
+| | Số tôi báo là của SP15 | Thực tế thuộc về |
+|---|---|---|
+| **331.783** | tôi gán cho product 15 | **product 45** — hàng #1 của bảng |
+| **361.586** | tôi nghĩ là số đúng | **product 15** — và AGENTS.md đã ghi đúng số này |
+
+**Nguyên nhân:** khi quét bảng 10 dòng tôi đã đọc lệch hàng — lấy số của dòng #1 rồi gán cho dòng #3. Hai số trùng nhau làm lỗi này càng dễ xảy ra.
+
+**Bằng chứng bảng trên đĩa luôn đúng từ đầu:**
 
 ```
-CSV: 3.650 dòng (10 cửa hàng × 365 ngày) → SUM = 361.586
-DB: SUM(order_items.quantity)              = 361.586
-→ KHỚP
+$ git log -L 154,154:AGENTS.md
+10d69f0 2026-10-02 docs: chot danh sach 10 san pham huyen luyen + ghi chu censored demand
++| 3 | 15 | Ca phe sua dinh huong | Beverages | 361.586 | 990,6 |
 ```
 
-Và `361.586 / 365 = 990,6` — đúng bằng cột "BQ/ngày" (990,6) trong bảng AGENTS.md.
+Commit `10d69f0` (02/10/2026) — commit **tạo ra** bảng — đã viết `361.586` ngay từ dòng đầu tiên. Không có lần nào sai.
 
-**→ Con số 331.783 trong AGENTS.md SAI.** Cột "Doanh số 2017" của cả 10 sản phẩm trong bảng đó đáng ngờ.
+**Đã kiểm chứng lại toàn bộ 10 dòng (12/10/2026)** bằng script so 3 nguồn:
 
-**Cần quyết định:** có thay cột đó bằng số đã kiểm chứng từ CSV không.
+| product_id | CSV gốc | DB | AGENTS.md | Chênh lệch |
+|-----------|---------|-----|-----------|-----------|
+| 45 | 331.783 | 331.783 | 331.783 | 0 ✅ |
+| 8 | 316.911 | 316.911 | 316.911 | 0 ✅ |
+| 15 | 361.586 | 361.586 | 361.586 | 0 ✅ |
+| 13 | 346.565 | 346.565 | 346.565 | 0 ✅ |
+| 25 | 330.786 | 330.786 | 330.786 | 0 ✅ |
+| 11 | 286.882 | 286.882 | 286.882 | 0 ✅ |
+| 28 | 360.768 | 360.768 | 360.768 | 0 ✅ |
+| 48 | 211.365 | 211.365 | 211.365 | 0 ✅ |
+| 38 | 331.005 | 331.005 | 331.005 | 0 ✅ |
+| 18 | 346.448 | 346.448 | 346.448 | 0 ✅ |
+
+**CSV == DB == AGENTS.md cho cả 10/10 sản phẩm. Không có số liệu nào cần sửa.**
+
+Mỗi sản phẩm đều có đúng **3.650 dòng CSV** năm 2017 (10 cửa hàng × 365 ngày) — khớp hoàn toàn.
+
+#### Về cột "BQ/ngày" — chênh nhẹ là do làm tròn, không phải lỗi
+
+Script cũng báo "KHÔNG khớp" khi so `BQ/ngày × 365` với doanh số gốc. Đây là **sai số làm tròn** ở 1 chữ số thập phân, chênh tối đa ~100 đơn vị (0,03%), không phải số liệu sai:
+
+| product | Doanh số | BQ/ngày | BQ × 365 | Lệch |
+|---------|----------|---------|----------|------|
+| 45 | 331.783 | 909,0 | 331.785 | 2 |
+| 8 | 316.911 | 868,2 | 316.893 | 18 |
+| 25 | 330.786 | 906,3 | 330.800 | 14 |
+| 13 | 346.565 | 949,5 | 346.568 | 3 |
+
+Riêng product 15: `361.586 / 365 = 990,6` → `990,6 × 365 = 361.569`, lệch 17. Nhất quán với 9 sản phẩm còn lại.
+
+→ Đã ghi chú giải thích điều này vào AGENTS.md để lần đọc sau không báo nhầm nữa.
+
+### Bài học
+
+Vạch nhóm số liệu trong bảng có nhiều dòng, phải **đối chiếu bằng script theo `product_id` chứ không đọc bằng mắt rồi đối chiếu bằng trí nhớ.** Ở đây tôi đã "đối chiếu" bằng cách nhớ số đã đọc ở phiên trước — rồi gán nhầm sang dòng khác.
+
+Đáng lẽ phải chạy script ngay từ đầu thay vì báo cáo rồi mới kiểm.
 
 ### Sai lầm của tôi — 3 kỳ vọng test sai (API đúng)
 

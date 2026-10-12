@@ -162,6 +162,14 @@ Chi tiết: `docs/05-tham-khao/ket-qua-danh-gia-model.md`
 
 **Đủ 7/7 nhóm hàng · 100 cặp (sản phẩm × cửa hàng) · mỗi cặp đủ 365 ngày.**
 
+> **Nguồn số liệu:** cột "Doanh số 2017" lấy từ `SUM(order_items.quantity)` trong DB
+> (điều kiện `order_date` từ 2017-01-01 đến trước 2018-01-01), đã đối chiếu khớp
+> **từng dòng** với `SUM(sales)` trong `datasets/raw/train.csv`.
+> Cột "BQ/ngày" là doanh số chia 365, làm tròn 1 chữ số thập phân — nên nhân ngược
+> có thể lệch vài đơn vị so với doanh số gốc, đó là sai số làm tròn, không phải sai số liệu.
+>
+> Đã kiểm chứng lại toàn bộ 10 dòng ngày 12/10/2026 — **10/10 khớp tuyệt đối** giữa CSV và DB.
+
 ### ⚠️ Về hiện tượng censored demand
 
 Chương 1 và Chương 2 trình bày censored demand như một vấn đề **lý thuyết**. **Dữ liệu Kaggle không có hiện tượng này** — đã kiểm tra, có **0 ngày** bán bằng 0 sản phẩm.
