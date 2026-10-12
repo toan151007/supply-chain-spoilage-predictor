@@ -30,8 +30,10 @@
 | **Quyết định Chương 4** | ✅ Xong | Giữ nguyên Chương 2 + `max_stock`, ghi chú hạn chế — mục 8j |
 | **B1 — Setup FastAPI** | ✅ Xong | config · database · main · CORS · health — mục 8k |
 | **B2 — ORM models** | ✅ Xong | 10 model · test 947.590 dòng · mục 8l |
+| **B3 — CRUD products API** | ✅ Xong | 5 endpoint · test 27/27 · mục 8m |
+| **Migration 005** | ✅ Xong | Sửa 4 sequence trôi · mục 8m |
 | **CONTEXT-SUMMARY** | ✅ Xong | `docs/04-timeline/CONTEXT-SUMMARY.md` · commit `8e60e09` |
-| B3 — API nghiệp vụ `/api/v1/` | ⬜ Chưa làm | Tiếp theo |
+| B4 — CRUD các bảng còn lại | ⬜ Chưa làm | Tiếp theo |
 | T2 — README con | ⬜ Chưa làm | |
 | Frontend React | ⬜ Chưa làm | |
 | AI Model | ✅ Xong | M1 100 cặp · M2 3.000 dòng forecasts · M3 tài liệu |
@@ -665,6 +667,155 @@ Nội dung: phương pháp (time-series split theo mốc ngày, chọn tham số
 
 ---
 
+## 8m. B3 — API CRUD Products (12/10/2026) ✅
+
+### Files đã tạo
+
+| File | Nội dung |
+|------|----------|
+| `backend/app/schemas/product_schema.py` | 6 Pydantic schema |
+| `backend/app/schemas/__init__.py` | Export schemas |
+| `backend/app/routers/product_router.py` | 5 endpoint CRUD |
+| `backend/app/main.py` | Thêm `include_router(product_router.router, prefix="/api/v1")` |
+| `database/03-migrations/005-fix-sequences.sql` | **Mới** — sửa bug sequence (xem mục bên dưới) |
+
+### 5 endpoint
+
+| Method | Path | Chức năng |
+|--------|------|-----------|
+| GET | `/api/v1/products` | Danh sách + phân trang + lọc + tìm kiếm |
+| GET | `/api/v1/products/{id}` | Chi tiết |
+| POST | `/api/v1/products` | Tạo mới |
+| PUT | `/api/v1/products/{id}` | Cập nhật một phần |
+| DELETE | `/api/v1/products/{id}` | Xoá (409 nếu đã có lịch sử) |
+
+**Quyết định thiết kế:**
+
+| Quyết định | Lý do |
+|------------|-------|
+| Phân trang mặc định 20, tối đa 100 | `joinedload(Product.category)` chạy cho mỗi dòng — trả 1000 dòng sẽ nặng |
+| Response trả **object** `{total, page, page_size, pages, items}` | Frontend cần tổng số bản ghi để vẽ phân trang, không cần gọi thêm API đếm |
+| `PUT` dùng `exclude_unset=True` | Cho phép gửi một phần; trường không gửi giữ nguyên, không phải ghi `null` |
+| Validator `max_stock >= min_stock` trong Pydantic | Chặn ở tầng schema với thông báo rõ tên trường, thay vì để `IntegrityError` lọt lên thành 500 |
+| DELETE trả **409** kèm gợi ý | FK `ON DELETE RESTRICT` — đúng nghiệp vụ, lịch sử bán hàng không được xoá âm thầm |
+
+### 🐛 Bug nghiêm trọng tìm ra khi test POST — bug sequence
+
+**Triệu chứng:** POST trả 409 ngay lần đầu, dù `SP-TEST-9999` chắc chắn chưa tồn tại.
+
+**Debug trực tiếp:**
+
+```
+LOI: IntegrityError
+ORIG: duplicate key value violates unique constraint "products_pkey"
+DETAIL: Key (product_id)=(2) already exists.
+```
+
+**Đối chiếu:**
+
+| Đối tượng | Giá trị |
+|---|---|
+| `products_product_id_seq.last_value` | **2** |
+| `MAX(products.product_id)` | **50** |
+
+**Nguyên nhân:** trước đây đã `TRUNCATE ... RESTART IDENTITY` rồi import lại dữ liệu 5 năm bằng insert **chỉ định `product_id` từ Kaggle**. PostgreSQL **không tự đẩy sequence** khi insert có giá trị khóa chính tường minh. Sequence bị bỏ lại ở giá trị 2.
+
+**Hệ quả:** mọi `INSERT` mới sẽ lấy id 2, 3, 4… đã tồn tại → **luôn lỗi**. API tạo sản phẩm không thể hoạt động.
+
+#### Cách sửa — migration 005
+
+Tạo `database/03-migrations/005-fix-sequences.sql` dùng `DO` block + `setval()`, **kiểm tra tất cả 10 bảng** chứ không chỉ `products`:
+
+| Bảng | seq trước | max | Kết quả |
+|------|-----------|-----|---------|
+| `users` | 1 | 3 | **FIXED** |
+| `stores` | 1 | 10 | **FIXED** |
+| `categories` | 1 | 8 | **FIXED** |
+| `products` | 2 | 50 | **FIXED** |
+| `inventory` | 1330 | 1330 | ok |
+| `inventory_transactions` | 11412 | 11412 | ok |
+| `orders` | 18260 | 18260 | ok |
+| `order_items` | — | — | không có sequence (BIGSERIAL) |
+| `forecasts` | 3000 | 3000 | ok |
+| `alerts` | 518 | 518 | ok |
+
+→ **4 sequence sai.** 5 bảng còn lại đã đúng sẵn (vì seed dùng sequence tự sinh).
+
+**Đã kiểm chứng:**
+- File thuần ASCII (0 byte > 127)
+- Backup 65 MB trước khi chạy
+- **Idempotent**: chạy lần 2 fix 0 sequence, không báo lỗi
+- Số dòng 10 bảng **không đổi** sau migration
+
+→ **Bài học:** sau mỗi lần import dữ liệu hàng loạt bằng insert chỉ định khóa chính, **phải chạy migration 005**. Đã ghi vào AGENTS.md.
+
+### Lỗi của tôi trong lúc làm (đã sửa, đã báo)
+
+| Lỗi | Nguyên nhân | Hậu quả |
+|---|---|---|
+| `NameError: name 'product' is not defined` tại `db.refresh()` | Rút gọn dòng `Product(**...)` thành `db.add(Product(...))` nhưng dòng `db.refresh(product)` vẫn còn | **POST trả 500 nhưng bản ghi ĐÃ được commit** → còn 51 sản phẩm trong DB |
+| `[winerror 10048] only one usage of each socket address` | Server cũ chưa chết, server mới không bind được | Test chạy vào **code cũ** |
+| `Total: 51` trong lần chạy test sau | Hệ quả của lỗi `NameError` ở trên | Phải `DELETE` bản ghi thừa |
+
+**Bài học quan trọng:** lỗi xảy ra **sau `db.commit()`** thì **không rollback được** — dữ liệu đã ghi vĩnh viễn. Log server cho thấy rõ:
+
+```
+POST /api/v1/products  → 500 Internal Server Error   (NameError)
+POST /api/v1/products  → 409 Conflict                (đã tạo xong trong lần trước)
+```
+
+Nếu test fail, **phải kiểm tra dữ liệu thừa** trước khi chạy lại — không phải chỉ sửa code.
+
+### Kết quả test cuối — 27/27 PASS
+
+| Nhóm | Kiểm tra | Kết quả |
+|------|----------|---------|
+| **GET list** | 200 · total=50 · pages=3 · 20 item/trang | ✅ |
+| | Trang 3 (trang cuối) → 10 item | ✅ |
+| | Lọc `category_id=3` → 11 SP, tất cả đều đúng category | ✅ |
+| | Tìm `search=kem` → `Kem chong nang`, `Kem danh rang` | ✅ |
+| | Lọc `is_active=false` → 0 | ✅ |
+| **GET detail** | 200 · SP0045 · han=730 ngày · Baby Care | ✅ |
+| | ID không tồn tại → 404 | ✅ |
+| **POST** | 201 · tạo được · `is_perishable` mặc định `true` | ✅ |
+| | Trùng `product_code` → 409 | ✅ |
+| | `category_id=999` → 422 | ✅ |
+| | `max_stock < min_stock` → 422 | ✅ |
+| **PUT** | 200 · đổi `selling_price` + `supplier` | ✅ |
+| | Trường không gửi → giữ nguyên | ✅ |
+| | Body rỗng `{}` → 200, không đổi gì | ✅ |
+| | Đổi sang `product_code` đã có → 409 | ✅ |
+| **DELETE** | Sản phẩm mới → 204, body rỗng | ✅ |
+| | Xoá xong → GET trả 404 | ✅ |
+| | Sản phẩm 45 (đã có lịch sử) → **409** kèm gợi ý dùng `is_active=false` | ✅ |
+| | SP45 vẫn còn sau khi DELETE thất bại | ✅ |
+| **Cuối** | Tổng sản phẩm quay về **50** | ✅ |
+
+Dữ liệu 10 bảng sau test **không đổi** (912.999 order_items · 18.260 orders · 50 products · …).
+
+### Sửa warning deprecation
+
+Starlette đã đổi `HTTP_422_UNPROCESSABLE_ENTITY` → `HTTP_422_UNPROCESSABLE_CONTENT`. Log hiện:
+
+```
+StarletteDeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated.
+```
+
+Đã dùng hằng `HTTP_422_UNPROCESSABLE_CONTENT = 422` trong router. Chạy lại → log sạch, không còn warning.
+
+### Đã chụp màn hình Swagger UI
+
+`http://localhost:8000/docs` hiển thị đủ:
+- Nhóm `health`: 3 endpoint
+- Nhóm `products`: 5 endpoint (GET / POST / GET-id / PUT / DELETE với màu đúng phương thức)
+- Nhóm `Schemas`: `CategoryBrief` · `ProductCreate` · `ProductPage` · `ProductRead` · `ProductUpdate` · `HTTPValidationError` · `ValidationError`
+
+### Việc tiếp theo — B4
+
+CRUD cho `stores` · `categories` · `inventory` · `forecasts` · `alerts`. Cùng pattern: schema Pydantic + router ORM + `Depends(get_db)`.
+
+---
+
 ## 8l. B2 — Viết SQLAlchemy Models (12/10/2026) ✅
 
 ### Files đã tạo — 11 file
@@ -1205,18 +1356,21 @@ cd frontend; npm run dev
 
 | Mã | Việc | Ưu tiên |
 |----|------|---------|
-| **B3** | Endpoint nghiệp vụ dưới prefix `/api/v1/` | 🔴 Tiếp theo |
+| **B4** | CRUD stores · categories · inventory · forecasts · alerts | 🔴 Tiếp theo |
+| **B5** | Endpoint dashboard tổng hợp | 🟡 TB |
 | T4.3 | Viết Chương 3 — Thiết kế hệ thống | 🟡 |
 | T4.4 | Viết Chương 4 — Thực nghiệm (**đọc mục 8j trước khi viết**) | 🟡 |
 | F1 | Setup Frontend React | 🟢 |
 | T2 | README con cho từng thư mục | 🟢 |
 
-**Chưa có Chương 3 và Chương 4.** Đã đủ căn cứ từ M1–M3 + kiến trúc backend + ORM models.
+**Chưa có Chương 3 và Chương 4.** Đã đủ căn cứ từ M1–M3 + backend + ORM models + API.
 
 **Khi viết Chương 4, BẮT BUỘC đọc mục 8j** — đã có 2 quyết định không sửa dữ liệu/tài liệu mà chỉ ghi chú.
 
 **Ngôn ngữ comment code Python:** ✅ đã chốt — **tiếng Anh không dấu**. Xem mục 8l.
 
+**Sau khi import dữ liệu hàng loạt:** chạy `database/03-migrations/005-fix-sequences.sql`. Xem mục 8m.
+
 ---
 
-*Phiên sau: đọc `AGENTS.md` + file này, chạy `git status`, rồi làm B3 (API nghiệp vụ `/api/v1/`).*
+*Phiên sau: đọc `AGENTS.md` + file này, chạy `git status`, rồi làm B4 (CRUD các bảng còn lại).*

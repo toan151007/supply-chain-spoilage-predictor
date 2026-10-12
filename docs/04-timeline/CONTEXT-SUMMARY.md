@@ -102,6 +102,35 @@ Hệ thống gồm 4 thành phần chính:
 
 Relationship đã kiểm chứng: `Order → store`, `Order → items → product`, `Store → {users, inventory, alerts, forecasts}`, `Category → products` + tự tham chiếu (Food có 3 nhóm con).
 
+### 2.4 API nghiệp vụ — CRUD Products (B3 — 12/10/2026)
+
+| File | Vai trò |
+|------|---------|
+| `backend/app/schemas/product_schema.py` | 6 Pydantic schema: `ProductBase` · `Create` · `Update` · `Read` · `Page` · `CategoryBrief` |
+| `backend/app/routers/product_router.py` | 5 endpoint, tất cả truy vấn qua ORM |
+
+| Endpoint | Chức năng |
+|----------|-----------|
+| `GET /api/v1/products` | Danh sách có phân trang + lọc `category_id` · `is_active` · tìm kiếm `search` |
+| `GET /api/v1/products/{id}` | Chi tiết 1 sản phẩm (kèm category) |
+| `POST /api/v1/products` | Tạo mới |
+| `PUT /api/v1/products/{id}` | Cập nhật một phần (`exclude_unset=True`) |
+| `DELETE /api/v1/products/{id}` | Xoá — trả **409** nếu sản phẩm đã có lịch sử |
+
+**Xử lý lỗi chuẩn:**
+
+| Tình huống | HTTP |
+|------------|------|
+| Không tìm thấy | 404 |
+| `product_code`/`product_name` trùng | 409 |
+| `category_id` không tồn tại | 422 |
+| `max_stock < min_stock` | 422 (validator Python, chặn trước khi ghi DB) |
+| Xoá sản phẩm đã có đơn hàng / tồn kho / dự báo | 409 kèm gợi ý dùng `is_active = false` |
+
+Phân trang mặc định 20/trang, tối đa 100. Response trả **object** `{total, page, page_size, pages, items}` thay vì list thuần, để frontend biết tổng số bản ghi mà không cần gọi thêm.
+
+**Đã test thật: 27/27 pass** (tạo sản phẩm thử rồi xoá, dữ liệu về nguyên 50 sản phẩm).
+
 **Endpoint hiện có:**
 
 | Endpoint | Mục đích | Tiền tố |
@@ -116,7 +145,7 @@ Relationship đã kiểm chứng: `Order → store`, `Order → items → produc
 
 Phiên bản: FastAPI 0.143.0 · uvicorn 0.54.0 · pydantic 2.14.1 · pydantic-settings 2.15.0.
 
-### 2.4 Database — 10 bảng
+### 2.5 Database — 10 bảng
 
 Số dòng thực tế trong DB `spoilage_predictor`:
 
@@ -137,7 +166,7 @@ Số dòng thực tế trong DB `spoilage_predictor`:
 
 Các thành phần khác: 6 trigger · 2 hàm · 4 view · 16 khóa ngoại.
 
-### 2.5 AI/ML — kết quả M1 + M2 + M3
+### 2.6 AI/ML — kết quả M1 + M2 + M3
 
 #### M1 — Đánh giá 3 mô hình trên 100 cặp (10 sản phẩm × 10 cửa hàng)
 
@@ -162,7 +191,7 @@ XGBoost chỉ thắng 3 cặp: `(45,2)` · `(13,7)` · `(28,4)`. Ở 59 cặp ch
 
 `docs/05-tham-khao/ket-qua-danh-gia-model.md` — phương pháp đánh giá, bảng so sánh, 3 insight chính, các hạn chế.
 
-### 2.6 10 sản phẩm dùng để huấn luyện
+### 2.7 10 sản phẩm dùng để huấn luyện
 
 Đủ **7/7 nhóm hàng** · 100 cặp (sản phẩm × cửa hàng) · mỗi cặp đủ 365 ngày.
 
@@ -220,7 +249,8 @@ f55dce4  T4.1: Chapter 1
 
 | Mã | Việc | Ưu tiên | Ghi chú |
 |----|------|---------|---------|
-| **B3** | Endpoint nghiệp vụ dưới prefix `/api/v1/` | 🔴 Tiếp theo | Dùng `Depends(get_db)` · **không raw SQL trong routers** |
+| **B4** | CRUD stores · categories · inventory · forecasts · alerts | 🔴 Tiếp theo | Dùng `Depends(get_db)` · **không raw SQL trong routers** |
+| B5 | Endpoint dashboard tổng hợp (doanh thu · tồn kho · cảnh báo) | 🟡 | Phục vụ trang chủ frontend |
 | T4.3 | Viết Chương 3 — Thiết kế hệ thống | 🟡 TB | Cần kết quả M1–M3 làm căn cứ |
 | T4.4 | Viết Chương 4 — Thực nghiệm | 🟡 TB | **BẮT BUỘC đọc mục 8j GHI-CHU-TIEN-DO.md trước** |
 | F1 | Setup Frontend React | 🟢 Thấp | Cần CORS :3000 (đã bật) |
@@ -349,6 +379,9 @@ cd frontend; npm run dev
 | File `.env` đã tạo ở **thư mục gốc** | Có trong `.gitignore` · backend **và script AI/ML** đều đọc từ đó → KHÔNG chuyển sang `backend/` sẽ phá vỡ script. Mẫu cấu hình cho người clone: `backend/.env.example` |
 | **`CORS_ORIGINS` nhận cả 2 kiểu viết** | `CORS_ORIGINS=http://a:3000,http://b:5173` (dấu phẩy) **hoặc** `CORS_ORIGINS=["http://a:3000"]` (JSON). Dùng property **`settings.cors_origins_list`**. Khai báo `list[str]` chỉ chấp nhận JSON và sẽ báo `ValidationError` với dạng dấu phẩy — tức làm hỏng chính file `.env.example` của repo |
 | **`CORS_ORIGINS=` rỗng → `[]`** | Fail-closed, chặn mọi origin. Muốn dùng 4 origin mặc định thì **xoá hẳn dòng** khỏi `.env`, đừng để trống |
+| **Sequence ID trôi khỏi dữ liệu** | `TRUNCATE ... RESTART IDENTITY` rồi import lại bằng insert **chỉ định khóa chính** → PostgreSQL không tự đẩy sequence. Mọi INSERT sau đó đụng `duplicate key ... already exists`. Đã gặp với `products` (seq=2 vs max=50) → **đã sửa bằng `database/03-migrations/005-fix-sequences.sql`** (4 sequence sai: `users` `stores` `categories` `products`). Chạy file này sau mỗi lần import dữ liệu hàng loạt |
+| **Lỗi sau `db.commit()` không rollback được** | `NameError` ở `db.refresh()` làm POST trả 500 nhưng bản ghi **đã được tạo**. Nếu test fail, kiểm tra dữ liệu thừa trước khi chạy lại |
+| **Cổng 8000 dễ bị chiếm** | `Kill-Process` trước khi start lại, nếu không sẽ báo `[winerror 10048]` và test vẫn chạy vào code cũ |
 | Console Windows cp1252 | In chuỗi tiếng Việt ra terminal → `UnicodeEncodeError: charmap`. Thêm `sys.stdout.reconfigure(encoding="utf-8", errors="replace")` |
 
 ---

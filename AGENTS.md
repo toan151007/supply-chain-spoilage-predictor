@@ -205,6 +205,9 @@ Vì vậy **không dùng được** tiêu chí "hệ số biến động mùa v�
 - **`order_items.line_total` là GENERATED COLUMN** → model dùng `Computed(..., persisted=True)`. **Không được gán giá trị** cho cột này khi INSERT/UPDATE, DB tự tính: `round(quantity * unit_price * (1 - discount_percent/100), 2)`.
 - **`categories` có quan hệ tự tham chiếu** (`parent_category_id` → chính nó). Bắt buộc chỉ rõ `remote_side` và `foreign_keys` ở cả hai chiều, nếu không SQLAlchemy sẽ không xác định được quan hệ cha/con.
 - **Tên nhóm hàng trong DB là tiếng Anh** (`Food`, `Fresh Food`, `Beverages`…), khác với tên tiếng Việt trong tài liệu. Khi viết test đừng đoán tên — query `categories` trước.
+- **Sequence ID có thể trôi khỏi dữ liệu** — đã gặp và đã sửa bằng migration 005. Nguyên nhân: `TRUNCATE ... RESTART IDENTITY` rồi import lại bằng `COPY`/insert **chỉ định khóa chính** → PostgreSQL **không** tự đẩy sequence lên. Mọi `INSERT` sau đó đụng `duplicate key ... already exists`. Chạy `database/03-migrations/005-fix-sequences.sql` sau khi import dữ liệu hàng loạt. Triệu chứng: `products_product_id_seq.last_value = 2` trong khi `MAX(product_id) = 50`.
+- **Sau `db.commit()`, lỗi phát sinh ở `db.refresh()` không rollback được** — dữ liệu đã ghi vĩnh viễn. Đã gặp: `NameError` ở `db.refresh()` làm POST trả 500 nhưng bản ghi vẫn được tạo. Nếu test thất bại, **kiểm tra dữ liệu thừa** trước khi chạy lại.
+- **Cổng 8000 dễ bị chiếm bởi server cũ** — `Kill-Process` trước khi start lại, nếu không sẽ báo `[winerror 10048] only one usage of each socket address` và test vẫn chạy vào code cũ.
 
 ## ⛔ Quyết định đã chốt 03/10/2026 — KHÔNG sửa, ghi chú vào Chương 4
 
@@ -255,7 +258,8 @@ Chương 2 là cơ sở lý thuyết, trình bày cả 5 mô hình, chỉ **kỳ
 - [x] M3: `docs/05-tham-khao/ket-qua-danh-gia-model.md`
 - [x] B1: Setup backend FastAPI — config/database/main + CORS + 3 endpoint health, test thật `localhost:8000/docs` (đã chụp màn hình)
 - [x] B2: 10 ORM models trong `app/models/` — test thật 947.590 dòng qua ORM, relationship OK
-- [ ] B3: Endpoint nghiệp vụ dưới prefix `/api/v1/`
+- [x] B3: CRUD products `/api/v1/products` — 5 endpoint + Pydantic schemas, test 27/27 pass
+- [ ] B4: CRUD cho stores / categories / inventory / forecasts / alerts
 - [ ] T2: README con cho từng thư mục
 - [ ] Setup Frontend React
 - [ ] Tích hợp AI Model

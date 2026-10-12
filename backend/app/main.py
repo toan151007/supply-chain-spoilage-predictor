@@ -12,7 +12,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import health
+from app.routers import health, product_router
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -46,9 +46,10 @@ app.include_router(health.router)
 
 # ---- API nghiep vu ----
 # QUY TAC: moi API nghiep vu phai nam sau tien to /api/v1/
-# Vi du: app.include_router(product.router, prefix=settings.API_V1_PREFIX)
-# -> endpoint: /api/v1/products
+# Vi du: app.include_router(order_router.router, prefix=settings.API_V1_PREFIX)
+# -> endpoint: /api/v1/orders
 app.include_router(health.api_router, prefix=settings.API_V1_PREFIX)
+app.include_router(product_router.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/", include_in_schema=False)
