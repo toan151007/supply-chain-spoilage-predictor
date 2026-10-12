@@ -159,6 +159,48 @@ Phân trang mặc định 20/trang, tối đa 100. Response trả **object** `{t
 
 **`/alerts` `title` chứa i18n key** (`alert.title.EXPIRED`), không phải text hiển thị — dịch ở `backend/app/i18n/vi.json`.
 
+### 2.6 API Dashboard tổng hợp (B5 — 12/10/2026)
+
+6 endpoint dưới `/api/v1/dashboard`. **Mọi số liệu đã đối chiếu với DB và file CSV gốc.**
+
+| Endpoint | Nguồn | Kết quả thật |
+|----------|-------|---------------|
+| `/overview` | `orders` + `products` + `stores` + view tồn kho + `alerts` | 18.260 đơn · 50 SP · 10 CH · doanh thu 1.409.611.790.000 · tồn kho 1.542.170.700 · 518 cảnh báo |
+| `/revenue?period=&year=` | `orders` + `date_trunc` | day 365 · week 53 · month 12 · year 1 điểm/năm |
+| `/top-products?limit=` | `order_items` + `orders` + `products` | SP0015 dẫn đầu 1.607.442 sản phẩm |
+| `/low-stock?threshold=` | view `v_low_stock` | 57 cặp · `threshold=20` → 21 |
+| `/expiring?days=` | view `v_expiring_inventory` | `days=0` → 444 · `days=7` → 474 · `days=30` → 564 |
+| `/alerts-summary` | `alerts` | 518 · theo loại và theo mức độ |
+
+**Đối chiếu số liệu — khớp tuyệt đối:**
+
+| Kiểm tra | API | DB / CSV |
+|----------|-----|----------|
+| Doanh thu 5 năm | 1.409.611.790.000 | ✅ |
+| Doanh thu 2017 / số đơn | 317.233.060.000 / 3.650 | ✅ |
+| SP15 năm 2017 | 361.586 | ✅ **khớp CSV gốc** |
+| SP15 cả 5 năm | 1.607.442 | ✅ |
+| Low stock `threshold=20` | 21 | ✅ |
+| Expiring `days=7` | 474 | ✅ |
+| Tổng `by_severity` = `total` | 518 | ✅ |
+
+**Hiệu năng (đo 20 lần):**
+
+| Endpoint | Thời gian |
+|----------|-----------|
+| `low-stock` | 13 ms |
+| `revenue` | 17 ms |
+| `alerts-summary` | 23 ms |
+| `expiring?days=7` | 68 ms |
+| `overview` | 137 ms |
+| `top-products` | 222–350 ms (trên 912.999 dòng) |
+
+**Cách đọc view:** `backend/app/models/views.py` dùng SQLAlchemy Core reflection (`Table(..., autoload_with=engine)`) cho 4 view — vẫn là `select()`/`group_by()`, **không** raw SQL.
+
+**Ràng buộc phát hiện khi đọc view:** `v_expiring_inventory` có `WHERE expiry_date <= CURRENT_DATE + 30`. API chặn `days > 30` bằng 422 thay vì âm thầm trả kết quả không đổi.
+
+> ⚠️ `total_revenue` và `total_inventory_value` dùng **giá MÔ PHỎNG** — không phải doanh thu thật.
+
 **Endpoint hiện có:**
 
 | Endpoint | Mục đích | Tiền tố |
@@ -173,7 +215,7 @@ Phân trang mặc định 20/trang, tối đa 100. Response trả **object** `{t
 
 Phiên bản: FastAPI 0.143.0 · uvicorn 0.54.0 · pydantic 2.14.1 · pydantic-settings 2.15.0.
 
-### 2.6 Database — 10 bảng
+### 2.7 Database — 10 bảng
 
 Số dòng thực tế trong DB `spoilage_predictor`:
 
@@ -194,7 +236,7 @@ Số dòng thực tế trong DB `spoilage_predictor`:
 
 Các thành phần khác: 6 trigger · 2 hàm · 4 view · 16 khóa ngoại.
 
-### 2.7 AI/ML — kết quả M1 + M2 + M3
+### 2.8 AI/ML — kết quả M1 + M2 + M3
 
 #### M1 — Đánh giá 3 mô hình trên 100 cặp (10 sản phẩm × 10 cửa hàng)
 
@@ -219,7 +261,7 @@ XGBoost chỉ thắng 3 cặp: `(45,2)` · `(13,7)` · `(28,4)`. Ở 59 cặp ch
 
 `docs/05-tham-khao/ket-qua-danh-gia-model.md` — phương pháp đánh giá, bảng so sánh, 3 insight chính, các hạn chế.
 
-### 2.8 10 sản phẩm dùng để huấn luyện
+### 2.9 10 sản phẩm dùng để huấn luyện
 
 Đủ **7/7 nhóm hàng** · 100 cặp (sản phẩm × cửa hàng) · mỗi cặp đủ 365 ngày.
 
@@ -277,7 +319,9 @@ f55dce4  T4.1: Chapter 1
 
 | Mã | Việc | Ưu tiên | Ghi chú |
 |----|------|---------|---------|
-| **B5** | Endpoint dashboard tổng hợp (doanh thu · tồn kho · cảnh báo) | 🔴 Tiếp theo | Phục vụ trang chủ frontend |
+| **F1** | Setup Frontend React + Vite + Tailwind | 🔴 Tiếp theo | CORS đã bật cho `:3000` |
+| B6 | Endpoint báo cáo (xuất nhập · theo khoảng thời gian) | 🟡 | Dùng `inventory_transactions` |
+| T2 | README con cho từng thư mục | 🟢 | |
 | T4.3 | Viết Chương 3 — Thiết kế hệ thống | 🟡 TB | Cần kết quả M1–M3 làm căn cứ |
 | T4.4 | Viết Chương 4 — Thực nghiệm | 🟡 TB | **BẮT BUỘC đọc mục 8j GHI-CHU-TIEN-DO.md trước** |
 | F1 | Setup Frontend React | 🟢 Thấp | Cần CORS :3000 (đã bật) |

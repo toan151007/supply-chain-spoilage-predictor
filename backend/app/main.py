@@ -15,6 +15,7 @@ from app.config import settings
 from app.routers import (
     alert_router,
     category_router,
+    dashboard_router,
     forecast_router,
     health,
     inventory_router,
@@ -67,6 +68,7 @@ app.include_router(category_router.router, prefix=settings.API_V1_PREFIX)
 app.include_router(inventory_router.router, prefix=settings.API_V1_PREFIX)
 app.include_router(forecast_router.router, prefix=settings.API_V1_PREFIX)
 app.include_router(alert_router.router, prefix=settings.API_V1_PREFIX)
+app.include_router(dashboard_router.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/", include_in_schema=False)

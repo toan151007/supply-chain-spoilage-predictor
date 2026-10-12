@@ -210,6 +210,10 @@ Vì vậy **không dùng được** tiêu chí "hệ số biến động mùa v�
 - **Cổng 8000 dễ bị chiếm bởi server cũ** — `Kill-Process` trước khi start lại, nếu không sẽ báo `[winerror 10048] only one usage of each socket address` và test vẫn chạy vào code cũ.
 - **FastAPI khớp route THEO THỨ TỰ khai báo.** Path đặc biệt phải khai báo trước path có tham số: `GET /alerts/unread` **trước** `GET /alerts/{alert_id}`. Nếu đảo, `alert_id: int` sẽ cố parse chuỗi `"unread"` và trả 422 thay vì vào handler. Tương tự `/forecasts/latest` và `/inventory/expiring`.
 - **`alerts` có CHECK `chk_alert_resolved_at`**: `resolved_at` phải khác NULL **khi và chỉ khi** `is_resolved = TRUE`. Khi update phải gán **cả hai cùng lúc** — set riêng cờ sẽ bị DB từ chối với `IntegrityError` khó hiểu.
+- **View `v_expiring_inventory` giới hạn cứng 30 ngày** — trong `WHERE` của nó: `expiry_date <= CURRENT_DATE + 30`. API `/dashboard/expiring` vì thế chặn `days > 30` bằng 422 thay vì âm thầm trả về kết quả không đổi.
+- **Không đọc view bằng `text()` / raw SQL.** Dùng `Table("v_x", Base.metadata, autoload_with=engine)` trong `backend/app/models/views.py` — SQLAlchemy Core reflection, vẫn là `select()`/`group_by()` nên không vi phạm quy tắc "mọi truy vấn qua ORM".
+- **`SUM(orders.total_amount)` phải đếm trên bảng `orders` đơn lẻ** — cộng cột này sau `JOIN order_items` sẽ nhân lên ~50 lần vì mỗi đơn có ~50 dòng chi tiết (18.260 × 50 ≈ 913.000). Xem GHI-CHU-TIEN-DO.md mục 8c.
+- **`date_trunc` + filter năm:** `period=year` + `year=2017` cho ra **1** điểm (cả năm gộp 1 bucket), không phải 5. Bỏ filter `year` mới được 5 điểm cho 5 năm dữ liệu.
 
 ## ⛔ Quyết định đã chốt 03/10/2026 — KHÔNG sửa, ghi chú vào Chương 4
 
@@ -262,7 +266,7 @@ Chương 2 là cơ sở lý thuyết, trình bày cả 5 mô hình, chỉ **kỳ
 - [x] B2: 10 ORM models trong `app/models/` — test thật 947.590 dòng qua ORM, relationship OK
 - [x] B3: CRUD products `/api/v1/products` — 5 endpoint + Pydantic schemas, test 27/27 pass
 - [x] B4: CRUD stores · categories · inventory + read-only forecasts · alerts — 37 operation, test toàn bộ pass
-- [ ] B5: Endpoint dashboard tổng hợp
+- [x] B5: API dashboard tổng hợp — 6 endpoint, test toàn bộ pass, mọi số đối chiếu khớp DB/CSV
+- [ ] F1: Setup Frontend React
 - [ ] T2: README con cho từng thư mục
-- [ ] Setup Frontend React
 - [ ] Tích hợp AI Model

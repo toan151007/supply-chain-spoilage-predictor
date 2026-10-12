@@ -668,6 +668,138 @@ Nội dung: phương pháp (time-series split theo mốc ngày, chọn tham số
 
 ---
 
+## 8o. B5 — API Dashboard tổng hợp (12/10/2026) ✅
+
+### Files đã tạo / sửa — 5 file
+
+| File | Nội dung |
+|------|----------|
+| `backend/app/schemas/dashboard_schema.py` | 9 schema (6 response chính + `RevenuePoint` · `SeverityCount` · `TypeCount`) |
+| `backend/app/routers/dashboard_router.py` | 6 endpoint tổng hợp |
+| `backend/app/models/views.py` | **Mới** — reflection 4 view bằng SQLAlchemy Core |
+| `backend/app/schemas/__init__.py` | Export thêm 9 schema |
+| `backend/app/main.py` | Include `dashboard_router` |
+
+### Đọc view mà không dùng raw SQL
+
+Yêu cầu là "dùng view có sẵn", nhưng quy tắc dự án cấm raw SQL trong routers. Giải pháp: **SQLAlchemy Core reflection**.
+
+```python
+v_low_stock = Table("v_low_stock", Base.metadata, autoload_with=engine)
+```
+
+Vẫn dùng `select()` / `where()` / `group_by()` / `order_by()` như bình thường — không có chuỗi SQL nào. Reflection đọc cấu trúc cột từ catalogue nên tự cập nhật nếu view trong DB thay đổi.
+
+**Đã kiểm chứng:** `v_low_stock` 9 cột · `v_expiring_inventory` 13 · `v_product_stock_summary` 11 · `v_daily_sales` 13.
+
+### Ràng buộc phát hiện khi đọc view — `v_expiring_inventory` giới hạn 30 ngày
+
+```sql
+WHERE i.quantity > 0 AND i.expiry_date IS NOT NULL
+  AND i.expiry_date <= (CURRENT_DATE + 30)
+```
+
+Cứng 30 ngày. Nếu API cho `days=90` sẽ âm thầm trả đúng kết quả của `days=30` — người dùng tưởng đang xem 90 ngày.
+
+→ Đã chặn `days` tối đa 30, trả **422** nếu vượt. Docstring ghi rõ giới hạn.
+
+### Đối chiếu số liệu — khớp tuyệt đối với DB và CSV
+
+| Kiểm tra | API trả về | DB / CSV |
+|----------|-------------|----------|
+| Doanh thu 5 năm | 1.409.611.790.000 | ✅ |
+| Doanh thu 2017 | 317.233.060.000 | ✅ |
+| Số đơn 2017 | 3.650 | ✅ |
+| SP15 cả 5 năm | 1.607.442 | ✅ |
+| SP15 doanh thu | 24.111.630.000 | ✅ |
+| **SP15 năm 2017** | **361.586** | ✅ **khớp CSV gốc** |
+| Low stock `threshold=20` | 21 dòng | ✅ |
+| Low stock `threshold=0` | 57 dòng | ✅ |
+| Expiring `days=7` | 474 lô | ✅ |
+| Expiring `days=0` | 444 lô | ✅ |
+| Expiring `days=30` | 564 lô (hết view) | ✅ |
+| `by_severity` cộng lại | 518 = `total` | ✅ |
+
+### ⚠️ Phát hiện con số trong AGENTS.md bị sai
+
+Kiểm tra SP15 năm 2017 cho kết quả **361.586**, khác với **331.783** đang ghi trong AGENTS.md.
+
+Đã đối chiếu lại **CSV gốc**:
+
+```
+CSV: 3.650 dòng (10 cửa hàng × 365 ngày) → SUM = 361.586
+DB: SUM(order_items.quantity)              = 361.586
+→ KHỚP
+```
+
+Và `361.586 / 365 = 990,6` — đúng bằng cột "BQ/ngày" (990,6) trong bảng AGENTS.md.
+
+**→ Con số 331.783 trong AGENTS.md SAI.** Cột "Doanh số 2017" của cả 10 sản phẩm trong bảng đó đáng ngờ.
+
+**Cần quyết định:** có thay cột đó bằng số đã kiểm chứng từ CSV không.
+
+### Sai lầm của tôi — 3 kỳ vọng test sai (API đúng)
+
+Lần chạy test đầu có 3 "FAIL" mà **lỗi ở test, không ở API**:
+
+| Kỳ vọng sai | Thực tế đúng |
+|---|---|
+| `period=year&year=2017` → 5 điểm | **1** điểm — `date_trunc('year')` gộp cả năm thành 1 bucket. Bỏ filter `year` mới được 5 |
+| `period=month&year=2017` → 60 điểm | **12** điểm — 12 tháng trong năm |
+| SP15 năm 2017 = 290.419 | **361.586** (đã kiểm chứng từ CSV) |
+
+Ngoài ra tôi đọc nhầm thứ tự cột CSV (`date,store,item,sales` → `item` là index **2**, không phải 1) nên kết luận nhầm "0 dòng dữ liệu". Đã sửa và đối chiếu lại.
+
+### Hiệu năng — đo 20 lần mỗi endpoint
+
+| Endpoint | Thời gian |
+|----------|-----------|
+| `low-stock?threshold=20` | 13 ms |
+| `revenue?period=month&year=2017` | 17 ms |
+| `alerts-summary` | 23 ms |
+| `expiring?days=7` (474 lô, 118 KB) | 68 ms |
+| `overview` | 137 ms |
+| `top-products?limit=10` | 222–350 ms |
+
+`top-products` chậm nhất vì `order_items` có **912.999 dòng** — JOIN + GROUP BY chạy trong PostgreSQL, Python chỉ nhận 10 dòng kết quả.
+
+### Tránh N+1 query
+
+| Endpoint | Số query |
+|----------|----------|
+| `overview` | 6 aggregate nhỏ, index-only scan |
+| `alerts-summary` | 3 |
+| `revenue` · `top-products` · `low-stock` · `expiring` | 1 mỗi cái |
+
+Không endpoint nào lặp truy vấn theo từng dòng.
+
+### Bucket rỗng bị bỏ qua, không điền 0
+
+`/revenue` chỉ trả bucket có đơn hàng. Điền 0 cho bucket rỗng sẽ khiến biểu đồ hiện một tuần bằng phẳng — trông như có dữ liệu nhưng thực ra là "không bán được gì". Thiếu dữ liệu nên nhìn ra là thiếu dữ liệu.
+
+### Kết quả test — toàn bộ PASS
+
+| Nhóm | Số check | Đã kiểm |
+|------|----------|----------|
+| `overview` | 8 | happy path + đối chiếu DB |
+| `revenue` | 28 | 4 period × year có/không filter · năm không có dữ liệu · `period` sai · `year` không phải số · ngoài khoảng |
+| `top-products` | 16 | limit 10/50/100 · sắp xếp · filter store/year · limit 0/-5/101/không phải số |
+| `low-stock` | 12 | threshold 0/20/100/10000/-1 · filter store · sắp xếp shortage |
+| `expiring` | 17 | days 0/7/30/-1/31/không phải số · filter store+product · store không tồn tại · severity hợp lệ |
+| `alerts-summary` | 13 | tổng · unread · unresolved · critical · 4 mức độ · thứ tự · tổng khớp · filter store |
+
+**Dữ liệu sau test:** không đổi (dashboard chỉ đọc).
+
+### Sai lầm khác
+
+Sai ký tự đường dẫn `Đồ án TN` → tạo nhầm thư mục `Ēồ án TN` ngoài workspace (lần thứ 2 trong ngày). Đã xoá ngay và kiểm tra Desktop.
+
+### Việc tiếp theo — F1
+
+Setup Frontend React + Vite + Tailwind. CORS đã bật sẵn cho `localhost:3000` và `:5173`.
+
+---
+
 ## 8n. B4 — API CRUD 5 bảng còn lại (12/10/2026) ✅
 
 ### Files đã tạo / sửa — 14 file

@@ -17,6 +17,17 @@ from app.schemas.category_schema import (
     CategoryUpdate,
 )
 from app.schemas.common import Message, Page
+from app.schemas.dashboard_schema import (
+    AlertsSummaryResponse,
+    ExpiringResponse,
+    LowStockResponse,
+    OverviewResponse,
+    RevenuePoint,
+    RevenueResponse,
+    SeverityCount,
+    TopProductResponse,
+    TypeCount,
+)
 from app.schemas.forecast_schema import (
     ForecastPage,
     ForecastRead,
@@ -49,6 +60,9 @@ from app.schemas.store_schema import (
 )
 
 __all__ = [
+    "AlertsSummaryResponse", "ExpiringResponse", "LowStockResponse",
+    "OverviewResponse", "RevenuePoint", "RevenueResponse", "SeverityCount",
+    "TopProductResponse", "TypeCount",
     "AlertPage", "AlertRead", "MarkReadRequest", "ResolveRequest",
     "CategoryBrief", "CategoryCreate", "CategoryRead", "CategoryUpdate",
     "ForecastPage", "ForecastRead", "LatestForecast", "LatestForecastList",
