@@ -131,6 +131,34 @@ Phân trang mặc định 20/trang, tối đa 100. Response trả **object** `{t
 
 **Đã test thật: 27/27 pass** (tạo sản phẩm thử rồi xoá, dữ liệu về nguyên 50 sản phẩm).
 
+### 2.5 API nghiệp vụ — CRUD 5 bảng còn lại (B4 — 12/10/2026)
+
+**Tổng: 37 operation · 22 path · 32 schema** (tính cả B3).
+
+| Router | Số endpoint | Ghi chú |
+|--------|-------------|---------|
+| `store_router.py` | 5 | Xoá cửa hàng có đơn → **409** (`orders` FK RESTRICT) |
+| `category_router.py` | 5 | Chặn tạo vòng lặp cha–con; xoá nhóm còn nhóm con → **409** |
+| `inventory_router.py` | 6 | `GET /expiring?days=N` — lô sắp hết hạn, chỉ lô `quantity > 0` |
+| `forecast_router.py` | 5 | **Không có POST/PUT** — dữ liệu do M2 sinh ra |
+| `alert_router.py` | 8 | `PUT /{id}/read` · `PUT /{id}/resolve` · `GET /unread` · `GET /unread-count` |
+
+**Schema dùng chung:** `schemas/common.py` định nghĩa generic `Page[T]` → mọi endpoint list trả cùng cấu trúc `{total, page, page_size, pages, items}`.
+
+**Ràng buộc nghiệp vụ đã xử lý:**
+
+| Vấn đề | Xử lý |
+|--------|-------|
+| Xoá `stores` có đơn hàng | 409 kèm gợi ý dùng `is_active = false` |
+| Xoá `categories` còn sản phẩm hoặc nhóm con | 409 kèm số lượng tham chiếu |
+| Làm nhóm hàng thành cha của chính nó / của nhóm cháu | 422 — chặn ở tầng app vì DB sẽ chấp nhận và làm hỏng cây |
+| `alerts` CHECK `resolved_at` phải khớp `is_resolved` | Router gán **cả hai** cùng lúc — set riêng sẽ bị DB từ chối |
+| Xoá sạch 3.000 dòng forecasts do gõ nhầm | `DELETE /forecasts` **bắt buộc** có ít nhất 1 filter, không có → 422 |
+
+**`/forecasts/latest`** trả **dòng mới nhất** (30/01/2018) cho mỗi cặp sản phẩm × cửa hàng — 100 dòng, **không phải** tổng 30 ngày. Khi một cặp có nhiều mô hình cùng ngày, chọn mô hình có **RMSE thấp nhất**. Đã cross-check giá trị khớp với dòng tương ứng trong `GET /forecasts`.
+
+**`/alerts` `title` chứa i18n key** (`alert.title.EXPIRED`), không phải text hiển thị — dịch ở `backend/app/i18n/vi.json`.
+
 **Endpoint hiện có:**
 
 | Endpoint | Mục đích | Tiền tố |
@@ -145,7 +173,7 @@ Phân trang mặc định 20/trang, tối đa 100. Response trả **object** `{t
 
 Phiên bản: FastAPI 0.143.0 · uvicorn 0.54.0 · pydantic 2.14.1 · pydantic-settings 2.15.0.
 
-### 2.5 Database — 10 bảng
+### 2.6 Database — 10 bảng
 
 Số dòng thực tế trong DB `spoilage_predictor`:
 
@@ -166,7 +194,7 @@ Số dòng thực tế trong DB `spoilage_predictor`:
 
 Các thành phần khác: 6 trigger · 2 hàm · 4 view · 16 khóa ngoại.
 
-### 2.6 AI/ML — kết quả M1 + M2 + M3
+### 2.7 AI/ML — kết quả M1 + M2 + M3
 
 #### M1 — Đánh giá 3 mô hình trên 100 cặp (10 sản phẩm × 10 cửa hàng)
 
@@ -191,7 +219,7 @@ XGBoost chỉ thắng 3 cặp: `(45,2)` · `(13,7)` · `(28,4)`. Ở 59 cặp ch
 
 `docs/05-tham-khao/ket-qua-danh-gia-model.md` — phương pháp đánh giá, bảng so sánh, 3 insight chính, các hạn chế.
 
-### 2.7 10 sản phẩm dùng để huấn luyện
+### 2.8 10 sản phẩm dùng để huấn luyện
 
 Đủ **7/7 nhóm hàng** · 100 cặp (sản phẩm × cửa hàng) · mỗi cặp đủ 365 ngày.
 
@@ -249,8 +277,7 @@ f55dce4  T4.1: Chapter 1
 
 | Mã | Việc | Ưu tiên | Ghi chú |
 |----|------|---------|---------|
-| **B4** | CRUD stores · categories · inventory · forecasts · alerts | 🔴 Tiếp theo | Dùng `Depends(get_db)` · **không raw SQL trong routers** |
-| B5 | Endpoint dashboard tổng hợp (doanh thu · tồn kho · cảnh báo) | 🟡 | Phục vụ trang chủ frontend |
+| **B5** | Endpoint dashboard tổng hợp (doanh thu · tồn kho · cảnh báo) | 🔴 Tiếp theo | Phục vụ trang chủ frontend |
 | T4.3 | Viết Chương 3 — Thiết kế hệ thống | 🟡 TB | Cần kết quả M1–M3 làm căn cứ |
 | T4.4 | Viết Chương 4 — Thực nghiệm | 🟡 TB | **BẮT BUỘC đọc mục 8j GHI-CHU-TIEN-DO.md trước** |
 | F1 | Setup Frontend React | 🟢 Thấp | Cần CORS :3000 (đã bật) |
@@ -382,6 +409,8 @@ cd frontend; npm run dev
 | **Sequence ID trôi khỏi dữ liệu** | `TRUNCATE ... RESTART IDENTITY` rồi import lại bằng insert **chỉ định khóa chính** → PostgreSQL không tự đẩy sequence. Mọi INSERT sau đó đụng `duplicate key ... already exists`. Đã gặp với `products` (seq=2 vs max=50) → **đã sửa bằng `database/03-migrations/005-fix-sequences.sql`** (4 sequence sai: `users` `stores` `categories` `products`). Chạy file này sau mỗi lần import dữ liệu hàng loạt |
 | **Lỗi sau `db.commit()` không rollback được** | `NameError` ở `db.refresh()` làm POST trả 500 nhưng bản ghi **đã được tạo**. Nếu test fail, kiểm tra dữ liệu thừa trước khi chạy lại |
 | **Cổng 8000 dễ bị chiếm** | `Kill-Process` trước khi start lại, nếu không sẽ báo `[winerror 10048]` và test vẫn chạy vào code cũ |
+| **FastAPI khớp route theo thứ tự khai báo** | Path đặc biệt phải khai **trước** path có tham số: `/alerts/unread` trước `/alerts/{alert_id}`, `/forecasts/latest` trước `/forecasts/{id}`, `/inventory/expiring` trước `/inventory/{id}`. Đảo thứ tự → `int` không parse được chuỗi → 422 |
+| **`alerts.resolved_at` phải khớp `is_resolved`** | CHECK `chk_alert_resolved_at` yêu cầu `resolved_at` khác NULL khi và chỉ khi `is_resolved = TRUE`. Phải gán **cả hai cùng lúc** |
 | Console Windows cp1252 | In chuỗi tiếng Việt ra terminal → `UnicodeEncodeError: charmap`. Thêm `sys.stdout.reconfigure(encoding="utf-8", errors="replace")` |
 
 ---

@@ -12,7 +12,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import health, product_router
+from app.routers import (
+    alert_router,
+    category_router,
+    forecast_router,
+    health,
+    inventory_router,
+    product_router,
+    store_router,
+)
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -48,8 +56,17 @@ app.include_router(health.router)
 # QUY TAC: moi API nghiep vu phai nam sau tien to /api/v1/
 # Vi du: app.include_router(order_router.router, prefix=settings.API_V1_PREFIX)
 # -> endpoint: /api/v1/orders
+#
+# Thu tu khai bao khong quan trong giua cac router khac nhau, nhung THU TU
+# TRONG MOT ROUTER co quan trong: `/alerts/unread` phai khai bao truoc
+# `/alerts/{alert_id}` de FastAPI khop dung path.
 app.include_router(health.api_router, prefix=settings.API_V1_PREFIX)
 app.include_router(product_router.router, prefix=settings.API_V1_PREFIX)
+app.include_router(store_router.router, prefix=settings.API_V1_PREFIX)
+app.include_router(category_router.router, prefix=settings.API_V1_PREFIX)
+app.include_router(inventory_router.router, prefix=settings.API_V1_PREFIX)
+app.include_router(forecast_router.router, prefix=settings.API_V1_PREFIX)
+app.include_router(alert_router.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/", include_in_schema=False)

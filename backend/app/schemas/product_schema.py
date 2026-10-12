@@ -14,6 +14,8 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.schemas.common import Page
+
 
 class CategoryBrief(BaseModel):
     """Minimal category info, embedded in the product response."""
@@ -22,6 +24,23 @@ class CategoryBrief(BaseModel):
 
     category_id: int
     category_name: str
+
+
+class ProductBrief(BaseModel):
+    """
+    Minimal product info for embedding in inventory, forecast and alert
+    responses.
+
+    Kept deliberately small: those endpoints can return hundreds of rows
+    and repeating the full product body on each one would bloat the
+    response without helping the UI.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    product_id: int
+    product_code: str
+    product_name: str
 
 
 class ProductBase(BaseModel):
@@ -102,16 +121,5 @@ class ProductRead(ProductBase):
     category: CategoryBrief | None = None
 
 
-class ProductPage(BaseModel):
-    """
-    Paginated list response.
-
-    Returning an object instead of a bare list lets the frontend know the
-    total count, so it can render pagination controls without a second call.
-    """
-
-    total: int = Field(description="Total rows matching the filter")
-    page: int
-    page_size: int
-    pages: int = Field(description="Total number of pages")
-    items: list[ProductRead]
+# Page envelope is shared across routers - see app/schemas/common.py.
+ProductPage = Page[ProductRead]

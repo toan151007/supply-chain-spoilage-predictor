@@ -31,9 +31,10 @@
 | **B1 — Setup FastAPI** | ✅ Xong | config · database · main · CORS · health — mục 8k |
 | **B2 — ORM models** | ✅ Xong | 10 model · test 947.590 dòng · mục 8l |
 | **B3 — CRUD products API** | ✅ Xong | 5 endpoint · test 27/27 · mục 8m |
+| **B4 — CRUD 5 bảng còn lại** | ✅ Xong | 37 operation · test pass · mục 8n |
 | **Migration 005** | ✅ Xong | Sửa 4 sequence trôi · mục 8m |
 | **CONTEXT-SUMMARY** | ✅ Xong | `docs/04-timeline/CONTEXT-SUMMARY.md` · commit `8e60e09` |
-| B4 — CRUD các bảng còn lại | ⬜ Chưa làm | Tiếp theo |
+| B5 — Endpoint dashboard | ⬜ Chưa làm | Tiếp theo |
 | T2 — README con | ⬜ Chưa làm | |
 | Frontend React | ⬜ Chưa làm | |
 | AI Model | ✅ Xong | M1 100 cặp · M2 3.000 dòng forecasts · M3 tài liệu |
@@ -664,6 +665,146 @@ Nội dung: phương pháp (time-series split theo mốc ngày, chọn tham số
 | inventory_transactions | 11.412 |
 | alerts | 518 |
 | **forecasts** | **3.000** ← mới |
+
+---
+
+## 8n. B4 — API CRUD 5 bảng còn lại (12/10/2026) ✅
+
+### Files đã tạo / sửa — 14 file
+
+| File | Nội dung |
+|------|----------|
+| `backend/app/schemas/common.py` | Generic `Page[T]` + `Message` |
+| `backend/app/schemas/store_schema.py` | `StoreBase` · `Create` · `Update` · `Read` · `Brief` |
+| `backend/app/schemas/category_schema.py` | `CategoryBase` · `Create` · `Update` · `Read` |
+| `backend/app/schemas/inventory_schema.py` | `InventoryBase` · `Create` · `Update` · `Read` · `ExpiringBatch` · `ExpiringReport` |
+| `backend/app/schemas/forecast_schema.py` | `ForecastRead` · `LatestForecast` |
+| `backend/app/schemas/alert_schema.py` | `AlertRead` · `AlertPage` · `MarkReadRequest` · `ResolveRequest` |
+| `backend/app/schemas/__init__.py` | Export 31 schema |
+| `backend/app/schemas/product_schema.py` | **Sửa** — dùng `Page[ProductRead]` chung, bỏ class `ProductPage` riêng |
+| `backend/app/routers/store_router.py` | 5 endpoint |
+| `backend/app/routers/category_router.py` | 5 endpoint |
+| `backend/app/routers/inventory_router.py` | 6 endpoint |
+| `backend/app/routers/forecast_router.py` | 5 endpoint (read-only) |
+| `backend/app/routers/alert_router.py` | 8 endpoint |
+| `backend/app/main.py` | Include 7 router |
+
+**Tổng: 37 operation · 22 path · 32 schema.**
+
+### Quyết định phạm vi (đã hỏi và chốt)
+
+`forecasts` và `alerts` **không có POST/PUT tạo mới**:
+
+| Bảng | Lý do |
+|------|-------|
+| `forecasts` | 3.000 dòng do M2 sinh ra bằng model tốt nhất từng cặp — tạo tay sẽ làm sai lệch dữ liệu đánh giá mô hình ở Chương 4 |
+| `alerts` | Sinh từ hàm DB `fn_generate_inventory_alerts()` |
+
+Cả hai vẫn có DELETE (không bảng nào tham chiếu tới chúng); alerts có thao tác trạng thái `read` / `resolve`.
+
+### Ràng buộc nghiệp vụ đã xử lý
+
+| Vấn đề | Xử lý |
+|--------|-------|
+| Xoá `stores` có đơn hàng | 409 + gợi ý `is_active = false` (FK `orders` RESTRICT) |
+| Xoá `categories` còn nhóm con | 409 kèm số lượng — FK `SET NULL` sẽ làm nhóm con **bật lên 1 cấp**, hiếm khi là ý muốn người dùng |
+| Xoá `categories` còn sản phẩm | 409 kèm số lượng (FK `products` RESTRICT) |
+| Nhóm hàng làm cha của chính nó | 422 — DB **chấp nhận** nhưng tạo vòng lặp làm hỏng cây |
+| Nhóm hàng chuyển dưới nhóm cháu | 422 — sẽ **cắt rời** cả nhánh khỏi gốc. Duyệt cây bằng BFS, không dùng CTE đệ quy |
+| `alerts` CHECK `resolved_at` | Router gán `is_resolved` **và** `resolved_at` cùng lúc — set riêng sẽ bị DB từ chối với `IntegrityError` khó hiểu |
+| `DELETE /forecasts` không có filter | 422 — bắt buộc có ít nhất 1 filter để 1 request gõ nhầm không xoá sạch 3.000 dòng |
+
+### ⚠️ FastAPI khớp route THEO THỨ TỰ
+
+Path đặc biệt phải khai báo **trước** path có tham số:
+
+```python
+# ĐÚNG
+@router.get("/unread")        # trước
+@router.get("/{alert_id}")    # sau
+
+# SAI → alert_id: int không parse được "unread" → trả 422
+@router.get("/{alert_id}")
+@router.get("/unread")
+```
+
+Áp dụng cho: `/alerts/unread` · `/forecasts/latest` · `/inventory/expiring`.
+
+### `/forecasts/latest` — sửa sau khi test phát hiện doc sai code
+
+Bản đầu docstring ghi "tổng nhu cầu cả 30 ngày" và trả `total_predicted` + `days_ahead`. **Test cho thấy hành vi thật chỉ trả ngày mới nhất** (`days_ahead = 1`) → **doc sai với code**.
+
+Đã sửa cho khớp:
+
+| Trước | Sau |
+|-------|-----|
+| `total_predicted` | **`predicted_quantity`** (giá trị ngày mới nhất) |
+| `days_ahead` (luôn = 1) | Bỏ — gây hiểu nhầm |
+| — | Bổ sung `lower_bound` / `upper_bound` |
+| "tổng 30 ngày" | "**KHÔNG phải** tổng 30 ngày" |
+| Gom nhóm theo cặp | Nhiều model cùng ngày → chọn model **RMSE thấp nhất** (row không có RMSE không thắng row có RMSE) |
+
+**Đã cross-check:** giá trị từ `/forecasts/latest` khớp chính xác dòng tương ứng trong `GET /forecasts?forecast_date=2018-01-30`.
+
+### Endpoint `/inventory/expiring`
+
+```
+GET /api/v1/inventory/expiring?days=7&include_expired=true
+```
+
+| Quyết định | Lý do |
+|------------|-------|
+| Chỉ lô `quantity > 0` | Lô rỗng không thể hỏng, chỉ làm nhiễu báo cáo |
+| `include_expired` mặc định **true** | Lô đã hết hạn là việc khẩn cấp nhất — ẩn đi là sai |
+| `days_left` âm = đã hết hạn | Frontend tô màu khác nhau cho "đã hết hạn" và "sắp hết hạn" |
+
+**Kết quả thật (12/10/2026):** `days=7` → **474 lô** (gồm đã hết hạn) · `include_expired=false` → **30 lô**.
+
+### `alerts.title` chứa i18n key
+
+Giá trị trả về là `alert.title.EXPIRED`, **không phải** text hiển thị. Dịch ở `backend/app/i18n/vi.json`. Lưu key trong DB giúp đổi ngôn ngữ mà không phải sửa dữ liệu.
+
+### Kết quả test — toàn bộ PASS
+
+| Nhóm | Số check | Kết quả |
+|------|----------|---------|
+| Stores | 14 | ✅ 200 · 201 · 409 trùng code · 422 sai `store_type` · 409 xoá có đơn |
+| Categories | 15 | ✅ 8 nhóm · 5 gốc · Food có 3 con · 422 tự làm cha · 422 làm cha của cháu · 409 còn con |
+| Inventory | 16 | ✅ 1.330 lô · `/expiring` 474 → 30 · 409 trùng bộ 3 khoá · 422 store/sản phẩm sai · 422 số lượng âm |
+| Forecasts | 14 | ✅ 3.000 dòng · 150 trang · lọc theo model · 422 model lạ · 422 xoá không filter · `/latest` 100 cặp |
+| Alerts | 22 | ✅ 518 · lọc type/severity · 422 giá trị lạ · `/unread` · `/unread-count` · đọc idempotent · resolve gán `resolved_at` · reopen xoá `resolved_at` |
+
+**Trạng thái cuối — dữ liệu về đúng nguyên trạng:** stores 10 · categories 8 · inventory 1.330 · forecasts 3.000 · alerts 518 · products 50.
+
+### ⚠️ Test làm bẩn dữ liệu — đã khôi phục
+
+Test `/read` và `/resolve` đổi cờ thật trên `alert_id = 1` → `unread` giảm 518 → 517. Đã khôi phục:
+
+```sql
+UPDATE alerts SET is_read = FALSE, is_resolved = FALSE, resolved_at = NULL;
+```
+
+Đã thêm bước khôi phục **vào cuối file test** để chạy lại nhiều lần vẫn giữ dữ liệu sạch.
+
+> **Bài học (nhắc lại từ B3):** endpoint đổi trạng thái ghi vào DB thật. Test phải có cleanup, nếu không chạy 2 lần sẽ cho kết quả sai.
+
+### Sai lầm của tôi trong lúc làm — đã sửa hết
+
+| Sai lầm | Xử lý |
+|---------|-------|
+| Gõ sai ký tự trong đường dẫn `Đồ án TN` → tạo nhầm thư mục `Ēồ án TN` ngoài workspace | Xoá ngay, xác minh Desktop chỉ còn `Đồ án TN` |
+| Import `ProductBrief` nhưng class trong file tên `CategoryBrief` | Tạo `ProductBrief` thật trong `product_schema.py` |
+| Định nghĩa `CategoryBrief` ở cả 2 file | Xoá bản trùng trong `category_schema.py` |
+| Viết `HTTP_422_UNPROCESSABLE_CONTENT if (HTTP_422 := 422) else 422` | Thay bằng hằng số rõ ràng |
+| Để lại dòng vô nghĩa `alert = ... if False else None` | Xoá |
+
+### Không chụp được màn hình Swagger UI
+
+`browser.screenshot` báo *"needs a visible tab"* — cửa sổ desktop không hiển thị. Đã xác minh thay bằng cách đọc `openapi.json`: **OpenAPI 3.1.0 · 22 path · 37 operation · 32 schema**, tất cả path đúng như thiết kế.
+
+### Việc tiếp theo — B5
+
+Endpoint dashboard tổng hợp cho trang chủ frontend: tổng doanh thu · tổng tồn kho · số cảnh báo theo mức độ · sản phẩm sắp hết hạn.
 
 ---
 
@@ -1352,18 +1493,17 @@ cd frontend; npm run dev
 
 ---
 
-## 13. Việc còn lại (cập nhật sau B1 — 12/10/2026)
+## 13. Việc còn lại (cập nhật sau B4 — 12/10/2026)
 
 | Mã | Việc | Ưu tiên |
 |----|------|---------|
-| **B4** | CRUD stores · categories · inventory · forecasts · alerts | 🔴 Tiếp theo |
-| **B5** | Endpoint dashboard tổng hợp | 🟡 TB |
+| **B5** | Endpoint dashboard tổng hợp (doanh thu · tồn kho · cảnh báo) | 🔴 Tiếp theo |
+| **F1** | Setup Frontend React | 🟡 Sau B5 |
 | T4.3 | Viết Chương 3 — Thiết kế hệ thống | 🟡 |
 | T4.4 | Viết Chương 4 — Thực nghiệm (**đọc mục 8j trước khi viết**) | 🟡 |
-| F1 | Setup Frontend React | 🟢 |
 | T2 | README con cho từng thư mục | 🟢 |
 
-**Chưa có Chương 3 và Chương 4.** Đã đủ căn cứ từ M1–M3 + backend + ORM models + API.
+**Chưa có Chương 3 và Chương 4.** Đã đủ căn cứ: M1–M3 + backend FastAPI + 10 ORM model + **37 API endpoint**.
 
 **Khi viết Chương 4, BẮT BUỘC đọc mục 8j** — đã có 2 quyết định không sửa dữ liệu/tài liệu mà chỉ ghi chú.
 
@@ -1373,4 +1513,4 @@ cd frontend; npm run dev
 
 ---
 
-*Phiên sau: đọc `AGENTS.md` + file này, chạy `git status`, rồi làm B4 (CRUD các bảng còn lại).*
+*Phiên sau: đọc `AGENTS.md` + file này, chạy `git status`, rồi làm B5 (endpoint dashboard tổng hợp).*

@@ -208,6 +208,8 @@ Vì vậy **không dùng được** tiêu chí "hệ số biến động mùa v�
 - **Sequence ID có thể trôi khỏi dữ liệu** — đã gặp và đã sửa bằng migration 005. Nguyên nhân: `TRUNCATE ... RESTART IDENTITY` rồi import lại bằng `COPY`/insert **chỉ định khóa chính** → PostgreSQL **không** tự đẩy sequence lên. Mọi `INSERT` sau đó đụng `duplicate key ... already exists`. Chạy `database/03-migrations/005-fix-sequences.sql` sau khi import dữ liệu hàng loạt. Triệu chứng: `products_product_id_seq.last_value = 2` trong khi `MAX(product_id) = 50`.
 - **Sau `db.commit()`, lỗi phát sinh ở `db.refresh()` không rollback được** — dữ liệu đã ghi vĩnh viễn. Đã gặp: `NameError` ở `db.refresh()` làm POST trả 500 nhưng bản ghi vẫn được tạo. Nếu test thất bại, **kiểm tra dữ liệu thừa** trước khi chạy lại.
 - **Cổng 8000 dễ bị chiếm bởi server cũ** — `Kill-Process` trước khi start lại, nếu không sẽ báo `[winerror 10048] only one usage of each socket address` và test vẫn chạy vào code cũ.
+- **FastAPI khớp route THEO THỨ TỰ khai báo.** Path đặc biệt phải khai báo trước path có tham số: `GET /alerts/unread` **trước** `GET /alerts/{alert_id}`. Nếu đảo, `alert_id: int` sẽ cố parse chuỗi `"unread"` và trả 422 thay vì vào handler. Tương tự `/forecasts/latest` và `/inventory/expiring`.
+- **`alerts` có CHECK `chk_alert_resolved_at`**: `resolved_at` phải khác NULL **khi và chỉ khi** `is_resolved = TRUE`. Khi update phải gán **cả hai cùng lúc** — set riêng cờ sẽ bị DB từ chối với `IntegrityError` khó hiểu.
 
 ## ⛔ Quyết định đã chốt 03/10/2026 — KHÔNG sửa, ghi chú vào Chương 4
 
@@ -259,7 +261,8 @@ Chương 2 là cơ sở lý thuyết, trình bày cả 5 mô hình, chỉ **kỳ
 - [x] B1: Setup backend FastAPI — config/database/main + CORS + 3 endpoint health, test thật `localhost:8000/docs` (đã chụp màn hình)
 - [x] B2: 10 ORM models trong `app/models/` — test thật 947.590 dòng qua ORM, relationship OK
 - [x] B3: CRUD products `/api/v1/products` — 5 endpoint + Pydantic schemas, test 27/27 pass
-- [ ] B4: CRUD cho stores / categories / inventory / forecasts / alerts
+- [x] B4: CRUD stores · categories · inventory + read-only forecasts · alerts — 37 operation, test toàn bộ pass
+- [ ] B5: Endpoint dashboard tổng hợp
 - [ ] T2: README con cho từng thư mục
 - [ ] Setup Frontend React
 - [ ] Tích hợp AI Model
