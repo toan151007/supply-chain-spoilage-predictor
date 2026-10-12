@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.routers import (
     alert_router,
+    auth_router,
     category_router,
     dashboard_router,
     dashboard_advanced_router,
@@ -24,6 +25,8 @@ from app.routers import (
     order_item_router,
     order_router,
     product_router,
+    recommendation_router,
+    report_router,
     store_router,
 )
 
@@ -77,6 +80,15 @@ app.include_router(order_router.router, prefix=settings.API_V1_PREFIX)
 app.include_router(order_item_router.router, prefix=settings.API_V1_PREFIX)
 app.include_router(import_router.router, prefix=settings.API_V1_PREFIX)
 app.include_router(dashboard_advanced_router.router, prefix=settings.API_V1_PREFIX)
+
+# ---- Xac thuc (B12) ----
+# Router nao bat buoc token se tu khai bao dependency trong tung endpoint,
+# nen o day chi include. Cac endpoint doc (GET) de mo, endpoint ghi
+# (POST/PUT/DELETE) da duoc gan `CurrentUser`/`require_role`.
+app.include_router(auth_router.router, prefix=settings.API_V1_PREFIX)
+
+app.include_router(recommendation_router.router, prefix=settings.API_V1_PREFIX)
+app.include_router(report_router.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/", include_in_schema=False)

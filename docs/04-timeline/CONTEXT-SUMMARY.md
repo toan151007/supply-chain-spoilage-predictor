@@ -557,6 +557,36 @@ cd frontend; npm run dev
 | **`alerts.resolved_at` phải khớp `is_resolved`** | CHECK `chk_alert_resolved_at` yêu cầu `resolved_at` khác NULL khi và chỉ khi `is_resolved = TRUE`. Phải gán **cả hai cùng lúc** |
 | Console Windows cp1252 | In chuỗi tiếng Việt ra terminal → `UnicodeEncodeError: charmap`. Thêm `sys.stdout.reconfigure(encoding="utf-8", errors="replace")` |
 
+### 2.13 — B10 / B11 / B12 (12/10/2026) ✅
+
+| Task | Nội dung | Endpoint |
+|------|----------|----------|
+| **B10** | Đề xuất nhập hàng | `GET /recommendations/import` · `/expiring` · `/slow-moving` |
+| **B11** | Xuất báo cáo | `GET /reports/{inventory,expiring,sales,waste}/export?format=csv\|xlsx\|pdf` |
+| **B12** | Xác thực JWT | `POST /auth/login` · `/refresh` · `/logout` · `/change-password` · `GET /auth/me` |
+
+**File mới:** `app/security.py` (bcrypt + JWT) · `app/dependencies.py` (`get_current_user`, `require_role`)
+· `app/routers/auth_router.py` · `recommendation_router.py` · `report_router.py`
+· `app/schemas/auth_schema.py` · `recommendation_schema.py` · `backend/test_support.py`
+· `scripts/reset_user_passwords.py` · `backend/test_b10_b11_b12.py`
+
+**Kết quả test:** B6 155 OK · B7 115 OK · B8 121 OK · **B10/11/12 190 OK**.
+
+| Nội dung | Chi tiết |
+|----------|----------|
+| **28 endpoint ghi đã bảo vệ** | Sản phẩm · cửa hàng · nhóm · dự báo · import · `DELETE alerts` → **owner+manager**. Tồn kho · đơn hàng · trạng thái cảnh báo → **mọi user đã đăng nhập**. GET vẫn mở |
+| **Role thật** | `owner \| manager \| staff` — **KHÔNG có `admin`** (CHECK constraint trong DB) |
+| **Mật khẩu phát triển** | `owner`/`Owner@2026` · `manager`/`Manager@2026` · `staff`/`Staff@2026`. **3 user seed ban đầu có hash placeholder → không ai đăng nhập được**, đã chạy `scripts/reset_user_passwords.py` |
+| **KHÔNG dùng passlib** | passlib 1.7.4 + bcrypt 5.0 hỏng, báo *"password cannot be longer than 72 bytes"* cho mật khẩu 7 byte. Dùng `bcrypt` trực tiếp |
+| **Bốn lỗi "trả 200 nhưng sai số"** đã sửa | `format` ≠ `fmt` (FastAPI bỏ qua param lạ) · `group_by=day` gom thừa thành 146.080 dòng · đọc nhầm `row[10]`/`row[11]` · `_data_anchor_date` không lọc trạng thái |
+| **Hiệu năng sau khi sửa** | `sales/csv` 24s→4s · `sales/2017` 400s→0,75s · `sales/pdf` timeout→5,4s (giới hạn `MAX_PDF_ROWS = 1.000`) |
+
+> ⚠️ **Cảnh báo khi viết Chương 4:** `recommended_import_qty` **bị nén bởi `max_stock`**
+> (tồn kho seed chỉ 0,5–3 ngày bán, dự báo 30 ngày ~2.700) → con số đúng thuật toán
+> nhưng **không hành động được thực tế**. Thêm nữa `forecasts` phủ 01/2018 còn dữ liệu
+> bán hàng kết thúc 31/12/2017, nên **không kiểm chứng ngoài mẫu được**. Cả hai điểm
+> phải nêu rõ, không trình bày như kết quả vận hành thật.
+
 ---
 
 ## Tài liệu liên quan

@@ -2255,4 +2255,91 @@ cd frontend; npm run dev
 
 ---
 
-*Phiên sau: đọc `AGENTS.md` + file này, chạy `git status`, rồi làm B5 (endpoint dashboard tổng hợp).*
+## 8s. B10 + B11 + B12 (12/10/2026) — Phiên gộp 3 task backend
+
+### Kết quả
+
+| Task | Nội dung | Kết quả |
+|------|----------|---------|
+| **B10** | `recommendation_router.py` — 3 endpoint (import · expiring · slow-moving) | PASS |
+| **B11** | `report_router.py` — 4 endpoint × 3 định dạng (CSV · XLSX · PDF) | PASS |
+| **B12** | `auth_router.py` + `security.py` + `dependencies.py` — login · refresh · me · logout · change-password, bảo vệ **28** endpoint ghi | PASS |
+
+**Bộ test mới:** `backend/test_b10_b11_b12.py` — **190 check PASS**.
+Chạy lại toàn bộ: **B6 155 OK · B7 115 OK · B8 121 OK · B10/11/12 190 OK**.
+
+---
+
+### Sai lầm của tôi trong phiên này (ghi lại để không lặp lại)
+
+| # | Sai lầm | Cách phát hiện | Sửa |
+|---|---------|----------------|-----|
+| 1 | Dùng `__import__("app.models", fromlist=[...])` thay cho import bình thường trong `recommendation_router.py` và `report_router.py` — 4 chỗ | Đọc lại code sau khi viết | Thay bằng import thật ở đầu file |
+| 2 | Viết script tự động chèn `dependencies=[...]` vào decorator — làm **hỏng cú pháp** 2 lần: lần 1 sinh `",,"`, lần 2 sinh `"))"`; lần đầu còn **treo vô hạn** vì decorator 1 dòng làm cursor không tiến | `python -c "from app.main import app"` báo SyntaxError | Bỏ script, viết lại chèn trực tiếp trước `)` + **compile từng file sau khi sửa, rollback nếu fail** |
+| 3 | **Query param `fmt` trong khi client gửi `format`** → cả 3 định dạng đều trả CSV, `?format=bogus` vẫn 200 | So magic bytes: cả 3 đều là BOM UTF-8 | `Query(..., alias="format")`. Kiểm bằng cách gửi giá trị sai và xem có 422 không |
+| 4 | `group_by=day` vẫn gom thêm theo **cửa hàng + nhóm hàng** → 146.080 dòng, file 3 MB, 24 giây | So số dòng với `count(DISTINCT order_date)` | Bỏ `extra`, chỉ gom theo bucket. Còn **1.826 dòng / 91 KB / 4 giây** |
+| 5 | PDF không giới hạn số dòng → báo cáo lãng phí **77 giây** cho ~700 dòng, báo cáo bán hàng **timeout > 120 giây** | Đo thời gian từng định dạng | `MAX_PDF_ROWS = 1.000`, in rõ trên trang PDF là đã cắt |
+| 6 | `refresh` **bắt buộc** có header → client gửi refresh token trong body bị 401 `Not authenticated` trước khi đọc body | Test trường hợp body-only | `get_current_active_refresh_token` trả `None` khi thiếu header |
+| 7 | Đọc `row[10]` (unit_cost) thay cho `row[11]` (total_value) trong `recommend_expiring` → **báo giá trị lô sai 350 lần**, không báo lỗi | Test kiểm tra thứ tự sắp xếp phát hiện đảo chiều giá trị | Chuyển sang **unpack tuple theo tên** |
+| 8 | `_data_anchor_date` lấy `max(order_date)` **không lọc trạng thái** → chỉ cần một đơn nháp tạo "hôm nay" là **mọi số bán hàng trong khuyến nghị về 0** | Test tạo đơn nháp rồi so với SQL | Lọc `status='completed' AND order_type='sale'` |
+| 9 | Test tự viết sai: SQL cửa sổ 30 ngày lấy `< db_last` (bỏ mất ngày cuối), so `limit` mặc định 200 với số dòng DB, header tra cứu sai hoa/thường | 4 lần FAIL lần đầu | Sửa test, không sửa API — **phải phân biệt bug API với bug test** |
+
+> Điểm chung của #3, #7, #8: **API trả 200 với dữ liệu sai** và chẳng báo lỗi nào.
+> Chỉ khi đối chiếu với SQL thật mới thấy. Đây là lý do mọi check trong bộ test
+> đều so với SQL chứ không so với chính API.
+
+---
+
+### Thư viện: KHÔNG dùng passlib
+
+Task yêu cầu `passlib[bcrypt]`. Đã thử và **hỏng thật** với `bcrypt 5.0.0`:
+
+```
+passlib 1.7.4 → đọc bcrypt.__about__.__version__  (xoá từ bcrypt 4.1+)
+→ nuốt AttributeError
+→ báo: ValueError: password cannot be longer than 72 bytes
+```
+
+Mật khẩu thử nghiệm dài **7 byte** — thông báo hoàn toàn bịa, và sẽ dẫn người đọc
+đi tìm một lỗi không tồn tại. → Dùng thư viện `bcrypt` trực tiếp
+(`app/security.py`). Đã ghi rõ trong `requirements.txt`.
+
+---
+
+### Phát hiện về dữ liệu mới
+
+| Vấn đề | Ảnh hưởng |
+|--------|-----------|
+| **3 user seed có `password_hash` là placeholder 29 ký tự**, không phải hash | **Không tài khoản nào đăng nhập được.** Đã chạy `scripts/reset_user_passwords.py` đặt hash bcrypt thật (`owner`/`manager`/`staff` — mật khẩu phát triển, xem `backend/.env.example`) |
+| **`users.role` là `owner \| manager \| staff`** — KHÔNG có `admin` như task mô tả | CHECK constraint trong DB là nguồn sự thật. Đã dùng đúng 3 role này |
+| **`slow-moving` trả 0 dòng với ngưỡng mặc định** | **Đúng, không phải lỗi.** Mọi sản phẩm bán 300–1.500 đơn vị/30 ngày, không có hàng bán chậm. Test chạy nghịch đảo ngưỡng để kiểm chứng logic vẫn đúng |
+| **Chỉ có dự báo cho 100 cặp SP × CH** | `/recommendations/import` chỉ trả các cặp có dự báo, không phải 500 cặp |
+
+---
+
+### Quyết định thiết kế cần nêu trong báo cáo
+
+1. **`recommended_import_qty` bị nén bởi `max_stock`** — tồn kho seed chỉ 0,5–3 ngày bán
+   trong khi dự báo 30 ngày tới ~2.700. Con số **đúng thuật toán, không hành động được
+   thực tế**. Mỗi dòng `reason` đã tự nhắc lại điều này.
+2. **Đề xuất nhập hàng là THỰC NGHIỆM** — `forecasts` phủ 01/2018, dữ liệu bán hàng
+   kết thúc 31/12/2017. Không có thực tế nào để kiểm chứng.
+3. **Logout không bền vững** — denylist trong RAM, **restart là token sống lại**.
+   Chấp nhận với 1 tiếng trình dev; nhiều tiếng trình thì phải dùng Redis/bảng DB.
+4. **Giá trong báo cáo là MÔ PHỎNG** (Kaggle không có cột giá) — giữ nguyên cảnh báo
+   cũ, không trình bày như doanh thu thật.
+
+---
+
+### Test thay đổi (B12 bắt buộc token cho endpoint ghi)
+
+`backend/test_support.py` mới — chứa `login()` + `check()`/`ok()` dùng chung.
+`test_b6_orders.py` và `test_b7_import.py` đã cập nhật để gửi
+`Authorization: Bearer ...` cho POST/PUT/DELETE.
+
+> Nếu sau này thêm endpoint ghi mà quên bảo vệ, hãy kiểm tra bằng cách gọi
+> **không có token** và xem có 401 không — đừng chỉ nhìn vào code.
+
+---
+
+*Phiên sau: đọc `AGENTS.md` + file này, chạy `git status`, rồi làm **F1 — Setup Frontend React**.*

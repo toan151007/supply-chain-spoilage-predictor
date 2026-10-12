@@ -25,6 +25,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.dependencies import require_role
 from app.database import get_db
 from app.models import Order, OrderItem, Product
 from app.schemas.order_item_schema import (
@@ -228,7 +229,7 @@ def get_order_item(order_item_id: int, db: Session = Depends(get_db)) -> OrderIt
 @router.post(
     "", response_model=OrderItemRead, status_code=status.HTTP_201_CREATED,
     summary="Add a line to an order",
-)
+ dependencies=[Depends(require_role('owner', 'manager', 'staff'))],)
 def create_order_item(
     payload: OrderItemCreate, db: Session = Depends(get_db)
 ) -> OrderItemRead:
@@ -288,7 +289,7 @@ def create_order_item(
 
 @router.put(
     "/{order_item_id}", response_model=OrderItemRead, summary="Update a line"
-)
+, dependencies=[Depends(require_role('owner', 'manager', 'staff'))])
 def update_order_item(
     order_item_id: int, payload: OrderItemUpdate, db: Session = Depends(get_db)
 ) -> OrderItemRead:
@@ -340,7 +341,7 @@ def update_order_item(
 @router.delete(
     "/{order_item_id}", status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a line",
-)
+ dependencies=[Depends(require_role('owner', 'manager', 'staff'))],)
 def delete_order_item(order_item_id: int, db: Session = Depends(get_db)) -> None:
     """
     Delete a line and refresh the parent order's totals.

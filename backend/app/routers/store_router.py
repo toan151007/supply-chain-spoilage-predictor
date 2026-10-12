@@ -13,6 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.dependencies import require_role
 from app.database import get_db
 from app.models import Store
 from app.schemas.common import Message, Page
@@ -77,7 +78,7 @@ def get_store(store_id: int, db: Session = Depends(get_db)) -> Store:
 @router.post(
     "", response_model=StoreRead, status_code=status.HTTP_201_CREATED,
     summary="Create a store",
-)
+ dependencies=[Depends(require_role('owner', 'manager'))],)
 def create_store(payload: StoreCreate, db: Session = Depends(get_db)) -> Store:
     store = Store(**payload.model_dump())
     db.add(store)
@@ -94,7 +95,7 @@ def create_store(payload: StoreCreate, db: Session = Depends(get_db)) -> Store:
     return store
 
 
-@router.put("/{store_id}", response_model=StoreRead, summary="Update a store")
+@router.put("/{store_id}", response_model=StoreRead, summary="Update a store", dependencies=[Depends(require_role('owner', 'manager'))])
 def update_store(
     store_id: int, payload: StoreUpdate, db: Session = Depends(get_db)
 ) -> Store:
@@ -118,7 +119,7 @@ def update_store(
 @router.delete(
     "/{store_id}", status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a store",
-)
+ dependencies=[Depends(require_role('owner', 'manager'))],)
 def delete_store(store_id: int, db: Session = Depends(get_db)) -> None:
     """
     Delete a store that has no sales history.

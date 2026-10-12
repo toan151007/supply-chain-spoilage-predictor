@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
+from app.dependencies import require_role
 from app.database import get_db
 from app.models import Alert
 from app.schemas.alert_schema import (
@@ -171,7 +172,7 @@ def get_alert(alert_id: int, db: Session = Depends(get_db)) -> Alert:
 @router.put(
     "/{alert_id}/read", response_model=AlertRead,
     summary="Mark an alert as read or unread",
-)
+ dependencies=[Depends(require_role('owner', 'manager', 'staff'))],)
 def mark_read(
     alert_id: int, payload: MarkReadRequest, db: Session = Depends(get_db)
 ) -> Alert:
@@ -191,7 +192,7 @@ def mark_read(
 @router.put(
     "/{alert_id}/resolve", response_model=AlertRead,
     summary="Mark an alert as resolved or reopen it",
-)
+ dependencies=[Depends(require_role('owner', 'manager', 'staff'))],)
 def resolve_alert(
     alert_id: int, payload: ResolveRequest, db: Session = Depends(get_db)
 ) -> Alert:
@@ -217,7 +218,7 @@ def resolve_alert(
 @router.put(
     "/read-all", response_model=Message,
     summary="Mark every matching alert as read",
-)
+ dependencies=[Depends(require_role('owner', 'manager', 'staff'))],)
 def mark_all_read(
     db: Session = Depends(get_db),
     store_id: int | None = Query(None, gt=0),
@@ -241,7 +242,7 @@ def mark_all_read(
 @router.delete(
     "/{alert_id}", status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete an alert",
-)
+ dependencies=[Depends(require_role('owner', 'manager'))],)
 def delete_alert(alert_id: int, db: Session = Depends(get_db)) -> None:
     """Delete an alert. Nothing references the alerts table, so this succeeds."""
     alert = _get_alert_or_404(db, alert_id)

@@ -31,6 +31,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, selectinload
 
+from app.dependencies import require_role
 from app.database import get_db
 from app.models import Order, OrderItem, Product, Store, User
 from app.schemas.order_item_schema import OrderItemRead
@@ -332,7 +333,7 @@ def list_order_items(
 @router.post(
     "", response_model=OrderDetail, status_code=status.HTTP_201_CREATED,
     summary="Create an order together with its lines",
-)
+ dependencies=[Depends(require_role('owner', 'manager', 'staff'))],)
 def create_order(payload: OrderCreate, db: Session = Depends(get_db)) -> OrderDetail:
     """
     Insert an order and its lines in one transaction.
@@ -430,7 +431,7 @@ def create_order(payload: OrderCreate, db: Session = Depends(get_db)) -> OrderDe
     return get_order(order.order_id, db)
 
 
-@router.put("/{order_id}", response_model=OrderRead, summary="Update an order")
+@router.put("/{order_id}", response_model=OrderRead, summary="Update an order", dependencies=[Depends(require_role('owner', 'manager', 'staff'))])
 def update_order(
     order_id: int, payload: OrderUpdate, db: Session = Depends(get_db)
 ) -> OrderRead:
@@ -489,7 +490,7 @@ def update_order(
 @router.put(
     "/{order_id}/status", response_model=OrderRead,
     summary="Change the status of an order",
-)
+ dependencies=[Depends(require_role('owner', 'manager', 'staff'))],)
 def update_order_status(
     order_id: int, payload: OrderStatusUpdate, db: Session = Depends(get_db)
 ) -> OrderRead:
@@ -519,7 +520,7 @@ def update_order_status(
 
 @router.delete(
     "/{order_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete an order"
-)
+, dependencies=[Depends(require_role('owner', 'manager', 'staff'))])
 def delete_order(order_id: int, db: Session = Depends(get_db)) -> None:
     """
     Delete an order that has no lines, returning 409 otherwise.

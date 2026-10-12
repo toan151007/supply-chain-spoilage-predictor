@@ -31,6 +31,12 @@ CREATED = {"products": [], "inventory": [], "orders": []}
 # Per-run token so repeated runs never collide on UNIQUE constraints.
 TAG = uuid.uuid4().hex[:8].upper()
 
+# Import endpoints are write operations and have required a bearer token
+# since B12.
+from test_support import login as _support_login  # noqa: E402
+
+TOKEN = _support_login()[0]
+
 
 class Resp:
     def __init__(self, status, body, raw=b""):
@@ -61,7 +67,8 @@ def post_file(path, filename, payload, content_type="text/csv"):
     body, ctype = multipart("file", filename, payload, content_type)
     req = urllib.request.Request(
         BASE + path, data=body, method="POST",
-        headers={"Content-Type": ctype},
+        headers={"Content-Type": ctype,
+                 "Authorization": f"Bearer {TOKEN}"},
     )
     try:
         with urllib.request.urlopen(req, timeout=120) as r:

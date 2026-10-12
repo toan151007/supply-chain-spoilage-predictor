@@ -43,6 +43,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.dependencies import require_role
 from app.database import get_db
 from app.import_specs import SUPPORTED_EXTENSIONS, get_spec
 from app.models import Category, Inventory, Order, OrderItem, Product, Store
@@ -732,7 +733,7 @@ def _import_endpoint(
 
 @router.post(
     "/products", response_model=ImportResult, summary="Import products from a file"
-)
+, dependencies=[Depends(require_role('owner', 'manager'))])
 def import_products(
     file: UploadFile = File(..., description="CSV or XLSX file"),
     on_error: str = Query(
@@ -752,7 +753,7 @@ def import_products(
 
 @router.post(
     "/inventory", response_model=ImportResult, summary="Import stock batches from a file"
-)
+, dependencies=[Depends(require_role('owner', 'manager'))])
 def import_inventory(
     file: UploadFile = File(..., description="CSV or XLSX file"),
     on_error: str = Query(
@@ -772,7 +773,7 @@ def import_inventory(
 
 @router.post(
     "/sales", response_model=ImportResult, summary="Import sales orders from a file"
-)
+, dependencies=[Depends(require_role('owner', 'manager'))])
 def import_sales(
     file: UploadFile = File(..., description="CSV or XLSX file"),
     on_error: str = Query(

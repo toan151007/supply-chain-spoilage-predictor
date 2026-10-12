@@ -68,6 +68,18 @@ class Settings(BaseSettings):
     # Vi vay khai bao str roi tach thu cong trong property ben duoi.
     CORS_ORIGINS: str = ",".join(DEFAULT_CORS_ORIGINS)
 
+    # ---- JWT / xac thuc (B12) ----
+    # SECRET_KEY chi dung cho KY TOKEN, KHONG lien quan mat khau database.
+    # Mac dinh duoi day LA GIA TRI PHAT TRIEN - bat buoc dat trong `.env`
+    # that truoc khi len production. Xem `.env.example`.
+    SECRET_KEY: str = "dev-only-insecure-key-DOI-TRUOC-KHI-LEN-PRODUCTION"
+    ALGORITHM: str = "HS256"
+
+    # Access token song ngan (phut) - dung cho moi request.
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    # Refresh token song dai (ngay) - chi dung de lay access token moi.
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
     @property
     def cors_origins_list(self) -> list[str]:
         """

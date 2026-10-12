@@ -37,13 +37,30 @@ class Resp:
         return self._body
 
 
+def login():
+    """
+    Obtain an owner token.
+
+    Write endpoints have required a bearer token since B12, so this script
+    has to authenticate before it can create anything. The helper lives in
+    test_support so the credentials are defined in exactly one place.
+    """
+    from test_support import login as support_login
+
+    return support_login()[0]
+
+
+TOKEN = login()
+
+
 def call(method, path, body=None):
     url = BASE + path
     data = json.dumps(body).encode() if body is not None else None
-    req = urllib.request.Request(
-        url, data=data, method=method,
-        headers={"Content-Type": "application/json"},
-    )
+    headers = {"Content-Type": "application/json"}
+    # Reads stay open; only the mutating calls need the token.
+    if method in ("POST", "PUT", "DELETE", "PATCH"):
+        headers["Authorization"] = f"Bearer {TOKEN}"
+    req = urllib.request.Request(url, data=data, method=method, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=120) as r:
             raw = r.read()

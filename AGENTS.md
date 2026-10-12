@@ -235,13 +235,44 @@ Vì vậy **không dùng được** tiêu chí "hệ số biến động mùa v�
 - **Validator phải trả về `(values, error)` — nếu `error` là `None` thì `values` BẮT BUỘC khác `None`.** Đã vi phạm đúng điều này ở B7: trả `(None, None)` cho `order_code` trùng → `None` lọt vào writer → **500**. Giờ có chặn phòng thủ trong `_run_import`.
 - **`inventory` UNIQUE `(store_id, product_id, expiry_date)`** và **`products.order_code`/`product_code` UNIQUE.** Phải kiểm tra trùng **cả trong file lẫn với DB**. Trùng với DB → **409** + không ghi gì. Trùng trong file → báo lỗi theo dòng.
 - **Cleanup trong script test phải xoá theo KHÓA CHÍNH (`= ANY(:ids)`), KHÔNG dùng `WHERE ... LIKE 'prefix%'`.** `LIKE` **không khớp `NULL`**, nên bản ghi không có cột chuỗi (vd lô hàng nhập không có `batch_code`) sẽ lọt khỏi cleanup — mà kiểm tra "còn sót dữ liệu test không" cũng viết bằng `LIKE` nên **báo PASS sai**. Bài học từ B7: dùng `created_ids` mà server đã trả về, rồi xác minh lại bằng `count(*) WHERE id > <mốc seed>`.
-- **`v_daily_sales` có `GROUP BY store_id, order_date, product_id` là VÔ NGHĨA.** Vì `order_items` có UNIQUE `(order_id, product_id)` nên mỗi cặp đơn/sản phẩm chỉ có **đúng 1** dòng — `SUM()` chỉ có thể trả về chính dòng đó. Đọc view tốn một `Sort` + `GroupAggregate` trên 912.999 dòng mà **không đổi kết quả**. Đo: **1.606 ms qua view vs 680 ms join thẳng `order_items`**, tổng tiền khớp từng cent cho cả 7 nhóm. Endpoint B8 `revenue-by-category` và `forecast-vs-actual` đã **bỏ qua view, join thẳng**.
+- **`v_daily_sales` có `GROUP BY store_id, order_date, product_id` là THỪA — quyết định KHÔNG sửa view (chốt 12/10/2026).** Vì `order_items` UNIQUE `(order_id, product_id)` nên mỗi cặp đơn/sản phẩm chỉ có **đúng 1** dòng — `SUM()` chỉ có thể trả về chính dòng đó. Đọc view tốn một `Sort` + `GroupAggregate` trên 912.999 dòng mà **không đổi kết quả**. Đo: **1.606 ms qua view vs 680 ms join thẳng `order_items`**, tổng tiền khớp từng cent cho cả 7 nhóm. **Lý do không sửa:** đổi view = đổi schema cần migration, đã có workaround, chỉ 2 endpoint bị ảnh hưởng. → **Endpoint cần chi tiết dòng hàng thì join thẳng `order_items`, đừng đọc view.**
 - **Báo cáo nhóm hàng PHẢI dùng `SUM(OrderItem.line_total)`**, không tự tính lại `quantity * unit_price * (1-discount/100)` — để DB tự tính bằng generated column.
 - **Khi lọc theo ngày trên `orders` (timestamptz), dựng mốc bằng `VN_TZ = +07:00`, không dùng UTC.** Endpoint B8 khai báo param là `date` (không phải `datetime`) và tự dựng mốc giữa nửa đêm giờ địa phương — nhờ vậy chuỗi `2017-01-01T00:00:00Z` bị **422** thay vì âm thầm cắt mất 10 đơn.
-- **`forecast-vs-actual` không tính được MAPE trên dữ liệu hiện tại.** `forecasts` chỉ phủ **2018-01-01 → 2018-01-30**, còn `v_daily_sales` kết thúc **2017-12-31** → **không giao nhau**, `matched_rows = 0`. API trả `mape: null` kèm `message` giải thích, **không** báo số sai. Đây là hạn chế dữ liệu, phải nêu rõ ở Chương 4.
-- **Số dự báo không đều:** SP 13, 28, 45 chỉ có dự báo cho **9/10 cửa hàng** (270 dòng), 7 sản phẩm còn lại đủ 10 (300 dòng). Tổng 2.910 dòng prophet **không** chia hết cho 10.
-- **Category "Food" (id 1) không có sản phẩm nào** → không có doanh thu → không xuất hiện trong `revenue-by-category` (inner join). DB có 8 nhóm nhưng endpoint trả **7**.
+- **⛔ `forecast-vs-actual` KHÔNG tính được MAPE — hạn chế dữ liệu (chốt 12/10/2026).** `forecasts` chỉ phủ **2018-01-01 → 2018-01-30**, còn dữ liệu bán hàng kết thúc **2017-12-31** → **hai khoảng không giao nhau**, `matched_rows = 0`. API trả `mape: null` kèm `message` giải thích, **không** báo số sai. **Khi viết Chương 4 PHẢI nêu rõ điều này — KHÔNG được trình bày như đã đo được độ chính xác trên dữ liệu thật.** Số RMSE/MAE/MAPE 9,97 ở bảng đánh giá 100 cặp là đo trên tập **test nội bộ** của mô hình, là con số khác và không thay thế cho kiểm chứng ngoài mẫu.
+### ⚠️ Ba đặc tính dữ liệu phải nhớ khi viết test hoặc báo cáo
+
+| # | Vấn đề | Hệ quả |
+|---|--------|--------|
+| 1 | **SP 13, 28, 45 chỉ có dự báo cho 9/10 cửa hàng** (270 dòng) — 7 sản phẩm còn lại đủ 300 | Tổng 2.910 dòng prophet **không** chia hết cho 10. Đừng đoán `2910/10`. Cũng đừng giả định mọi cặp (SP × CH) đều có dự báo. |
+| 2 | **Category "Food" (id 1) không có sản phẩm nào** | Không có doanh thu → inner join loại khỏi kết quả. DB có **8** nhóm nhưng `/dashboard/revenue-by-category` trả **7**. Đây là đúng, không phải thiếu dữ liệu. |
+| 3 | **`avg_order_value` chia cho SỐ ĐƠN, không chia số dòng hàng** | Một đơn có 50 dòng vẫn là **một** lần mua. Chia cho 50 sẽ thấp hơn thực tế 50 lần. Cột `orders.total_amount` đã là tổng của dòng hàng rồi. |
+
+### ⚠️ Ghi chú B8 — đo độ chính xác dự báo trên dữ liệu thật
+
+- **`forecast-vs-actual` chưa đo được MAPE**: `forecasts` phủ 2018-01-01→01-30, dữ liệu bán hàng kết thúc 2017-12-31 → **không giao nhau**, `matched_rows = 0`. API trả `mape: null` + `message` giải thích, **không** báo số bịa.
+- **RMSE/MAE/MAPE 9,97 trong bảng đánh giá 100 cặp là đo trên tập test nội bộ của mô hình**, không phải kiểm chứng ngoài mẫu. Khi viết Chương 4 phải phân biệt rõ hai thứ này.
+- Logic ghép trong `forecast-vs-actual` đã viết đúng và sẽ chạy được ngay khi có dữ liệu thực tế cho tháng 1/2018.
+
+### ⛔ Ghi chú B8 — sửa hay không sửa view `v_daily_sales`
+
+**Quyết định: KHÔNG sửa view.** Đổi view = đổi schema cần migration; đã có workaround (join thẳng `order_items`); chỉ 2 endpoint bị ảnh hưởng.
+
+`v_daily_sales` có `GROUP BY store_id, order_date, product_id` là **thừa** vì `order_items` UNIQUE `(order_id, product_id)` — mỗi cặp chỉ có đúng 1 dòng. Đọc view tốn `Sort` + `GroupAggregate` trên 912.999 dòng mà **không đổi kết quả** (đo: 1.606 ms qua view vs 680 ms join thẳng, tổng tiền khớp từng cent cả 7 nhóm).
+
+→ **Endpoint cần chi tiết dòng hàng thì join thẳng `order_items`, đừng đọc view.** Ghi nhớ khi viết endpoint mới.
+
 - **Đơn `completed`/`cancelled` bị khóa 2 chiều.** Không sửa được header, không sửa/xoá được dòng hàng. `completed` **không** quay lại `pending` được (cần bút toán bù trừ chứ không phải đảo trạng thái); `cancelled` thì quay lại `pending` được. **Hệ quả thực tế: không có đường qua API để dọn dữ liệu test của một đơn đã `completed`** — phải xoá bằng SQL.
+- **`passlib` KHÔNG dùng được với `bcrypt` 5.0** (đã thử 12/10/2026). passlib 1.7.4 đọc `bcrypt.__about__.__version__` — thuộc tính đã bị xoá từ bcrypt 4.1+. Nó **nuốt** lỗi `AttributeError` rồi báo sai hoàn toàn: *"password cannot be longer than 72 bytes"* cho một mật khẩu **7 byte**. Thông báo đó sẽ khiến người đọc đi tìm một lỗi không tồn tại. → Dùng thư viện `bcrypt` trực tiếp (`app/security.py`).
+- **JWT PHẢI có claim `type` (`access` / `refresh`).** Thiếu nó thì access token chạy được ở endpoint refresh và ngược lại — vô nghĩa hoá việc có hai vòng đời token. `decode_token()` kiểm tra claim này.
+- **Logout dùng denylist trong RAM** (`jti` → hết hạn), **KHÔNG lưu trong DB.** Hệ quả phải nói rõ: **restart server là mọi token đã logout sống lại.** Chấp nhận được với 1 tiến trình dev; với nhiều tiến trình thì phải chuyển sang Redis hoặc bảng DB.
+- **3 user seed ban đầu có `password_hash` = chuỗi placeholder 29 ký tự**, không phải hash → **không mật khẩu nào đăng nhập được**. Đã chạy `scripts/reset_user_passwords.py` để đặt hash bcrypt thật: `owner/Owner@2026`, `manager/Manager@2026`, `staff/Staff@2026` (**chỉ dùng khi phát triển**).
+- **`users.role` là `owner | manager | staff`** — KHÔNG có `admin`. CHECK constraint trong DB là nguồn sự thật.
+- **Đã bảo vệ 28 endpoint ghi (POST/PUT/DELETE)**. Endpoint GET vẫn mở. Chính sách: sản phẩm · cửa hàng · nhóm · dự báo · import · `DELETE alerts` → **owner+manager**; tồn kho · đơn hàng · trạng thái cảnh báo → **mọi user đã đăng nhập**.
+- **Query param phải khớp TÊN mà client gửi.** FastAPI **bỏ qua âm thầm** query param lạ. Đã dính: khai báo `fmt` nhưng spec/client gửi `format` → cả 3 định dạng đều trả CSV, `?format=bogus` vẫn 200. Sửa bằng `Query(..., alias="format")`. Kiểm bằng cách gửi giá trị sai và xem có 422 không.
+- **PDF giới hạn 1.000 dòng (`MAX_PDF_ROWS`), CSV/XLSX 50.000.** reportlab vẽ **mỗi ô** bằng `Paragraph` để xuống dòng — đắt gấp ~100 lần so với chuỗi thường: báo cáo lãng phí mất 77 giây cho ~700 dòng, báo cáo bán hàng **timeout quá 120 giây**. Trang PDF có ghi rõ đã cắt và gợi ý dùng CSV/XLSX.
+- **`group_by=day` phải gom theo ngày, KHÔNG gom thêm theo cửa hàng/nhóm hàng.** Bản đầu gom cả 3 chiều → 1.826 × 10 × 8 = **146.080 dòng**, file 3 MB, 24 giây. Sửa còn **1.826 dòng**, 91 KB, 4 giây.
+- **Mốc "30 ngày gần nhất" phải neo vào ngày CÓ DỮ LIỆU, không phải `CURRENT_DATE`.** Và **phải lọc `status='completed' AND order_type='sale'`** — chỉ cần một đơn nháp tạo "hôm nay" cũng kéo mốc về hiện tại và **làm mọi số bán hàng về 0**. Đã dính lỗi này ở B10.
+- **Không đọc tuple kết quả query bằng chỉ số vị trí.** Ở B10 đã đọc nhầm `row[10]` (unit_cost) thay cho `row[11]` (total_value), báo giá trị lô sai 350 lần mà không báo lỗi. Đã chuyển sang **unpack theo tên**.
 
 ## ⛔ Quyết định đã chốt 03/10/2026 — KHÔNG sửa, ghi chú vào Chương 4
 
@@ -298,6 +329,9 @@ Chương 2 là cơ sở lý thuyết, trình bày cả 5 mô hình, chỉ **kỳ
 - [x] B6: API bán hàng — orders (7 endpoint) + order-items (5 endpoint), 155 check PASS
 - [x] B7: API import Excel/CSV — 3 endpoint upload + 2 endpoint template, 115 check PASS
 - [x] B8: API dashboard nâng cao — 6 endpoint (doanh thu theo CH/nhóm · top CH · giá trị tồn kho · lãng phí · forecast-vs-actual), 121 check PASS
+- [x] B10: API đề xuất nhập hàng — 3 endpoint (import · expiring · slow-moving)
+- [x] B11: API xuất báo cáo — 4 endpoint × 3 định dạng (CSV · XLSX · PDF)
+- [x] B12: Authentication JWT — login · refresh · me · logout + bảo vệ **28** endpoint ghi
 - [ ] F1: Setup Frontend React
 - [ ] T2: README con cho từng thư mục
 - [ ] Tích hợp AI Model

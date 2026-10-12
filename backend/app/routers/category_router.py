@@ -15,6 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
+from app.dependencies import require_role
 from app.database import get_db
 from app.models import Category, Product
 from app.schemas.category_schema import CategoryCreate, CategoryRead, CategoryUpdate
@@ -103,7 +104,7 @@ def get_category(category_id: int, db: Session = Depends(get_db)) -> Category:
 @router.post(
     "", response_model=CategoryRead, status_code=status.HTTP_201_CREATED,
     summary="Create a category",
-)
+ dependencies=[Depends(require_role('owner', 'manager'))],)
 def create_category(
     payload: CategoryCreate, db: Session = Depends(get_db)
 ) -> Category:
@@ -127,7 +128,7 @@ def create_category(
 
 @router.put(
     "/{category_id}", response_model=CategoryRead, summary="Update a category"
-)
+, dependencies=[Depends(require_role('owner', 'manager'))])
 def update_category(
     category_id: int, payload: CategoryUpdate, db: Session = Depends(get_db)
 ) -> Category:
@@ -172,7 +173,7 @@ def update_category(
 @router.delete(
     "/{category_id}", status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a category",
-)
+ dependencies=[Depends(require_role('owner', 'manager'))],)
 def delete_category(category_id: int, db: Session = Depends(get_db)) -> None:
     """
     Delete a category.

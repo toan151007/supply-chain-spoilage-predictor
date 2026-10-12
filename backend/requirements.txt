@@ -36,3 +36,19 @@ python-multipart==0.0.32
 openpyxl==3.1.5
 # Doc CSV va Excel trong router import (app/routers/import_router.py).
 pandas==3.0.6
+
+# ---- Xac thuc JWT (B12) ----
+# python-jose: ky va xac thieu JWT.
+python-jose[cryptography]==3.5.0
+# bcrypt: hash mat khau.
+#
+# KHONG dung passlib: passlib 1.7.4 doc bcrypt.__about__.__version__, thuoc
+# tinh da bi xoa tu bcrypt 4.1+.voi bcrypt 5.0 no se nuot loi AttributeError
+# roi bao loi SAI:
+#     ValueError: password cannot be longer than 72 bytes
+# cho mot mat khau chi 7 byte. Thong bao do day hoan toan khong dung va se
+# lam nguoi doc tim loi khong ton tai. Dung truc tiep thu vien bcrypt.
+bcrypt==5.0.0
+
+# ---- Xuat bao cao PDF (B11) ----
+reportlab==5.0.1

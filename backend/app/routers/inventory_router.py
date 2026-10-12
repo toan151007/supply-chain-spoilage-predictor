@@ -14,6 +14,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
+from app.dependencies import require_role
 from app.database import get_db
 from app.models import Inventory, Product, Store
 from app.schemas.inventory_schema import (
@@ -158,7 +159,7 @@ def get_inventory(inventory_id: int, db: Session = Depends(get_db)) -> Inventory
 @router.post(
     "", response_model=InventoryRead, status_code=status.HTTP_201_CREATED,
     summary="Create a stock batch",
-)
+ dependencies=[Depends(require_role('owner', 'manager', 'staff'))],)
 def create_inventory(
     payload: InventoryCreate, db: Session = Depends(get_db)
 ) -> Inventory:
@@ -193,7 +194,7 @@ def create_inventory(
 
 @router.put(
     "/{inventory_id}", response_model=InventoryRead, summary="Update a stock batch"
-)
+, dependencies=[Depends(require_role('owner', 'manager', 'staff'))])
 def update_inventory(
     inventory_id: int, payload: InventoryUpdate, db: Session = Depends(get_db)
 ) -> Inventory:
@@ -219,7 +220,7 @@ def update_inventory(
 @router.delete(
     "/{inventory_id}", status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a stock batch",
-)
+ dependencies=[Depends(require_role('owner', 'manager', 'staff'))],)
 def delete_inventory(inventory_id: int, db: Session = Depends(get_db)) -> None:
     """Delete a batch. No table has a foreign key to inventory, so this succeeds."""
     batch = _get_batch_or_404(db, inventory_id)

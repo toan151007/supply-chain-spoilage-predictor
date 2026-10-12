@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, joinedload
 
+from app.dependencies import require_role
 from app.database import get_db
 from app.models import Forecast
 from app.schemas.common import Page
@@ -181,7 +182,7 @@ def get_forecast(forecast_id: int, db: Session = Depends(get_db)) -> Forecast:
 @router.delete(
     "/{forecast_id}", status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete one forecast row",
-)
+ dependencies=[Depends(require_role('owner', 'manager'))],)
 def delete_forecast(forecast_id: int, db: Session = Depends(get_db)) -> None:
     """Delete a single forecast row. Nothing references forecasts, so this succeeds."""
     forecast = db.get(Forecast, forecast_id)
@@ -197,7 +198,7 @@ def delete_forecast(forecast_id: int, db: Session = Depends(get_db)) -> None:
 @router.delete(
     "", status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete forecasts by filter",
-)
+ dependencies=[Depends(require_role('owner', 'manager'))],)
 def delete_forecasts(
     db: Session = Depends(get_db),
     store_id: int | None = Query(None, gt=0),

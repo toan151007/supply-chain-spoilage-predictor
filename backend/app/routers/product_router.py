@@ -16,6 +16,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
+from app.dependencies import require_role
 from app.database import get_db
 from app.models import Category, Product
 from app.schemas.product_schema import (
@@ -108,7 +109,7 @@ def get_product(product_id: int, db: Session = Depends(get_db)) -> Product:
 @router.post(
     "", response_model=ProductRead, status_code=status.HTTP_201_CREATED,
     summary="Create a product",
-)
+ dependencies=[Depends(require_role('owner', 'manager'))],)
 def create_product(payload: ProductCreate, db: Session = Depends(get_db)) -> Product:
     """Insert a new product.
 
@@ -140,7 +141,7 @@ def create_product(payload: ProductCreate, db: Session = Depends(get_db)) -> Pro
 
 @router.put(
     "/{product_id}", response_model=ProductRead, summary="Update a product"
-)
+, dependencies=[Depends(require_role('owner', 'manager'))])
 def update_product(
     product_id: int, payload: ProductUpdate, db: Session = Depends(get_db)
 ) -> Product:
@@ -184,7 +185,7 @@ def update_product(
 @router.delete(
     "/{product_id}", status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a product",
-)
+ dependencies=[Depends(require_role('owner', 'manager'))],)
 def delete_product(product_id: int, db: Session = Depends(get_db)) -> None:
     """
     Delete a product that has no history.
