@@ -668,6 +668,185 @@ Nội dung: phương pháp (time-series split theo mốc ngày, chọn tham số
 
 ---
 
+## 8q. B7 — API Import Excel/CSV (12/10/2026) ✅
+
+### ⚠️ Phải cài thêm 3 thư viện — đã tự quyết, cần bạn xác nhận
+
+Bắt buộc phải có để làm được B7, **không cài thì router không chạy được**:
+
+| Thư viện | Vì sao BẮT BUỘC | Đã cài |
+|----------|-----------------|--------|
+| `python-multipart==0.0.32` | FastAPI khai báo `UploadFile`/`File(...)` mà thiếu nó sẽ **lỗi ngay lúc import** | ✅ |
+| `openpyxl==3.1.5` | engine đọc `.xlsx` cho `pandas.read_excel()` | ✅ |
+| `pandas==3.0.6` | đọc CSV/Excel trong router | ✅ (đã có sẵn, **thiếu trong `requirements.txt`** — đã bổ sung) |
+
+Đã thêm cả 3 vào `backend/requirements.txt` kèm giải thích. Không có gì bị xoá hay thay đổi.
+
+### Files đã tạo / sửa — 6 file
+
+| File | Nội dung |
+|------|----------|
+| `backend/app/routers/import_router.py` | 5 endpoint |
+| `backend/app/import_specs.py` | **Mới** — hợp đồng cột của 3 loại import + dữ liệu mẫu |
+| `backend/app/schemas/import_schema.py` | `ImportResult` · `RowError` · `TemplateInfo` |
+| `backend/app/main.py` | Include `import_router` |
+| `backend/app/schemas/__init__.py` | Export 5 schema |
+| `backend/requirements.txt` | + `python-multipart` · `openpyxl` · `pandas` |
+
+### Tách `import_specs.py` riêng — để hợp đồng cột không trôi
+
+Router **kiểm tra đúng những gì `import_specs.py` khai báo**, và endpoint template **phát ra đúng những header đó**. Hai bên không thể lệch nhau vì cùng đọc một nguồn.
+
+| Loại | Cột bắt buộc |
+|------|--------------|
+| products | `product_code` `product_name` `category_id` `unit` `unit_cost` `selling_price` `shelf_life_days` |
+| inventory | `product_id` `store_id` `quantity` `expiry_date` |
+| sales | `order_date` `store_id` `product_id` `quantity` `unit_price` |
+
+### 5 endpoint
+
+| Method | Path |
+|--------|------|
+| POST | `/api/v1/import/products` · `/inventory` · `/sales` |
+| GET | `/api/v1/import/template/{type}?fmt=csv\|xlsx` |
+| GET | `/api/v1/import/types` |
+
+### 🔴 Lỗi thật — validator trả `(None, None)` → 500
+
+Đây là lỗi nghiêm trọng nhất của B7. Trong `_validate_sales` tôi viết:
+
+```python
+if order_code in seen_codes:
+    return None, None     # ← TƯỞNG là "không có lỗi"
+```
+
+Nhưng hợp đồng của vòng lặc gọi là:
+
+```python
+values, error = validator(...)
+if error: ...   # báo lỗi
+else:    clean_rows.append(values)   # ← append None !
+```
+
+`error = None` nên nó **không báo lỗi**, mà `None` lọt thẳng vào danh sách dòng hợp lệ. Tới `_write_sales` thì `row["order_code"]` với `row = None` → **500**.
+
+Chuyện đáng nói: đó là **ý định của tôi sai ngay từ đầu**. `order_code` trùng **không phải lỗi** — đó chính là cách biểu diễn một đơn nhiều dòng hàng. Tôi viết nhánh "trả về sớm" rồi quên xoá.
+
+→ Sửa: bỏ nhánh sớm, để dòng đi tiếp và gom ở `_write_sales`.
+
+**Ngoài ra** đã thêm chặn phòng thủ trong `_run_import`: nếu `error is None` mà `values is None` thì trả 500 kèm message nói rõ đây là bug — thay vì để lỗi lan xuống tầng dưới thành `TypeError` khó đoán.
+
+### Ràng buộc an toàn khi đọc file
+
+| Kiểm tra | Kết quả | Mã |
+|----------|---------|-----|
+| Đuôi file không hỗ trợ | "Unsupported file type '.txt'. Allowed: .csv, .xlsx" | 400 |
+| File rỗng | "Uploaded file is empty" | 400 |
+| Tên `.csv` nhưng là Excel | "File is named .csv but its bytes are an Excel (.xlsx) workbook…" | 400 |
+| Tên `.xlsx` nhưng là CSV | "File is named .xlsx but is not an Excel workbook." | 400 |
+| `.xlsx` hỏng | "Could not read the file: BadZipFile…" | 400 |
+| Chỉ có header, không có dòng | "File has headers but no data rows." | 422 |
+| Quá 20.000 dòng | "File has 20001 rows; the limit is 20000." | 422 |
+| Quá 10 MB | "File too large. Maximum is 10 MB." | 400 |
+
+**Kiểm tra 4 byte đầu** (`PK\x03\x04`) là mấu chốt: `.xlsx` thật ra là file ZIP. Không có bước này thì lỗi "đổi tên `.csv` nhưng nội dung vẫn là Excel" sẽ nổ ra thành `UnicodeDecodeError` từ pandas — người dùng không hiểu phải làm gì.
+
+### Chiến lược transaction — `rollback` (mặc định) vs `skip`
+
+| `on_error` | 4 dòng, 1 dòng sai | Ghi được |
+|------------|-------------------|----------|
+| `rollback` (mặc định) | `error_rows=3`, `created_ids=[]` | **0 dòng** |
+| `skip` | `success_rows=2`, `error_rows=1` | **2 dòng** |
+
+Đã kiểm chứng `rollback` thật sự không ghi gì: sản phẩm ở dòng 1 (dòng hợp lệ) của file có dòng sai vẫn **không tồn tại** sau khi import.
+
+**Vì sao validate hết rồi mới ghi:** nếu ghi từng dòng thì không có "trạng thái chưa ghi" để so sánh. File hỏng ở dòng 9.001 sẩy lại 9.000 dòng, và lần import sau lại trùng rồi hỏng tiếp.
+
+### Import sales — gom dòng theo `order_code`
+
+| File | Kết quả |
+|------|---------|
+| 2 dòng, cùng `order_code` | **1 đơn**, 2 dòng chi tiết |
+| 2 dòng, `order_code` rỗng | **2 đơn** riêng |
+
+Đã kiểm chứng công thức `line_total` từ dữ liệu import:
+
+```
+5 × 15.000, giảm 0%   =  75.000
+2 × 25.000, giảm 10%  =  45.000
+total_amount           = 120.000   ✅ khớp
+total_quantity         =       7   ✅ khớp
+```
+
+Dòng hàng được ghi **không có** `line_total` — GENERATED COLUMN, DB tự tính. Tổng đơn tính lại bằng `SUM` y hệt router orders (kèm `db.flush()` vì session `autoflush=False`).
+
+### Kiểm tra trùng — cả trong file lẫn với DB
+
+| Tình huống | Kết quả |
+|------------|---------|
+| `product_code` trùng **trong file** | 200 + báo lỗi theo dòng, rollback không ghi |
+| `product_code` trùng **DB** | **409** + không ghi gì |
+| Lot `(store, product, expiry)` trùng **trong file** | 200 + báo lỗi theo dòng |
+| Lot trùng **DB** | **409** + không ghi gì |
+| `order_code` trùng **DB** | **409** + không ghi gì |
+
+Kiểm tra DB dùng **1 query** cho cả file (`WHERE code IN (...)`), không query từng dòng.
+
+### Sai lầm của tôi — 3 kỳ vọng test sai
+
+Lần chạy đầu có 6 FAIL, **lỗi ở test, không ở API**:
+
+| Tôi kỳ vọng | Thực tế đúng |
+|-------------|--------------|
+| Bỏ cột cuối → 422 | **200** — cột cuối là `supplier`/`received_date`/`customer_name`, đều **không bắt buộc**. Phải bỏ cột bắt buộc thì mới 422 |
+| Cột tên sai (`category_id_x`) → chấp nhận | **422** — tên cột cũng phải khớp chính xác |
+
+Nhưng lần này lỗi test **có hậu quả thật**: vì 200 nên nó đã **tạo 1 sản phẩm rác** (`product_code = "1"`) mà tiền tố `IMPT-` không bắt được. Đã phát hiện và xoá.
+
+### 🔴 Lỗi cleanup — `LIKE` không khớp `NULL`
+
+Sau khi tất cả PASS, kiểm tra baseline thấy `inventory = 1331` thay vì 1330.
+
+Lý do: test "chỉ dùng cột bắt buộc" tạo lô hàng **không có `batch_code`** → giá trị `NULL`. Cleanup chạy:
+
+```sql
+DELETE FROM inventory WHERE batch_code LIKE 'IMPT-%'
+```
+
+**`NULL LIKE 'IMPT-%'` không bao giờ đúng.** Dòng đó lọt khỏi cleanup và mọi kiểm tra vẫn báo PASS vì nó chỉ xoá theo tiền tố.
+
+→ Sửa: cleanup xoá **theo khóa chính** (`= ANY(%s)`) dùng `created_ids` mà server đã trả về, cộng một vòng quét dự phòng. Giờ xác minh 4 bảng về đúng baseline.
+
+**Bài học:** kiểm tra baseline cuối buổi là bắt buộc — không có nó thì lỗi cleanup sẽ âm thầm tích luỹ qua nhiều lần chạy.
+
+### Kết quả test — 115 check, ALL PASS
+
+| Nhóm | Đã kiểm |
+|------|---------|
+| Template | 3 loại × 2 định dạng · header đúng · xlsx là ZIP · đọc lại được · 404 · 422 |
+| `/import/types` | 3 loại · mô tả đầy đủ |
+| products happy | CSV 3 dòng · XLSX 1 dòng · trả `created_ids` |
+| products lỗi | 3 dòng sai (FK, giá âm, shelf_life=0) · rollback không ghi · `skip` ghi 2 |
+| products UNIQUE | trùng trong file · trùng DB → 409 |
+| inventory | happy · **5** case validation · trùng lot trong file · trùng DB → 409 |
+| sales | gom đơn · không `order_code` · `line_total` + tổng đơn khớp công thức · **9** case validation · trùng DB → 409 · rollback |
+| Thiếu cột | bỏ cột bắt buộc → 422 (3 loại) · đổi tên cột → 422 (3 loại) · **chỉ dùng cột bắt buộc → 200** |
+| Sai định dạng | `.txt` · rỗng · `.csv` hóa `.xlsx` · `.xlsx` hóa CSV · xlsx hỏng |
+| Giới hạn | >20.000 dòng → 422 · >10 MB → 400 · `on_error` sai → 422 |
+| Tiếng Việt | tên có dấu giữ nguyên sau vòng import |
+| Cleanup | 4 bảng về đúng baseline, 0 dòng sót |
+
+### Sai lầm khác
+
+- Trong lúc chạy `python -c "..."` để kiểm thư viện, PowerShell **bóp méo dấu nháy** trong heredoc làm Python báo `SyntaxError` hai lần. Đã chuyển sang viết file `.py` tạm rồi chạy.
+- Lỗi `UnicodeEncodeError` khi in tiếng Việt ra console (cp1252) — đã thêm `sys.stdout.reconfigure(encoding="utf-8", errors="replace")` vào script, giống các script trước.
+
+### Việc tiếp theo — F1
+
+Setup Frontend React + Vite + Tailwind. CORS đã bật sẵn cho `localhost:3000` và `:5173`.
+
+---
+
 ## 8p. B6 — API bán hàng: orders + order-items (12/10/2026) ✅
 
 ### Files đã tạo / sửa — 5 file

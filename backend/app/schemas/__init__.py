@@ -34,6 +34,13 @@ from app.schemas.forecast_schema import (
     LatestForecast,
     LatestForecastList,
 )
+from app.schemas.import_schema import (
+    ImportResult,
+    ImportType,
+    OnErrorStrategy,
+    RowError,
+    TemplateInfo,
+)
 from app.schemas.inventory_schema import (
     ExpiringBatch,
     ExpiringReport,
@@ -85,6 +92,7 @@ __all__ = [
     "CategoryBrief", "CategoryCreate", "CategoryRead", "CategoryUpdate",
     "ForecastPage", "ForecastRead", "LatestForecast", "LatestForecastList",
     "ExpiringBatch", "ExpiringReport",
+    "ImportResult", "ImportType", "OnErrorStrategy", "RowError", "TemplateInfo",
     "InventoryCreate", "InventoryPage", "InventoryRead", "InventoryUpdate",
     "Message", "Page",
     "OrderCreate", "OrderDetail", "OrderItemInput", "OrderPage", "OrderRead",

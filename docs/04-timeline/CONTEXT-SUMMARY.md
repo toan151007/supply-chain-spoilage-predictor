@@ -258,7 +258,40 @@ Chỉ đơn `pending` sửa được. Xoá đơn còn dòng → **409** (FK là 
 
 **Số liệu tham chiếu:** 18.260 đơn · 912.999 dòng · 1.826 đơn/cửa hàng · 91.300 dòng/cửa hàng · mỗi đơn 50 dòng.
 
-### 2.8 Database — 10 bảng
+### 2.8 API Import Excel/CSV (B7 — 12/10/2026)
+
+5 endpoint. **115 check test, tất cả PASS.** Đã cài thêm `python-multipart` + `openpyxl` + `pandas` vào `backend/requirements.txt`.
+
+| Method | Path |
+|--------|------|
+| POST | `/api/v1/import/products` · `/inventory` · `/sales` |
+| GET | `/api/v1/import/template/{type}?fmt=csv\|xlsx` |
+| GET | `/api/v1/import/types` |
+
+**Chiến lược transaction — query param `on_error`:**
+
+| Giá trị | 4 dòng, 1 sai | Ghi được |
+|---------|---------------|----------|
+| `rollback` (mặc định) | báo lỗi từng dòng | **0 dòng** |
+| `skip` | báo lỗi, import phần tốt | **2 dòng** |
+
+Validate **toàn bộ trước**, ghi **sau**. Ghi từng dòng thì không có trạng thái "chưa ghi" để so sánh, và file hỏng ở dòng 9.001 sẽ để lại 9.000 dòng.
+
+**Ràng buộc đọc file:**
+
+| Tình huống | Mã |
+|------------|-----|
+| Đuôi không hỗ trợ (`.txt`) · file rỗng · quá 10 MB | 400 |
+| `.csv` tên nhưng nội dung là Excel · `.xlsx` hỏng | 400 |
+| Thiếu cột bắt buộc · đổi tên cột · >20.000 dòng · chỉ có header | 422 |
+| `product_code` / lot / `order_code` trùng **DB** | 409, không ghi gì |
+| Trùng **trong file** | 200 + báo lỗi theo dòng |
+
+**`inventory` UNIQUE `(store_id, product_id, expiry_date)`** — phải kiểm trùng cả trong file lẫn với DB.
+
+**Import sales gom dòng theo `order_code`:** 2 dòng cùng mã → 1 đơn 2 dòng chi tiết; không có mã → mỗi dòng 1 đơn riêng. `line_total` do DB tính, tổng đơn tính lại bằng `SUM`.
+
+### 2.9 Database — 10 bảng
 
 Số dòng thực tế trong DB `spoilage_predictor`:
 
@@ -279,7 +312,7 @@ Số dòng thực tế trong DB `spoilage_predictor`:
 
 Các thành phần khác: 6 trigger · 2 hàm · 4 view · 16 khóa ngoại.
 
-### 2.9 AI/ML — kết quả M1 + M2 + M3
+### 2.10 AI/ML — kết quả M1 + M2 + M3
 
 #### M1 — Đánh giá 3 mô hình trên 100 cặp (10 sản phẩm × 10 cửa hàng)
 
@@ -304,7 +337,7 @@ XGBoost chỉ thắng 3 cặp: `(45,2)` · `(13,7)` · `(28,4)`. Ở 59 cặp ch
 
 `docs/05-tham-khao/ket-qua-danh-gia-model.md` — phương pháp đánh giá, bảng so sánh, 3 insight chính, các hạn chế.
 
-### 2.10 10 sản phẩm dùng để huấn luyện
+### 2.11 10 sản phẩm dùng để huấn luyện
 
 Đủ **7/7 nhóm hàng** · 100 cặp (sản phẩm × cửa hàng) · mỗi cặp đủ 365 ngày.
 
@@ -363,7 +396,6 @@ f55dce4  T4.1: Chapter 1
 | Mã | Việc | Ưu tiên | Ghi chú |
 |----|------|---------|---------|
 | **F1** | Setup Frontend React + Vite + Tailwind | 🔴 Tiếp theo | CORS đã bật cho `:3000` và `:5173` |
-| B7 | Endpoint báo cáo xuất nhập (theo khoảng thời gian) | 🟡 | Dùng `inventory_transactions` |
 | T4.3 | Viết Chương 3 — Thiết kế hệ thống | 🟡 TB | Cần kết quả M1–M3 làm căn cứ |
 | T4.4 | Viết Chương 4 — Thực nghiệm | 🟡 TB | **BẮT BUỘC đọc mục 8j GHI-CHU-TIEN-DO.md trước** |
 | T2 | README con cho từng thư mục | 🟢 Thấp | |

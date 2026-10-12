@@ -228,6 +228,13 @@ Vì vậy **không dùng được** tiêu chí "hệ số biến động mùa v�
 - **`order_date` là `timestamptz` nhưng dữ liệu nhập theo mốc giờ địa phương +07:00.** `2017-01-01T00:00:00+07:00` = `2016-12-31T17:00:00Z`. Lọc `from_date`/`to_date` bằng mốc **UTC** sẽ **cắt mất 10 đơn** của ngày 01/01 (đúng 1 đơn/cửa hàng). Lọc năm 2017 bằng UTC ra 3.640, bằng +07:00 ra đúng 3.650.
 - **`order_items` có UNIQUE `(order_id, product_id)`.** Thêm lại sản phẩm đã có trong đơn → **409**. Trong `POST /orders`, trùng `product_id` ngay trong payload bị chặn sớm bằng `field_validator` → 422 nêu tên sản phẩm, thay vì để DB trả `IntegrityError` chung chung.
 - **`order_date` mặc định phải là timezone-aware.** Cột là `timestamptz`; truyền `datetime.now()` (naive) sẽ bị PostgreSQL từ chối: *"timestamp with time zone cannot be used with naive datetime"*. Dùng `datetime.now(timezone.utc)`.
+- **Schema KHÔNG đặt `extra="forbid"`** (đã chốt 12/10/2026). Field lạ trong body sẽ bị **bỏ qua âm thầm**, không báo 422. Quyết định giữ nguyên để nhất quán toàn hệ thống. **Hệ quả: gõ sai chính tả tên field (vd `quantitiy`) sẽ không bị phát hiện — phải test kỹ ở tầng frontend.**
+- **`python-multipart` là BẮT BUỘC, không phải tuỳ chọn.** FastAPI khai báo `UploadFile`/`File(...)` mà thiếu nó thì router **lỗi ngay lúc import**, không phải lúc chạy. Đã thêm vào `backend/requirements.txt`.
+- **File `.xlsx` thực chất là file ZIP** (bắt đầu bằng `PK\x03\x04`). Kiểm tra 4 byte đầu giúp bắt lỗi "đổi tên `.csv` nhưng nội dung vẫn là Excel" và trả **400 kèm hướng dẫn**, thay vì để pandas ném `UnicodeDecodeError` khó hiểu.
+- **Chiến lược import: `rollback` (mặc định) hoặc `skip`** qua query param `on_error`. Validate **toàn bộ** trước rồi mới ghi — nếu ghi từng dòng thì không có "trạng thái chưa ghi" nào để so sánh, và file hỏng ở dòng 9.001 sẽ để lại 9.000 dòng.
+- **Validator phải trả về `(values, error)` — nếu `error` là `None` thì `values` BẮT BUỘC khác `None`.** Đã vi phạm đúng điều này ở B7: trả `(None, None)` cho `order_code` trùng → `None` lọt vào writer → **500**. Giờ có chặn phòng thủ trong `_run_import`.
+- **`inventory` UNIQUE `(store_id, product_id, expiry_date)`** và **`products.order_code`/`product_code` UNIQUE.** Phải kiểm tra trùng **cả trong file lẫn với DB**. Trùng với DB → **409** + không ghi gì. Trùng trong file → báo lỗi theo dòng.
+- **`cleanup()` trong script test phải xoá theo KHÓA CHÍNH, không theo tiền tố chuỗi.** Bản ghi không có `batch_code` thì `NULL` — `WHERE batch_code LIKE 'IMPT-%'` **không khớp NULL** nên dòng đó lọt. Đã dính lỗi này 1 lần ở B7.
 - **Đơn `completed`/`cancelled` bị khóa 2 chiều.** Không sửa được header, không sửa/xoá được dòng hàng. `completed` **không** quay lại `pending` được (cần bút toán bù trừ chứ không phải đảo trạng thái); `cancelled` thì quay lại `pending` được. **Hệ quả thực tế: không có đường qua API để dọn dữ liệu test của một đơn đã `completed`** — phải xoá bằng SQL.
 
 ## ⛔ Quyết định đã chốt 03/10/2026 — KHÔNG sửa, ghi chú vào Chương 4
@@ -283,6 +290,7 @@ Chương 2 là cơ sở lý thuyết, trình bày cả 5 mô hình, chỉ **kỳ
 - [x] B4: CRUD stores · categories · inventory + read-only forecasts · alerts — 37 operation, test toàn bộ pass
 - [x] B5: API dashboard tổng hợp — 6 endpoint, test toàn bộ pass, mọi số đối chiếu khớp DB/CSV
 - [x] B6: API bán hàng — orders (7 endpoint) + order-items (5 endpoint), 155 check PASS
+- [x] B7: API import Excel/CSV — 3 endpoint upload + 2 endpoint template, 115 check PASS
 - [ ] F1: Setup Frontend React
 - [ ] T2: README con cho từng thư mục
 - [ ] Tích hợp AI Model
