@@ -215,7 +215,50 @@ Phân trang mặc định 20/trang, tối đa 100. Response trả **object** `{t
 
 Phiên bản: FastAPI 0.143.0 · uvicorn 0.54.0 · pydantic 2.14.1 · pydantic-settings 2.15.0.
 
-### 2.7 Database — 10 bảng
+### 2.7 API bán hàng — orders + order-items (B6 — 12/10/2026)
+
+12 endpoint dưới `/api/v1/orders` và `/api/v1/order-items`. **155 check test, tất cả PASS.**
+
+| Method | Path |
+|--------|------|
+| GET | `/orders` · `/orders/{id}` · `/orders/{id}/items` · `/order-items` · `/order-items/{id}` |
+| POST | `/orders` (kèm items) · `/order-items` |
+| PUT | `/orders/{id}` · `/orders/{id}/status` · `/order-items/{id}` |
+| DELETE | `/orders/{id}` · `/order-items/{id}` |
+
+**Ba điều DB không tự lo, phải do API đảm nhiệm:**
+
+1. **`orders.total_amount` / `total_quantity` là cột thường**, không có trigger nào đồng bộ với `order_items`. Mỗi lần thêm/sửa/xoá dòng đều phải tính lại bằng `SUM(line_total)` và `SUM(quantity)`.
+2. **Session chạy `autoflush=False`** → phải `db.flush()` trước mỗi `SUM`, nếu không tổng tính từ trạng thái cũ.
+3. **`flush()` phải nằm trong `try` bắt `IntegrityError`** — `flush()` mới là chỗ phát `INSERT`, đặt ngoài `try` thì lỗi UNIQUE thành **500** thay vì **409**.
+
+**`line_total` là GENERATED COLUMN** — không có trong schema ghi nào, chỉ đọc qua `db.refresh()`. Client gửi lên bị bỏ qua, DB tự tính. Đã kiểm 6 trường hợp, gồm giảm 100% → `0.00`.
+
+**Mốc thời gian — dữ liệu ở +07:00, không phải UTC:**
+
+| Khoảng `from_date`→`to_date` | Số đơn 2017 |
+|------------------------------|------------|
+| `2017-01-01T00:00:00Z` → `2017-12-31T23:59:59Z` | 3.640 ❌ |
+| `2017-01-01T00:00:00+07:00` → `2017-12-31T23:59:59+07:00` | **3.650** ✅ |
+
+Mốc UTC cắt mất 10 đơn của ngày 01/01 (1 đơn/cửa hàng × 10).
+
+**Vòng đời đơn hàng:**
+
+| Từ → Đến | Kết quả |
+|----------|---------|
+| pending → completed / cancelled | ✅ |
+| cancelled → pending (mở lại) | ✅ |
+| trùng trạng thái hiện tại | ✅ idempotent |
+| completed → bất cứ | ❌ 409 |
+
+Chỉ đơn `pending` sửa được. Xoá đơn còn dòng → **409** (FK là `ON DELETE CASCADE` nhưng API cố tình chặn). Thêm sản phẩm đã có trong đơn → **409** (UNIQUE `(order_id, product_id)`).
+
+**Hệ quả cần nhớ:** đơn `completed` là điểm cuối — không API nào xoá được. Dọn dữ liệu test phải dùng SQL.
+
+**Số liệu tham chiếu:** 18.260 đơn · 912.999 dòng · 1.826 đơn/cửa hàng · 91.300 dòng/cửa hàng · mỗi đơn 50 dòng.
+
+### 2.8 Database — 10 bảng
 
 Số dòng thực tế trong DB `spoilage_predictor`:
 
@@ -236,7 +279,7 @@ Số dòng thực tế trong DB `spoilage_predictor`:
 
 Các thành phần khác: 6 trigger · 2 hàm · 4 view · 16 khóa ngoại.
 
-### 2.8 AI/ML — kết quả M1 + M2 + M3
+### 2.9 AI/ML — kết quả M1 + M2 + M3
 
 #### M1 — Đánh giá 3 mô hình trên 100 cặp (10 sản phẩm × 10 cửa hàng)
 
@@ -261,7 +304,7 @@ XGBoost chỉ thắng 3 cặp: `(45,2)` · `(13,7)` · `(28,4)`. Ở 59 cặp ch
 
 `docs/05-tham-khao/ket-qua-danh-gia-model.md` — phương pháp đánh giá, bảng so sánh, 3 insight chính, các hạn chế.
 
-### 2.9 10 sản phẩm dùng để huấn luyện
+### 2.10 10 sản phẩm dùng để huấn luyện
 
 Đủ **7/7 nhóm hàng** · 100 cặp (sản phẩm × cửa hàng) · mỗi cặp đủ 365 ngày.
 
@@ -319,12 +362,10 @@ f55dce4  T4.1: Chapter 1
 
 | Mã | Việc | Ưu tiên | Ghi chú |
 |----|------|---------|---------|
-| **F1** | Setup Frontend React + Vite + Tailwind | 🔴 Tiếp theo | CORS đã bật cho `:3000` |
-| B6 | Endpoint báo cáo (xuất nhập · theo khoảng thời gian) | 🟡 | Dùng `inventory_transactions` |
-| T2 | README con cho từng thư mục | 🟢 | |
+| **F1** | Setup Frontend React + Vite + Tailwind | 🔴 Tiếp theo | CORS đã bật cho `:3000` và `:5173` |
+| B7 | Endpoint báo cáo xuất nhập (theo khoảng thời gian) | 🟡 | Dùng `inventory_transactions` |
 | T4.3 | Viết Chương 3 — Thiết kế hệ thống | 🟡 TB | Cần kết quả M1–M3 làm căn cứ |
 | T4.4 | Viết Chương 4 — Thực nghiệm | 🟡 TB | **BẮT BUỘC đọc mục 8j GHI-CHU-TIEN-DO.md trước** |
-| F1 | Setup Frontend React | 🟢 Thấp | Cần CORS :3000 (đã bật) |
 | T2 | README con cho từng thư mục | 🟢 Thấp | |
 
 **Chưa có Chương 3 và Chương 4.** Đã đủ căn cứ từ M1–M3 + kiến trúc backend.

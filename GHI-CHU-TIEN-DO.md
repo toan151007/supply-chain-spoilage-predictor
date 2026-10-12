@@ -668,6 +668,189 @@ Nội dung: phương pháp (time-series split theo mốc ngày, chọn tham số
 
 ---
 
+## 8p. B6 — API bán hàng: orders + order-items (12/10/2026) ✅
+
+### Files đã tạo / sửa — 5 file
+
+| File | Nội dung |
+|------|----------|
+| `backend/app/schemas/order_schema.py` | `OrderCreate` · `Update` · `Read` · `Detail` · `StatusUpdate` · `OrderItemInput` |
+| `backend/app/schemas/order_item_schema.py` | `OrderItemCreate` · `Update` · `Read` |
+| `backend/app/routers/order_router.py` | 7 endpoint `/api/v1/orders` |
+| `backend/app/routers/order_item_router.py` | 5 endpoint `/api/v1/order-items` |
+| `backend/app/main.py` + `schemas/__init__.py` | Include 2 router · export 12 schema |
+
+### 12 endpoint
+
+| Method | Path | Việc |
+|--------|------|------|
+| GET | `/api/v1/orders` | List + phân trang + filter |
+| GET | `/api/v1/orders/{id}` | Chi tiết kèm items |
+| GET | `/api/v1/orders/{id}/items` | Chỉ items của đơn |
+| POST | `/api/v1/orders` | Tạo đơn kèm items |
+| PUT | `/api/v1/orders/{id}` | Sửa header đơn |
+| PUT | `/api/v1/orders/{id}/status` | Đổi trạng thái |
+| DELETE | `/api/v1/orders/{id}` | Xoá (chỉ khi không còn dòng) |
+| GET | `/api/v1/order-items` | List + filter |
+| GET | `/api/v1/order-items/{id}` | Chi tiết 1 dòng |
+| POST | `/api/v1/order-items` | Thêm dòng vào đơn |
+| PUT | `/api/v1/order-items/{id}` | Sửa dòng |
+| DELETE | `/api/v1/order-items/{id}` | Xoá dòng |
+
+### 🔴 Lỗi thật tìm ra khi test — `autoflush=False` (quan trọng nhất của B6)
+
+`app/database.py` khai báo `sessionmaker(autoflush=False)`. Tôi viết `_recalculate_order_totals()` chạy `SELECT SUM(line_total)` để cập nhật `orders.total_amount` — **nhưng không `flush()` trước**.
+
+Kết quả: `SUM` nhìn thấy trạng thái **cũ**, nên thêm dòng hàng vào đơn xong thì `total_amount` **không đổi**:
+
+```
+POST /order-items thêm 45.00  →  total_amount vẫn 140.0 (đáng lẽ 185.0)
+PUT  /order-items/{id}         →  total_amount vẫn 185.0 (đáng lẽ 235.0)
+DELETE /order-items/{id}       →  OK (vì chỗ này tôi có flush tay)
+```
+
+Cái thú vị là **DELETE chạy đúng** vì tôi đã viết `db.flush()` tay ở chỗ xoá — nhưng quên ở POST và PUT. Đủ để hỏng âm thầm, không báo lỗi.
+
+→ Sửa: `db.flush()` ở đầu `_recalculate_order_totals()` của **cả hai** router.
+
+### 🔴 Lỗi thật thứ 2 — `flush()` nằm ngoài `try` → 500 thay vì 409
+
+Sau khi thêm `flush()` thì phát sinh lỗi mới: `flush()` **mới là chỗ thực sự phát `INSERT`**, nên vi phạm UNIQUE nổ ra ở đó chứ không ở `commit()`.
+
+```python
+db.add(order)
+db.flush()          # ← UniqueViolation nổ ra ở ĐÂY, ngoài try
+try:
+    db.commit()    # ← không bao giờ kịp chạy tới khi lỗi xảy ra
+except IntegrityError:
+    ...             # ← handler không bao giờ được gọi
+```
+
+Triệu chứng: `POST /orders` với `order_code` trùng trả **500 Internal Server Error** thay vì 409.
+
+Đã gặp đúng lỗi này ở **3 chỗ**: 1 trong `order_router`, 2 trong `order_item_router`. Đã sửa cả 3 — mọi thứ có thể ném `IntegrityError` phải nằm trong `try`.
+
+### 🔴 Lỗi thật thứ 3 — mốc thời gian UTC cắt mất 10 đơn
+
+`order_date` là `timestamptz`, nhưng dữ liệu được nhập theo **mốc giờ địa phương +07:00**:
+
+```
+order_id 1 → 2013-01-01 00:00:00+07   (tức 2012-12-31 17:00:00 UTC)
+```
+
+Nên lọc năm 2017 ra hai kết quả khác nhau:
+
+| Khoảng lọc | Kết quả | Đúng? |
+|-------------|---------|-------|
+| `2017-01-01T00:00:00Z` → `2017-12-31T23:59:59Z` | 3.640 | ❌ thiếu 10 |
+| `2017-01-01T00:00:00+07:00` → `2017-12-31T23:59:59+07:00` | **3.650** | ✅ |
+
+Thiếu đúng **10 đơn** — là 10 đơn ngày 01/01 (1 đơn/cửa hàng × 10 cửa hàng), vì `00:00+07:00` rơi vào `31/12` theo UTC.
+
+Đây là đặc tính thật của dữ liệu, không phải lỗi API. Đã ghi chú vào test và AGENTS.md.
+
+### GENERATED COLUMN `line_total` — kiểm chứng đầy đủ
+
+| Cách kiểm | Kết quả |
+|-----------|---------|
+| Client gửi `line_total: 999999` | Bị Pydantic bỏ qua, **DB tự tính** ra giá trị đúng |
+| `10 × 5, không giảm` | `50.00` ✅ |
+| `4 × 25, giảm 10%` | `90.00` ✅ |
+| `6 × 10, giảm 25%` | `45.00` ✅ |
+| `8 × 3, giảm 50%` | `12.00` ✅ |
+| `2 × 50, giảm 100%` | `0.00` ✅ (giảm trọn vẹn) |
+| `27 × 20000` (dữ liệu seed) | `540.000.00` ✅ |
+
+`line_total` **không xuất hiện** trong bất kỳ schema ghi nào. Chỉ đọc, và luôn đọc bằng `db.refresh()` sau khi commit.
+
+### Nghiệp vụ vòng đời đơn hàng
+
+| Từ → Đến | Kết quả | Lý do |
+|----------|---------|-------|
+| pending → completed | ✅ 200 | Đường đi bình thường |
+| pending → cancelled | ✅ 200 | Huỷ đơn nhập nhầm |
+| pending → pending | ✅ 200 | Idempotent, là no-op |
+| cancelled → pending | ✅ 200 | Mở lại đơn huỷ nhầm |
+| cancelled → completed | ❌ 409 | Đã huỷ thì không hoàn tất |
+| **completed → bất cứ** | ❌ 409 | Đơn đã xuất hoá đơn, kho đã dịch chuyển — cần bút toán bù trừ chứ không đảo trạng thái |
+
+Giữ nguyên trạng thái hiện tại luôn trả 200 (cùng hợp đồng idempotent với `PUT /alerts/{id}/read`).
+
+**Chỉ đơn `pending` mới sửa được** (header lẫn dòng hàng).
+
+### Xoá đơn — chặn cascade có chủ đích
+
+FK `order_items.order_id` là `ON DELETE CASCADE` (đã kiểm trong `pg_constraint`: `confdeltype = 'c'`). PostgreSQL sẵn sàng xoá luôn 50 dòng theo đơn.
+
+API **cố tình chặn**, trả 409. Lý do: mất 50 dòng bằng một nhấn chuột nhầm thì không khôi phục lại được qua API.
+
+→ **Hệ quả thực tế:** đơn `completed` là **điểm cuối** — không xoá được dòng (đơn đã khoá), không xoá được đơn (còn dòng). **Không tồn tại đường thoát qua API.** Script test vì thế phải dọn bằng SQL, giới hạn theo tiền tố `order_code LIKE 'T-B6%'`.
+
+### Chống N+1
+
+| Endpoint | Số query |
+|----------|----------|
+| `GET /orders` | 3 (đếm + trang + **1** GROUP BY tính `line_count`/`total_items` cho cả trang) |
+| `GET /orders/{id}` | 2 (đơn + 1 query lấy product stub cho 50 dòng) |
+| `GET /orders/{id}/items` | 3 (đơn + dòng + 1 query product stub) |
+| `GET /order-items` | 3 (đếm + trang + 1 query product stub) |
+
+Nếu chạm `line.product` trong vòng lặp thì đơn 50 dòng sẽ tốn **50** query. Gom `product_id` distinct rồi `IN (...)` giữ ở 1.
+
+### Kết quả test — 155 check, ALL PASS
+
+| Nhóm | Đã kiểm |
+|------|---------|
+| `GET /orders` | phân trang · sắp xếp DESC + tie-break · store/type/status · date range · 11 edge case 422 |
+| `GET /orders/{id}` | 404 · 422 · 50 dòng · `total_amount` khớp tổng `line_total` |
+| `GET /orders/{id}/items` | 404 · số dòng khớp detail |
+| `POST /orders` | happy path · `line_total` client bị bỏ · **17** case validation |
+| `POST /orders` UNIQUE | `order_code` trùng → 409 |
+| `POST /order-items` | happy path · trùng sản phẩm → 409 · 6 case 422 |
+| `PUT /order-items/{id}` | đổi qty/giá/giảm giá · đổi `product_id` (200 và 409) · body rỗng · 404 |
+| `PUT /orders/{id}` | sửa từng field · 409 khi đã chốt · store/user sai → 422 · 404 |
+| `PUT /orders/{id}/status` | đủ 6 tổ hợp chuyển trạng thái · 422 · 404 |
+| `DELETE /order-items/{id}` | 204 · tổng về 0 · xoá 2 lần → 404 |
+| `DELETE /orders/{id}` | 409 khi còn dòng · 204 khi rỗng · 404 |
+| Sau cleanup | `orders` về **18.260** · `order_items` về **912.999** |
+
+### Sai lầm của tôi — 6 kỳ vọng test sai (API đúng)
+
+Lần chạy đầu có FAIL mà **lỗi ở test, không ở API**:
+
+| Tôi kỳ vọng | Thực tế đúng |
+|-------------|--------------|
+| `store_id=1` → 3.650 đơn | **1.826** — 18.260 đơn ÷ 10 cửa hàng |
+| năm 2017 (mốc UTC) → 3.650 | **3.640** — xem mục mốc thời gian ở trên |
+| `store_id=1` trong order-items → 182.600 | **91.300** — 912.999 ÷ 10 |
+| `field lạ` → 422 | **200** — không schema nào trong dự án đặt `extra="forbid"` |
+| tổng dữ liệu "không đổi" | Kiểm **trước** cleanup nên tất nhiên khác — đã chuyển kiểm **sau** cleanup |
+| `order_code` cố định cho mọi đơn test | UNIQUE nên lần 2 trở đi trả 409 — đã thêm đếm tăng dần |
+
+Lần này tôi **không** sửa API cho khớp kỳ vọng sai; tôi hỏi DB rồi sửa test.
+
+### Về `extra="forbid"` — để nguyên theo quy ước chung
+
+Gửi field lạ (`{"khong_ton_tai": 1}`) được **200 và bị bỏ qua**. Đây là hành vi của **toàn bộ** API hiện tại — không schema nào đặt `extra="forbid"`.
+
+Chỉ riêng orders mà đặt thì phần còn lại (products, stores, categories...) sẽ trả lỗi khác kiểu → API không nhất quán. Nên tôi giữ nguyên và **ghi chú lại** để bạn quyết định có muốn bật `extra="forbid"` cho **tất cả** schema không.
+
+Rủi ro thật: gõ sai chính tả (`"quantitiy"`) sẽ bị bỏ qua âm thầm thay vì báo lỗi.
+
+### Sai lầm khác — 3 lần làm rò dữ liệu test vào DB
+
+- Dùng `Select-Object -First 60` để cắt output → **giết tiến trình Python giữa chừng**, nên `cleanup()` không bao giờ chạy. Lần đầu sót **5 đơn**.
+- Lần sau sót **2 đơn** vì đơn đã `completed` không xoá được qua API.
+- Lần sau sót **1 đơn** vì `order_code` của test trùng test (`ORD-TEST-DUP`) nằm ngoài tiền tố `T-B6%` mà cleanup quét.
+
+Đã sửa: chuyển output vào file thay vì pipe, và dọn bằng SQL giới hạn theo `order_code LIKE 'T-B6%'`. Xác minh lại sau mỗi lần: **18.260 / 912.999**.
+
+### Việc tiếp theo — F1
+
+Setup Frontend React + Vite + Tailwind. CORS đã bật sẵn cho `localhost:3000` và `:5173`.
+
+---
+
 ## 8o. B5 — API Dashboard tổng hợp (12/10/2026) ✅
 
 ### Files đã tạo / sửa — 5 file

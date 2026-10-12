@@ -222,6 +222,13 @@ Vì vậy **không dùng được** tiêu chí "hệ số biến động mùa v�
 - **Không đọc view bằng `text()` / raw SQL.** Dùng `Table("v_x", Base.metadata, autoload_with=engine)` trong `backend/app/models/views.py` — SQLAlchemy Core reflection, vẫn là `select()`/`group_by()` nên không vi phạm quy tắc "mọi truy vấn qua ORM".
 - **`SUM(orders.total_amount)` phải đếm trên bảng `orders` đơn lẻ** — cộng cột này sau `JOIN order_items` sẽ nhân lên ~50 lần vì mỗi đơn có ~50 dòng chi tiết (18.260 × 50 ≈ 913.000). Xem GHI-CHU-TIEN-DO.md mục 8c.
 - **`date_trunc` + filter năm:** `period=year` + `year=2017` cho ra **1** điểm (cả năm gộp 1 bucket), không phải 5. Bỏ filter `year` mới được 5 điểm cho 5 năm dữ liệu.
+- **Session dùng `autoflush=False`** (`app/database.py`). Viết xong rồi mới `SELECT` sẽ **không thấy** thay đổi chưa commit. Mọi chỗ tính tổng (`SUM`) phải `db.flush()` trước, nếu không tổng sẽ được tính từ trạng thái cũ.
+- **`db.flush()` phải nằm TRONG `try` bắt `IntegrityError`.** `flush()` mới là chỗ thực sự phát `INSERT`/`UPDATE`, nên vi phạm UNIQUE nổ ra ở đây chứ không ở `commit()`. Đặt ngoài `try` thì client nhận **500** thay vì **409**. Đã gặp đúng lỗi này 3 chỗ ở B6.
+- **`orders.total_amount` / `total_quantity` là cột thường, KHÔNG phải generated column.** Không có gì trong DB tự đồng bộ chúng với `order_items` — chính API phải tính lại bằng `SUM(line_total)` và `SUM(quantity)` sau **mỗi** lần thêm/sửa/xoá dòng hàng. Sửa thiếu bước này là header đơn lệch với dòng của nó ngay lần ghi đầu tiên.
+- **`order_date` là `timestamptz` nhưng dữ liệu nhập theo mốc giờ địa phương +07:00.** `2017-01-01T00:00:00+07:00` = `2016-12-31T17:00:00Z`. Lọc `from_date`/`to_date` bằng mốc **UTC** sẽ **cắt mất 10 đơn** của ngày 01/01 (đúng 1 đơn/cửa hàng). Lọc năm 2017 bằng UTC ra 3.640, bằng +07:00 ra đúng 3.650.
+- **`order_items` có UNIQUE `(order_id, product_id)`.** Thêm lại sản phẩm đã có trong đơn → **409**. Trong `POST /orders`, trùng `product_id` ngay trong payload bị chặn sớm bằng `field_validator` → 422 nêu tên sản phẩm, thay vì để DB trả `IntegrityError` chung chung.
+- **`order_date` mặc định phải là timezone-aware.** Cột là `timestamptz`; truyền `datetime.now()` (naive) sẽ bị PostgreSQL từ chối: *"timestamp with time zone cannot be used with naive datetime"*. Dùng `datetime.now(timezone.utc)`.
+- **Đơn `completed`/`cancelled` bị khóa 2 chiều.** Không sửa được header, không sửa/xoá được dòng hàng. `completed` **không** quay lại `pending` được (cần bút toán bù trừ chứ không phải đảo trạng thái); `cancelled` thì quay lại `pending` được. **Hệ quả thực tế: không có đường qua API để dọn dữ liệu test của một đơn đã `completed`** — phải xoá bằng SQL.
 
 ## ⛔ Quyết định đã chốt 03/10/2026 — KHÔNG sửa, ghi chú vào Chương 4
 
@@ -275,6 +282,7 @@ Chương 2 là cơ sở lý thuyết, trình bày cả 5 mô hình, chỉ **kỳ
 - [x] B3: CRUD products `/api/v1/products` — 5 endpoint + Pydantic schemas, test 27/27 pass
 - [x] B4: CRUD stores · categories · inventory + read-only forecasts · alerts — 37 operation, test toàn bộ pass
 - [x] B5: API dashboard tổng hợp — 6 endpoint, test toàn bộ pass, mọi số đối chiếu khớp DB/CSV
+- [x] B6: API bán hàng — orders (7 endpoint) + order-items (5 endpoint), 155 check PASS
 - [ ] F1: Setup Frontend React
 - [ ] T2: README con cho từng thư mục
 - [ ] Tích hợp AI Model
