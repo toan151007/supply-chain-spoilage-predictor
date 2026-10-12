@@ -46,6 +46,7 @@ Mục tiêu: Dự báo nhu cầu, tối ưu nhập hàng, giảm lãng phí th�
 - Mọi API phải có prefix `/api/v1/`.
 - Mọi truy vấn database phải qua ORM, KHÔNG viết raw SQL trong routers.
 - Đặt tên file Python: snake_case. Tên React component: PascalCase.
+- **Comment trong code Python dùng tiếng Anh KHÔNG DẤU** (tương thích console Windows cp1252). Tài liệu `.md` và file SQL vẫn dùng tiếng Việt / ASCII theo quy tắc riêng.
 - Trước khi commit, chạy `git status` để kiểm tra.
 
 ## SQL Rules (BẮT BUỘC TUÂN THỦ)

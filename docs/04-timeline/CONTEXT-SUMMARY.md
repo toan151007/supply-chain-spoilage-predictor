@@ -242,7 +242,7 @@ Còn 1 việc tồn đọng: `docs/03-thiet-ke/kien-truc-he-thong.md` mục 7 c�
 | 2 | KHÔNG sửa `config.py`, `.env` mà không hỏi trước |
 | 3 | Mọi API có prefix `/api/v1/` |
 | 4 | Mọi truy vấn DB qua ORM — **không raw SQL trong routers** |
-| 5 | File Python: `snake_case` · Component React: `PascalCase` · Comment tiếng Việt |
+| 5 | File Python: `snake_case` · Component React: `PascalCase` · **Comment code Python dùng tiếng Anh không dấu** (tương thích cp1252). Tài liệu `.md` và SQL giữ tiếng Việt / ASCII |
 | 6 | Trước khi commit chạy `git status` |
 | 7 | 🔒 Không ghi mật khẩu vào bất kỳ file nào trong repo |
 | 8 | Token Antigravity có giới hạn → **cần commit thường xuyên** |
@@ -264,6 +264,7 @@ Còn 1 việc tồn đọng: `docs/03-thiet-ke/kien-truc-he-thong.md` mục 7 c�
 |---|-----------|-------|
 | 1 | **KHÔNG sửa Chương 2** | Chương 2 là cơ sở lý thuyết, chỉ *kỳ vọng* XGBoost là mô hình chính. Chương 4 trình bày kết quả thực: **Prophet thắng 97/100**. Dự đoán ≠ kết quả thực thể hiện **quá trình nghiên cứu khoa học** |
 | 2 | **KHÔNG sửa `max_stock` trong seed** | Seed đặt `max_stock` 48–300 **độc lập với doanh số Kaggle** (thực tế 861–2.793/ngày) → 100/100 cặp bị cap khi tính `recommended_import_qty`. Đây là **hạn chế dữ liệu, không phải lỗi đồ án** |
+| 3 | **Comment code Python dùng tiếng Anh không dấu** (chốt 12/10/2026) | Console Windows cp1252 không in được tiếng Việt có dấu → `UnicodeEncodeError`. Đồng nhất với 15 file Python đã viết · chuẩn quốc tế · thể hiện hiểu giới hạn môi trường. **Tài liệu `.md` và SQL giữ tiếng Việt / ASCII** theo quy tắc riêng |
 
 → **Khi viết Chương 4, phải trình bày cả 2 điểm này.** Chi tiết ở mục 8j `GHI-CHU-TIEN-DO.md`.
 

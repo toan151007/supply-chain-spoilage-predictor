@@ -781,14 +781,26 @@ Quan hệ ngược từ `Store`: `CH01` có 1 user · 133 lô tồn kho · 48 c�
 | `TypeError: unsupported operand type(s) for -: 'float' and 'decimal.Decimal'` | Ép `float()` một vế trong script test |
 | `AttributeError: 'NoneType' object has no attribute 'products'` | Đoán tên nhóm hàng là `"Drinks"` — nhưng DB dùng **tiếng Anh** (`Food`, `Fresh Food`, `Beverages`). Phải query `categories` trước, không đoán |
 
-### ⚠️ Lệch quy tắc — cần xác nhận
+### ✅ Quyết định ngôn ngữ comment trong code (12/10/2026)
 
-Yêu cầu task: **comment tiếng Anh** cho models.
-Quy tắc dự án (rule 11 trong `GHI-CHU-TIEN-DO.md`): **comment tiếng Việt**.
+**GIỮ TIẾNG ANH KHÔNG DẤU cho toàn bộ code Python.**
 
-Tôi làm theo yêu cầu task (tiếng Anh, không dấu để tương thích console Windows cp1252). Các file Python trước đó (`config.py`, `database.py`, `main.py`) cũng đã dùng comment không dấu.
+Trước đây rule 11 ghi "comment tiếng Việt", mâu thuẫn với thực tế đang làm. Đã chốt lại:
 
-→ **Cần thống nhất lại** khi viết tiếp: giữ tiếng Anh cho toàn bộ code Python, hay đổi về tiếng Việt theo rule 11?
+| Nhóm file | Ngôn ngữ comment | Lý do |
+|-----------|------------------|-------|
+| **Code Python** (`.py`) | **Tiếng Anh không dấu** | Console Windows cp1252 không in được tiếng Việt có dấu → gây `UnicodeEncodeError` khi hiện traceback hoặc log ra terminal |
+| **Tài liệu `.md`** | Tiếng Việt có dấu | Không chạy qua console, GitHub render UTF-8 bình thường |
+| **File SQL** | ASCII tiếng Anh | Quy tắc riêng — `psql -f` trên Windows PowerShell |
+
+**Lý do chọn:**
+
+1. Console cp1252 không hỗ trợ tiếng Việt — đã gặp `UnicodeEncodeError: 'charmap' codec` nhiều lần trong quá trình làm
+2. 11 file models + 4 file Python trước đó đã dùng tiếng Anh không dấu — sửa ngược lại tốn công và gây thiếu nhất quán
+3. Chuẩn quốc tế — dự án thật đều comment tiếng Anh
+4. Thể hiện hiểu đúng giới hạn môi trường, là điểm cộng khi bảo vệ đồ án
+
+→ **Không sửa 11 file models + 4 file Python cũ** — chúng vốn đã đúng chuẩn mới.
 
 ### Ghi chú thêm — `updated_at` không cần set trong Python
 
@@ -1183,7 +1195,7 @@ cd frontend; npm run dev
 8. KHÔNG sửa `config.py`, `.env` mà không hỏi trước
 9. Mọi API có prefix `/api/v1/`
 10. Mọi truy vấn DB qua ORM — không raw SQL trong routers
-11. File Python: `snake_case` · Component React: `PascalCase` · Comment tiếng Việt
+11. File Python: `snake_case` · Component React: `PascalCase` · **Comment code Python dùng tiếng Anh không dấu** (tương thích cp1252 — quyết định 12/10/2026). Tài liệu `.md` và SQL giữ tiếng Việt / ASCII theo quy tắc riêng
 12. Trước khi commit chạy `git status`
 13. 🔒 Không ghi mật khẩu vào bất kỳ file nào trong repo
 
@@ -1203,7 +1215,7 @@ cd frontend; npm run dev
 
 **Khi viết Chương 4, BẮT BUỘC đọc mục 8j** — đã có 2 quyết định không sửa dữ liệu/tài liệu mà chỉ ghi chú.
 
-**Chưa thống nhất:** ngôn ngữ comment trong code Python — tiếng Anh (theo yêu cầu task B2) hay tiếng Việt (rule 11)? Xem mục 8l.
+**Ngôn ngữ comment code Python:** ✅ đã chốt — **tiếng Anh không dấu**. Xem mục 8l.
 
 ---
 
