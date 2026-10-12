@@ -291,7 +291,34 @@ Validate **toàn bộ trước**, ghi **sau**. Ghi từng dòng thì không có 
 
 **Import sales gom dòng theo `order_code`:** 2 dòng cùng mã → 1 đơn 2 dòng chi tiết; không có mã → mỗi dòng 1 đơn riêng. `line_total` do DB tính, tổng đơn tính lại bằng `SUM`.
 
-### 2.9 Database — 10 bảng
+### 2.9 API Dashboard nâng cao (B8 — 12/10/2026)
+
+6 endpoint bổ sung dưới `/api/v1/dashboard`. **121 check test, tất cả PASS. Read-only — không ghi gì vào DB.**
+
+| Endpoint | Nội dung |
+|----------|----------|
+| `/revenue-by-store` | Doanh thu + số đơn + `avg_order_value` từng cửa hàng |
+| `/revenue-by-category` | Doanh thu + số lượng + số SP từng nhóm hàng |
+| `/top-stores?limit=5` | Xếp hạng cửa hàng theo doanh thu |
+| `/inventory-value` | `total_value` (theo `unit_cost`) + `expiring_value` |
+| `/waste-analysis` | Lô hết hạn / sắp hết hạn / ước lượng lãng phí |
+| `/forecast-vs-actual` | MAPE/MAE/RMSE/bias của dự báo |
+
+**Phát hiện quan trọng về view:** `v_daily_sales` có `GROUP BY store_id, order_date, product_id` là **vô nghĩa** — vì `order_items` UNIQUE `(order_id, product_id)` nên mỗi cặp chỉ có đúng 1 dòng. Đo được: **1.606 ms qua view vs 680 ms join thẳng**, kết quả khớp từng cent. B8 đã bỏ qua view.
+
+| Endpoint | Trước | Sau |
+|----------|-------|-----|
+| `forecast-vs-actual` | 6.464 ms | **84 ms** |
+| `revenue-by-category` | 8.616 ms | **4.087 ms** |
+| `revenue-by-store` | 29 ms | 20 ms |
+
+**⛔ `forecast-vs-actual` chưa tính được MAPE.** `forecasts` phủ 2018-01-01→01-30, dữ liệu bán hàng kết thúc 2017-12-31 → **không giao nhau**. API trả `mape: null` + `message` giải thích, không báo số bịa. **Phải nêu rõ khi viết Chương 4.**
+
+**Filter ngày dùng kiểu `date`** (không phải `datetime`) và mốc dựng bằng `+07:00` — nên `?from_date=2017-01-01T00:00:00Z` bị **422** thay vì cắt mất 10 đơn.
+
+**Lưu ý dữ liệu:** SP 13/28/45 chỉ có dự báo 9/10 cửa hàng; category "Food" không có sản phẩm nên không xuất hiện (7/8 nhóm).
+
+### 2.10 Database — 10 bảng
 
 Số dòng thực tế trong DB `spoilage_predictor`:
 
@@ -312,7 +339,7 @@ Số dòng thực tế trong DB `spoilage_predictor`:
 
 Các thành phần khác: 6 trigger · 2 hàm · 4 view · 16 khóa ngoại.
 
-### 2.10 AI/ML — kết quả M1 + M2 + M3
+### 2.11 AI/ML — kết quả M1 + M2 + M3
 
 #### M1 — Đánh giá 3 mô hình trên 100 cặp (10 sản phẩm × 10 cửa hàng)
 
@@ -337,7 +364,7 @@ XGBoost chỉ thắng 3 cặp: `(45,2)` · `(13,7)` · `(28,4)`. Ở 59 cặp ch
 
 `docs/05-tham-khao/ket-qua-danh-gia-model.md` — phương pháp đánh giá, bảng so sánh, 3 insight chính, các hạn chế.
 
-### 2.11 10 sản phẩm dùng để huấn luyện
+### 2.12 10 sản phẩm dùng để huấn luyện
 
 Đủ **7/7 nhóm hàng** · 100 cặp (sản phẩm × cửa hàng) · mỗi cặp đủ 365 ngày.
 

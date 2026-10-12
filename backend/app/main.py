@@ -16,6 +16,7 @@ from app.routers import (
     alert_router,
     category_router,
     dashboard_router,
+    dashboard_advanced_router,
     forecast_router,
     health,
     import_router,
@@ -75,6 +76,7 @@ app.include_router(dashboard_router.router, prefix=settings.API_V1_PREFIX)
 app.include_router(order_router.router, prefix=settings.API_V1_PREFIX)
 app.include_router(order_item_router.router, prefix=settings.API_V1_PREFIX)
 app.include_router(import_router.router, prefix=settings.API_V1_PREFIX)
+app.include_router(dashboard_advanced_router.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/", include_in_schema=False)

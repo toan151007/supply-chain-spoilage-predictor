@@ -17,6 +17,16 @@ from app.schemas.category_schema import (
     CategoryUpdate,
 )
 from app.schemas.common import Message, Page
+from app.schemas.dashboard_advanced_schema import (
+    ForecastAccuracy,
+    ForecastComparison,
+    ForecastVsActualResponse,
+    InventoryValue,
+    RevenueByCategory,
+    RevenueByStore,
+    WasteBatch,
+    WasteSummary,
+)
 from app.schemas.dashboard_schema import (
     AlertsSummaryResponse,
     ExpiringResponse,
@@ -88,6 +98,9 @@ __all__ = [
     "AlertsSummaryResponse", "ExpiringResponse", "LowStockResponse",
     "OverviewResponse", "RevenuePoint", "RevenueResponse", "SeverityCount",
     "TopProductResponse", "TypeCount",
+    "ForecastAccuracy", "ForecastComparison", "ForecastVsActualResponse",
+    "InventoryValue", "RevenueByCategory", "RevenueByStore",
+    "WasteBatch", "WasteSummary",
     "AlertPage", "AlertRead", "MarkReadRequest", "ResolveRequest",
     "CategoryBrief", "CategoryCreate", "CategoryRead", "CategoryUpdate",
     "ForecastPage", "ForecastRead", "LatestForecast", "LatestForecastList",

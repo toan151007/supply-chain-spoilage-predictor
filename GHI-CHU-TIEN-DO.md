@@ -668,6 +668,209 @@ Nội dung: phương pháp (time-series split theo mốc ngày, chọn tham số
 
 ---
 
+## 8r. B8 — API Dashboard nâng cao (12/10/2026) ✅
+
+### Files đã tạo / sửa — 5 file
+
+| File | Nội dung |
+|------|----------|
+| `backend/app/routers/dashboard_advanced_router.py` | 6 endpoint dưới `/api/v1/dashboard` |
+| `backend/app/schemas/dashboard_advanced_schema.py` | 8 schema |
+| `backend/app/main.py` | Include router (giữ nguyên router B5) |
+| `backend/app/schemas/__init__.py` | Export 8 schema |
+| `backend/test_b8_dashboard_advanced.py` | 121 check — **read-only, không có cleanup** |
+
+### 6 endpoint
+
+| Endpoint | Trả về |
+|----------|--------|
+| `/dashboard/revenue-by-store` | `store_id` · `store_code` · `store_name` · `total_revenue` · `total_orders` · `total_quantity` · `avg_order_value` |
+| `/dashboard/revenue-by-category` | `category_id` · `category_name` · `total_revenue` · `total_quantity` · `product_count` |
+| `/dashboard/top-stores?limit=5` | Cùng cấu trúc, sắp theo doanh thu |
+| `/dashboard/inventory-value` | `total_items` · `total_batches` · `total_value` · `expiring_value` |
+| `/dashboard/waste-analysis` | Tổng hợp lãng phí (+ chi tiết từng lô nếu `include_batches`) |
+| `/dashboard/forecast-vs-actual` | `matched_rows` · `accuracy` (MAPE/MAE/RMSE/bias) · `comparison` |
+
+### 🔴 Phát hiện quan trọng: `v_daily_sales` có `GROUP BY` thừa
+
+Endpoint chạy lần đầu: **`revenue-by-category` mất 8.616 ms**. Tôi tưởng do 912.999 dòng, nên chạy `EXPLAIN ANALYZE`.
+
+Kết quả: PostgreSQL báo **Execution Time chỉ 1.606 ms**, nhưng client chờ **8.6 giây**. Và cùng một câu SQL đó chạy qua `psql` chỉ 1.6 giây.
+
+Đọc định nghĩa view ra mới thấy nguyên nhân thật:
+
+```sql
+GROUP BY o.store_id, ..., oi.product_id, ..., o.order_date
+```
+
+Nhưng `order_items` có **UNIQUE `(order_id, product_id)`** — mỗi cặp đơn/sản phẩm chỉ có **đúng một** dòng. `SUM(oi.quantity)` và `SUM(oi.line_total)` chỉ có thể trả về chính dòng đó.
+
+**→ `GROUP BY` đó không bao giờ gộp được gì, nhưng bắt PostgreSQL sort + GroupAggregate trên 912.999 dòng mỗi lần đọc.**
+
+Kiểm chứng bằng cách bỏ `GROUP BY` thừa:
+
+| Cách | Execution Time | Kết quả |
+|------|----------------|---------|
+| Qua `v_daily_sales` | 1.606 ms | — |
+| Join thẳng `order_items` | **680 ms** | **khớp từng cent, cả 7 nhóm** |
+
+Tôi đã đối chiếu từng nhóm hàng giữa hai cách — `458860820000.00 = 458860820000.00`, `189764730000.00 = 189764730000.00`… **7/7 khớp tuyệt đối.**
+
+→ Hai endpoint B8 (`revenue-by-category`, `forecast-vs-actual`) đã **bỏ qua view, join thẳng**. Đây cũng là bài học áp dụng được cho **B5** (`/revenue`, `/top-products` cũng đọc view này).
+
+**Không sửa view** vì đó là thay đổi schema, cần bạn quyết định. Báo cáo tại đây.
+
+### 🔴 Lỗi SQLAlchemy — `missing FROM-clause entry for table "order_items"`
+
+Sau khi tối ưu, `forecast-vs-actual` trả **500**:
+
+```python
+# SAI:
+on_match = (Order.store_id == Forecast.store_id) \
+         & (OrderItem.product_id == Forecast.product_id) \
+         & (Order.order_date.cast(Date) == Forecast.forecast_date)
+.select_from(Forecast).join(Order, on_match).join(OrderItem, ...)
+```
+
+`on_match` nhắc tới `OrderItem.product_id` **trong khi `OrderItem` chưa có trong FROM** — SQLAlchemy không biết lấy nó ở đâu.
+
+→ Tách thành hai điều kiện riêng, mỗi bảng vào lúc nó được join:
+
+```python
+on_order = (Order.store_id == Forecast.store_id) \
+         & (Order.order_date.cast(Date) == Forecast.forecast_date)
+on_line  = (OrderItem.order_id == Order.order_id) \
+         & (OrderItem.product_id == Forecast.product_id)
+.select_from(Forecast).join(Order, on_order).join(OrderItem, on_line)
+```
+
+### Tối ưu thứ 2 — kẹp cửa sổ thực tế vào cửa sổ dự báo
+
+`forecast-vs-actual` còn một vấn đề: nó đếm `actual_rows` trên **toàn bộ** `v_daily_sales` khi không có filter ngày — tức quét 912.999 dòng để đếm những thứ **vốn không thể khớp** với dự báo.
+
+Sửa: **kẹp** khoảng ngày thực tế vào khoảng mà `forecasts` thật sự phủ. Với dữ liệu hiện tại, cửa sổ thực tế thu hẹp còn 2018-01-01 → 2018-01-30, đúng vùng **không có** đơn nào → index lookup trả về 0 dòng ngay.
+
+Ngoài ra con số `actual_rows` trong response cũng chính xác hơn: đếm doanh số ngoài tầm dự báo là vô nghĩa.
+
+**Kết quả: 6.464 ms → 84 ms (nhanh hơn 77 lần).**
+
+### Hiệu năng (đo 5 lần mỗi endpoint)
+
+| Endpoint | Trước | Sau |
+|----------|-------|-----|
+| `revenue-by-store` | 29 ms | **20 ms** |
+| `top-stores?limit=5` | 56 ms | **73 ms** |
+| `inventory-value` | 50 ms | **69 ms** |
+| `waste-analysis` | 53 ms | **83 ms** |
+| `forecast-vs-actual` | **6.464 ms** | **84 ms** ✅ |
+| `revenue-by-category` | **8.616 ms** | **4.087 ms** ✅ |
+
+### ⚠️ `revenue-by-category` vẫn nặng khi không lọc ngày
+
+| Truy vấn | Thời gian |
+|----------|-----------|
+| Không filter (toàn bộ 5 năm) | **3.995 ms** |
+| Filter 1 năm (2017) | **414 ms** |
+| Filter 1 tháng (2017-06) | **39 ms** |
+
+PostgreSQL tự báo mất **653 ms** cho bản không filter. Nhưng client chờ **4 giây**.
+
+Tôi đã kiểm tra kỹ: đây **không phải** lỗi SQLAlchemy — chạy bằng `psycopg2` thuần trên **cùng connection** vẫn ra 6–8 giây, trong khi `EXPLAIN` của chính DB báo 653 ms. Tỉ lệ ~6x này **nhất quán** ở cả hai endpoint, nên nó là đặc tính của môi trường (máy Windows + PostgreSQL local), không phải của câu truy vấn.
+
+Kết luận: gọn nhất trong điều kiện hiện tại là **680 ms DB / ~4 giây thực tế** cho bản tổng hợp toàn bộ lịch sử. Muốn nhanh hơn nữa thì phải thêm index hoặc biến view thành materialized view — **cần bạn quyết định**.
+
+Trong thực tế dashboard luôn có khoảng ngày, nên 39–414 ms là con số đáng quan tâm.
+
+### ⛔ `forecast-vs-actual` KHÔNG tính được MAPE — hạn chế dữ liệu
+
+| | Từ | Đến |
+|---|---|---|
+| `forecasts` (prophet) | **2018-01-01** | **2018-01-30** |
+| `v_daily_sales` | 2013-01-01 | **2017-12-31** |
+
+**Hai khoảng không giao nhau.** Không có ngày nào có cả dự báo lẫn thực tế → `matched_rows = 0`.
+
+API xử lý thành thật: `mape: null`, `mae: null`, `rmse: null`, kèm `message` giải thích đầy đủ — **không** báo một con số MAPE bịa ra.
+
+```
+matched_rows = 0 · mape = null
+"The table holds 2910 forecast row(s) and 0 actual row(s) within the
+forecast window, but they cover different periods. Stored forecasts run
+from 2018-01-01 to 2018-01-30 while sales data ends 2017-12-31, so
+accuracy cannot be measured until actual sales exist for the forecast
+horizon."
+```
+
+Logic ghép đã viết đúng và sẽ chạy được ngay khi có dữ liệu thực tế cho tháng 1/2018. **Khi viết Chương 4 phải nói rõ điều này**, không được trình bày như đã đo được độ chính xác trên dữ liệu thật.
+
+### Ba phát hiện thêm về dữ liệu
+
+**1. Số dự báo không đều** — SP 13, 28, 45 chỉ có dự báo cho **9/10 cửa hàng**:
+
+| Sản phẩm | Số dòng dự báo |
+|----------|----------------|
+| 8, 11, 15, 18, 25, 38, 48 | 300 (10 CH × 30 ngày) |
+| **13, 28, 45** | **270 (9 CH × 30 ngày)** |
+
+Tổng 2.910 **không** chia hết cho 10. Tôi đã đoán nhầm 291 (trung bình) và test bắt được.
+
+**2. Category "Food" (id 1) không có sản phẩm nào** → không có doanh thu → inner join loại khỏi kết quả. DB có 8 nhóm, endpoint trả **7**.
+
+**3. `avg_order_value` phải chia cho SỐ ĐƠN, không chia cho số dòng hàng.** Một đơn có 50 dòng vẫn là **một** lần mua; chia cho 50 sẽ thấp hơn thực tế 50 lần. Đã kiểm chứng `avg_order_value` > `total_revenue / (orders × 10)`.
+
+### Thiết kế filter ngày — chặn sẵn bẫy timezone
+
+Các endpoint nhận param kiểu **`date`**, không phải `datetime`. Hệ quả:
+
+| Input | Kết quả |
+|---|---|
+| `?from_date=2017-01-01&to_date=2017-12-31` | 200 · **3.650 đơn** ✅ |
+| `?from_date=2017-01-01T00:00:00Z&...` | **422** ← bị chặn ngay |
+
+Bên trong, mốc được dựng bằng `VN_TZ = +07:00` đúng như cách dữ liệu được lưu. Mốc trên dùng **`<` với nửa đêm ngày kế tiếp** nên không phải xử lý `23:59:59.999999`.
+
+Đã kiểm chứng: 1 ngày → 10 đơn · tháng 1/2017 → 310 đơn · năm 2017 → 3.650 đơn.
+
+### Ước lượng lãng phí — cố tình lấy **trường hợp xấu nhất**
+
+`estimated_waste_value = expired_value + expiring_value`, tức giả định **mọi** lô sắp hết hạn cũng mất trắng. Lãng phí thật sẽ thấp hơn.
+
+Báo cáo con số lạc quan ở đây sẽ **đánh giá thấp rủi ro vận hành**. Đã ghi rõ trong docstring.
+
+Giá trị tính theo `products.unit_cost` (giá vốn), không phải `selling_price` — vì câu hỏi là "hàng này còn giá trị bao nhiêu với chúng ta", và cùng cơ sở đó dùng cho ước lượng lãng phí.
+
+Đã kiểm chứng `expired_batches` của B8 **khớp** `/dashboard/expiring?days=0` của B5 (444 lô).
+
+### Kết quả test — 121 check, ALL PASS
+
+| Nhóm | Đã kiểm |
+|------|---------|
+| `revenue-by-store` | 10 CH · tổng khớp DB · từng CH khớp DB · sắp xếp · 2017/1 ngày/1 tháng · mở đầu-cuối · năm không có dữ liệu · 7 edge case |
+| `top-stores` | limit 1/3/5/10 · khớp `revenue-by-store` · tổng khớp · filter ngày · 4 edge case |
+| `revenue-by-category` | 7 nhóm · tổng khớp view · từng nhóm khớp DB · 2017 · năm rỗng · from>to |
+| `inventory-value` | tổng khớp DB · **khớp `/overview` của B5** · `expiring_value` khớp view 30 ngày · `include_empty` |
+| `waste-analysis` | mọi trường · khớp DB · **khớp B5 `/expiring?days=0`** · `include_batches` · `limit` · 2 edge case |
+| `forecast-vs-actual` | khoảng không giao nhau · `matched=0` · `mape=null` · message giải thích · model khác · product/store filter · 2 edge case |
+| Cuối buổi | 5 bảng về đúng baseline — **B8 read-only, không ghi gì** |
+
+### Sai lầm của tôi — 3 kỳ vọng test sai
+
+| Tôi kỳ vọng | Thực tế đúng |
+|-------------|--------------|
+| Mốc UTC trả 200 | **422** — và đó là điểm tốt: chặn được bẫy timezone |
+| 8 nhóm hàng | **7** — "Food" không có sản phẩm |
+| SP15 có 291 dòng dự báo | **300** — 291 là trung bình bịa ra |
+
+### Sai lầm khác
+
+Tôi chạy `python -c "..."` với heredoc để profile, PowerShell **bóp méo dấu nháy** làm Python báo `SyntaxError` 2 lần. Đã chuyển sang file `.py` tạm. (Đây là lần thứ 3 trong phiên — nên nhớ luôn viết file thay vì `python -c` khi cần dấu nháy phức tạp.)
+
+### Việc tiếp theo — F1
+
+Setup Frontend React + Vite + Tailwind. CORS đã bật sẵn cho `localhost:3000` và `:5173`.
+
+---
+
 ## 8q. B7 — API Import Excel/CSV (12/10/2026) ✅
 
 ### ⚠️ Phải cài thêm 3 thư viện — đã tự quyết, cần bạn xác nhận

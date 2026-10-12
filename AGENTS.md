@@ -234,7 +234,13 @@ Vì vậy **không dùng được** tiêu chí "hệ số biến động mùa v�
 - **Chiến lược import: `rollback` (mặc định) hoặc `skip`** qua query param `on_error`. Validate **toàn bộ** trước rồi mới ghi — nếu ghi từng dòng thì không có "trạng thái chưa ghi" nào để so sánh, và file hỏng ở dòng 9.001 sẽ để lại 9.000 dòng.
 - **Validator phải trả về `(values, error)` — nếu `error` là `None` thì `values` BẮT BUỘC khác `None`.** Đã vi phạm đúng điều này ở B7: trả `(None, None)` cho `order_code` trùng → `None` lọt vào writer → **500**. Giờ có chặn phòng thủ trong `_run_import`.
 - **`inventory` UNIQUE `(store_id, product_id, expiry_date)`** và **`products.order_code`/`product_code` UNIQUE.** Phải kiểm tra trùng **cả trong file lẫn với DB**. Trùng với DB → **409** + không ghi gì. Trùng trong file → báo lỗi theo dòng.
-- **`cleanup()` trong script test phải xoá theo KHÓA CHÍNH, không theo tiền tố chuỗi.** Bản ghi không có `batch_code` thì `NULL` — `WHERE batch_code LIKE 'IMPT-%'` **không khớp NULL** nên dòng đó lọt. Đã dính lỗi này 1 lần ở B7.
+- **Cleanup trong script test phải xoá theo KHÓA CHÍNH (`= ANY(:ids)`), KHÔNG dùng `WHERE ... LIKE 'prefix%'`.** `LIKE` **không khớp `NULL`**, nên bản ghi không có cột chuỗi (vd lô hàng nhập không có `batch_code`) sẽ lọt khỏi cleanup — mà kiểm tra "còn sót dữ liệu test không" cũng viết bằng `LIKE` nên **báo PASS sai**. Bài học từ B7: dùng `created_ids` mà server đã trả về, rồi xác minh lại bằng `count(*) WHERE id > <mốc seed>`.
+- **`v_daily_sales` có `GROUP BY store_id, order_date, product_id` là VÔ NGHĨA.** Vì `order_items` có UNIQUE `(order_id, product_id)` nên mỗi cặp đơn/sản phẩm chỉ có **đúng 1** dòng — `SUM()` chỉ có thể trả về chính dòng đó. Đọc view tốn một `Sort` + `GroupAggregate` trên 912.999 dòng mà **không đổi kết quả**. Đo: **1.606 ms qua view vs 680 ms join thẳng `order_items`**, tổng tiền khớp từng cent cho cả 7 nhóm. Endpoint B8 `revenue-by-category` và `forecast-vs-actual` đã **bỏ qua view, join thẳng**.
+- **Báo cáo nhóm hàng PHẢI dùng `SUM(OrderItem.line_total)`**, không tự tính lại `quantity * unit_price * (1-discount/100)` — để DB tự tính bằng generated column.
+- **Khi lọc theo ngày trên `orders` (timestamptz), dựng mốc bằng `VN_TZ = +07:00`, không dùng UTC.** Endpoint B8 khai báo param là `date` (không phải `datetime`) và tự dựng mốc giữa nửa đêm giờ địa phương — nhờ vậy chuỗi `2017-01-01T00:00:00Z` bị **422** thay vì âm thầm cắt mất 10 đơn.
+- **`forecast-vs-actual` không tính được MAPE trên dữ liệu hiện tại.** `forecasts` chỉ phủ **2018-01-01 → 2018-01-30**, còn `v_daily_sales` kết thúc **2017-12-31** → **không giao nhau**, `matched_rows = 0`. API trả `mape: null` kèm `message` giải thích, **không** báo số sai. Đây là hạn chế dữ liệu, phải nêu rõ ở Chương 4.
+- **Số dự báo không đều:** SP 13, 28, 45 chỉ có dự báo cho **9/10 cửa hàng** (270 dòng), 7 sản phẩm còn lại đủ 10 (300 dòng). Tổng 2.910 dòng prophet **không** chia hết cho 10.
+- **Category "Food" (id 1) không có sản phẩm nào** → không có doanh thu → không xuất hiện trong `revenue-by-category` (inner join). DB có 8 nhóm nhưng endpoint trả **7**.
 - **Đơn `completed`/`cancelled` bị khóa 2 chiều.** Không sửa được header, không sửa/xoá được dòng hàng. `completed` **không** quay lại `pending` được (cần bút toán bù trừ chứ không phải đảo trạng thái); `cancelled` thì quay lại `pending` được. **Hệ quả thực tế: không có đường qua API để dọn dữ liệu test của một đơn đã `completed`** — phải xoá bằng SQL.
 
 ## ⛔ Quyết định đã chốt 03/10/2026 — KHÔNG sửa, ghi chú vào Chương 4
@@ -291,6 +297,7 @@ Chương 2 là cơ sở lý thuyết, trình bày cả 5 mô hình, chỉ **kỳ
 - [x] B5: API dashboard tổng hợp — 6 endpoint, test toàn bộ pass, mọi số đối chiếu khớp DB/CSV
 - [x] B6: API bán hàng — orders (7 endpoint) + order-items (5 endpoint), 155 check PASS
 - [x] B7: API import Excel/CSV — 3 endpoint upload + 2 endpoint template, 115 check PASS
+- [x] B8: API dashboard nâng cao — 6 endpoint (doanh thu theo CH/nhóm · top CH · giá trị tồn kho · lãng phí · forecast-vs-actual), 121 check PASS
 - [ ] F1: Setup Frontend React
 - [ ] T2: README con cho từng thư mục
 - [ ] Tích hợp AI Model
