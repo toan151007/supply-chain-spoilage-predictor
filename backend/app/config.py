@@ -69,11 +69,18 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = ",".join(DEFAULT_CORS_ORIGINS)
 
     @property
-    def cors_origins(self) -> list[str]:
+    def cors_origins_list(self) -> list[str]:
         """
         Danh sach origin cho middleware CORS.
 
-        Chap nhan ca hai dang trong .env:
+        KHONG khai bao `CORS_ORIGINS: list[str]`. Bien moi truong luon la
+        CHUOI, va pydantic-settings chi doc chuoi do theo dang JSON:
+            CORS_ORIGINS=["http://localhost:3000"]
+        Do do file `backend/.env.example` viet dang danh sach ("a,b") se
+        bao loi `ValidationError: Input should be a valid list` cho nguoi
+        clone repo. Xem GHI-CHU-TIEN-DO.md muc 8k.
+
+        Property nay chap nhan ca hai dang:
             CORS_ORIGINS=["http://localhost:3000"]        (JSON)
             CORS_ORIGINS=http://localhost:3000,http://x   (danh sach)
         """
@@ -86,7 +93,8 @@ class Settings(BaseSettings):
                 if isinstance(parsed, list):
                     return [str(item).strip() for item in parsed]
             except (ValueError, TypeError):
-                pass  # JSON hong -> thu tach bang dau phay
+                # JSON hong -> thu tach bang dau phay ben duoi
+                pass
         return [item.strip() for item in raw.split(",") if item.strip()]
 
     @property

@@ -819,12 +819,47 @@ def cors_origins(self) -> list[str]:
 
 | Input | Kết quả |
 |-------|---------|
-| `["http://a:3000","http://b:5173"]` (JSON) | `['http://a:3000', 'http://b:5173']` |
 | `http://a:3000,http://b:5173` (dấu phẩy) | `['http://a:3000', 'http://b:5173']` |
-| ` http://a:3000 , , http://b:5173 ` (khoảng trắng + rỗng) | `['http://a:3000', 'http://b:5173']` |
-| Không cấu hình | 4 origin mặc định |
+| `["http://a:3000","http://b:5173"]` (JSON) | `['http://a:3000', 'http://b:5173']` |
+| `http://a:3000` (một giá trị) | `['http://a:3000']` |
+| `""` (rỗng) | `[]` |
+| Không cấu hình (xoá dòng khỏi `.env`) | 4 origin mặc định |
 
-`main.py` đổi sang dùng `settings.cors_origins` (property) thay vì `settings.CORS_ORIGINS`.
+⚠️ **Phân biệt quan trọng — rỗng KHÁC không cấu hình:**
+
+| Trong `.env` | `cors_origins_list` | Hậu quả |
+|---|---|---|
+| `CORS_ORIGINS=` (để trống) | `[]` | **Fail-closed** — chặn MỌI origin, frontend sẽ báo lỗi CORS |
+| Xoá hẳn dòng | 4 origin mặc định | Dùng `localhost:3000` / `:5173` |
+
+Rỗng là fail-closed là đúng về mặt bảo mật, nhưng dễ gây khó chẩn đoán. Muốn dùng mặc định thì **xoá hẳn dòng**, đừng để trống.
+
+### Chỉnh tên property + sửa comment sai trong `.env.example`
+
+| Việc | Trước | Sau |
+|------|-------|-----|
+| Tên property | `settings.cors_origins` | **`settings.cors_origins_list`** (khớp yêu cầu) |
+| `main.py` | `allow_origins=settings.cors_origins` | `allow_origins=settings.cors_origins_list` |
+| Comment `.env.example` | *"Phải là JSON hợp lệ vì config.py đọc vào biến kiểu list"* — **SAI, đã lỗi thời** | Ghi rõ hỗ trợ cả 2 định dạng, trỏ tới property |
+
+### Test backend sau khi sửa — 4/4 endpoint 200 OK
+
+| Endpoint | Kết quả |
+|----------|---------|
+| `GET /` | 200 — `{"message":"API dang chay", ...}` |
+| `GET /api/v1/health` | 200 — `{"status":"ok"}` |
+| `GET /health` | 200 — `{"status":"ok"}` |
+| `GET /health/database` | 200 — `"connected": true` |
+
+**CORS header:**
+
+| Origin gửi lên | Header trả về |
+|----------------|---------------|
+| `http://localhost:3000` | `http://localhost:3000` ✅ |
+| `http://localhost:5173` | `http://localhost:5173` ✅ |
+| `http://evil.com` | *(rỗng)* — bị chặn đúng ✅ |
+
+Test origin lạ bị chặn xác nhận cấu hình CORS **không bật `allow_origins=["*"]`** — không mở cho tất cả.
 
 ### Kết quả test cuối — 6/6 endpoint 200 OK
 
@@ -836,8 +871,6 @@ def cors_origins(self) -> list[str]:
 | `GET /health/database` | 200 — `"connected": true` |
 | `GET /docs` | 200 — Swagger UI, 3 endpoint hiển thị đúng |
 | `GET /openapi.json` | 200 — 3 paths: `/health`, `/health/database`, `/api/v1/health` |
-
-CORS test cho cả `:3000` và `:5173` → header trả đúng origin.
 
 ### Việc tiếp theo — B2
 

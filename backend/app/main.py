@@ -33,7 +33,7 @@ app = FastAPI(
 # WebSocket cung can CORS cho frontend localhost:3000.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

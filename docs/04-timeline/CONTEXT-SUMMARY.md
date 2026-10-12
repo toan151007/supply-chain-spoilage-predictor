@@ -310,7 +310,8 @@ cd frontend; npm run dev
 | **Chạy uvicorn phải `cd backend` trước** | Module import tuyệt đối `from app.config import settings`. Chạy từ thư mục gốc → `ModuleNotFoundError: No module named 'app'` |
 | **FastAPI 0.143 đổi `include_router`** | `app.routes` chứa `_IncludedRouter` thay vì flatten endpoint. **Đừng kiểm tra `app.routes`** để xác nhận router — hãy gọi thật qua HTTP |
 | File `.env` đã tạo ở **thư mục gốc** | Có trong `.gitignore` · backend **và script AI/ML** đều đọc từ đó → KHÔNG chuyển sang `backend/` sẽ phá vỡ script. Mẫu cấu hình cho người clone: `backend/.env.example` |
-| **`CORS_ORIGINS` nhận cả 2 kiểu viết** | `CORS_ORIGINS=http://a:3000,http://b:5173` (dấu phẩy) **hoặc** `CORS_ORIGINS=["http://a:3000"]` (JSON). Nếu khai báo `list[str]` thì chỉ chấp nhận JSON và sẽ báo `ValidationError` với dạng dấu phẩy |
+| **`CORS_ORIGINS` nhận cả 2 kiểu viết** | `CORS_ORIGINS=http://a:3000,http://b:5173` (dấu phẩy) **hoặc** `CORS_ORIGINS=["http://a:3000"]` (JSON). Dùng property **`settings.cors_origins_list`**. Khai báo `list[str]` chỉ chấp nhận JSON và sẽ báo `ValidationError` với dạng dấu phẩy — tức làm hỏng chính file `.env.example` của repo |
+| **`CORS_ORIGINS=` rỗng → `[]`** | Fail-closed, chặn mọi origin. Muốn dùng 4 origin mặc định thì **xoá hẳn dòng** khỏi `.env`, đừng để trống |
 | Console Windows cp1252 | In chuỗi tiếng Việt ra terminal → `UnicodeEncodeError: charmap`. Thêm `sys.stdout.reconfigure(encoding="utf-8", errors="replace")` |
 
 ---

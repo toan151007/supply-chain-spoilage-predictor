@@ -196,7 +196,9 @@ Vì vậy **không dùng được** tiêu chí "hệ số biến động mùa v�
 - **FastAPI 0.143 đổi cách `include_router`:** `app.routes` giờ chứa một đối tượng `_IncludedRouter` thay vì flatten từng endpoint vào danh sách. **ĐỪNG kiểm tra `app.routes` để xác nhận router đã đăng ký** — hãy gọi thật qua HTTP (`Invoke-WebRequest http://localhost:8000/health`).
 - **Chạy uvicorn phải `cd backend` trước.** Module import theo đường dẫn tuyệt đối `from app.config import settings`; chạy từ thư mục gốc sẽ báo `ModuleNotFoundError: No module named 'app'`.
 - **File `.env` đã tạo ở thư mục gốc** (có trong `.gitignore`) — backend **và script AI/ML** (`import_kaggle.py`, `train_models.py`, `forecast_next_month.py`) đều đọc từ đó. **KHÔNG chuyển `.env` sang `backend/`** sẽ làm hỏng script AI/ML. Mẫu cấu hình cho người clone repo: `backend/.env.example`.
-- **`CORS_ORIGINS` phải khai báo kiểu `str` + property, KHÔNG dùng `list[str]`.** Biến môi trường luôn là chuỗi; khai báo `list[str]` khiến pydantic chỉ chấp nhận JSON (`["http://..."]`) và báo `ValidationError` khi ai đó viết dạng dấu phẩy (`http://a,http://b`). `config.py` đã có property `cors_origins` xử lý cả hai.
+- **`CORS_ORIGINS` phải khai báo kiểu `str` + property, KHÔNG dùng `list[str]`.** Biến môi trường luôn là chuỗi; khai báo `list[str]` khiến pydantic chỉ chấp nhận JSON (`["http://..."]`) và báo `ValidationError: Input should be a valid list` khi ai đó viết dạng dấu phẩy — **đúng dạng `backend/.env.example` đang dùng**. Trong `main.py` dùng property **`settings.cors_origins_list`**.
+  - `@field_validator(mode="before")` **không cứu được** lỗi này — validator không can thiệp được vào env source của pydantic-settings.
+  - Hành vi khi `CORS_ORIGINS=` rỗng: trả `[]` (fail-closed, chặn mọi origin). Muốn dùng mặc định thì **xoá hẳn dòng** khỏi `.env`, đừng để trống.
 - Console Windows dùng cp1252 — khi in chuỗi có dấu tiếng Việt ra terminal sẽ báo `UnicodeEncodeError: charmap`. Thêm `sys.stdout.reconfigure(encoding="utf-8", errors="replace")`.
 
 ## ⛔ Quyết định đã chốt 03/10/2026 — KHÔNG sửa, ghi chú vào Chương 4
