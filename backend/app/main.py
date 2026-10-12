@@ -33,27 +33,29 @@ app = FastAPI(
 # WebSocket cung can CORS cho frontend localhost:3000.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # ---- Health check ----
-# KHONG co tien to /api/v1: endpoint nay phuc vu ha tang, dung de kiem tra
-# tinh trang server, khong phai API nghiep vu.
+# KHONG co tien to /api/v1: endpoint nay phuc vu HA TANG, dung cho uptime
+# check va smoke test. Frontend van co the goi binh thuong.
 app.include_router(health.router)
 
 # ---- API nghiep vu ----
 # QUY TAC: moi API nghiep vu phai nam sau tien to /api/v1/
 # Vi du: app.include_router(product.router, prefix=settings.API_V1_PREFIX)
 # -> endpoint: /api/v1/products
+app.include_router(health.api_router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/", include_in_schema=False)
 def root() -> dict:
     """Huong dan nhanh khi mo dau tien, khong hien thi trong /docs."""
     return {
+        "message": "API dang chay",
         "service": settings.APP_NAME,
         "version": settings.APP_VERSION,
         "docs": "/docs",

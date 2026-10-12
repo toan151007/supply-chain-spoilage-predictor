@@ -195,7 +195,8 @@ Vì vậy **không dùng được** tiêu chí "hệ số biến động mùa v�
 - **pandas 3.0**: `pd.DataFrame({"ds": <DataFrame>})` sẽ báo `ValueError: If using all scalar values, you must pass an index` — phải truyền **Series** (`df["sale_date"]`).
 - **FastAPI 0.143 đổi cách `include_router`:** `app.routes` giờ chứa một đối tượng `_IncludedRouter` thay vì flatten từng endpoint vào danh sách. **ĐỪNG kiểm tra `app.routes` để xác nhận router đã đăng ký** — hãy gọi thật qua HTTP (`Invoke-WebRequest http://localhost:8000/health`).
 - **Chạy uvicorn phải `cd backend` trước.** Module import theo đường dẫn tuyệt đối `from app.config import settings`; chạy từ thư mục gốc sẽ báo `ModuleNotFoundError: No module named 'app'`.
-- **File `.env` đã tạo ở thư mục gốc** (có trong `.gitignore`) — backend và các script AI/ML đều đọc từ đó. Không cần set `$env:DB_PASSWORD` thủ công khi chạy từ trong `backend/`.
+- **File `.env` đã tạo ở thư mục gốc** (có trong `.gitignore`) — backend **và script AI/ML** (`import_kaggle.py`, `train_models.py`, `forecast_next_month.py`) đều đọc từ đó. **KHÔNG chuyển `.env` sang `backend/`** sẽ làm hỏng script AI/ML. Mẫu cấu hình cho người clone repo: `backend/.env.example`.
+- **`CORS_ORIGINS` phải khai báo kiểu `str` + property, KHÔNG dùng `list[str]`.** Biến môi trường luôn là chuỗi; khai báo `list[str]` khiến pydantic chỉ chấp nhận JSON (`["http://..."]`) và báo `ValidationError` khi ai đó viết dạng dấu phẩy (`http://a,http://b`). `config.py` đã có property `cors_origins` xử lý cả hai.
 - Console Windows dùng cp1252 — khi in chuỗi có dấu tiếng Việt ra terminal sẽ báo `UnicodeEncodeError: charmap`. Thêm `sys.stdout.reconfigure(encoding="utf-8", errors="replace")`.
 
 ## ⛔ Quyết định đã chốt 03/10/2026 — KHÔNG sửa, ghi chú vào Chương 4
@@ -245,7 +246,7 @@ Chương 2 là cơ sở lý thuyết, trình bày cả 5 mô hình, chỉ **kỳ
 - [x] M1: Chạy **100 cặp** trong 13,2 phút — Prophet RMSE 9,97 (thắng 97/100)
 - [x] M2: Dự báo 30 ngày (01/01–30/01/2018) → **3.000 dòng** trong bảng `forecasts`
 - [x] M3: `docs/05-tham-khao/ket-qua-danh-gia-model.md`
-- [x] B1: Setup backend FastAPI — config/database/main + CORS + health check, test thật `localhost:8000/docs`
+- [x] B1: Setup backend FastAPI — config/database/main + CORS + 3 endpoint health, test thật `localhost:8000/docs` (đã chụp màn hình)
 - [ ] B2: ORM models trong `app/models/` + endpoint nghiep vu `/api/v1/`
 - [ ] T2: README con cho từng thư mục
 - [ ] Setup Frontend React

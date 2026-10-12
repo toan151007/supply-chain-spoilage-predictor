@@ -41,6 +41,7 @@
 ## 2. Lịch sử commit
 
 ```
+0ca104d  feat(backend): setup FastAPI - config, database, CORS, health check
 8e60e09  docs: them CONTEXT-SUMMARY tom tat toan bo du an
 7a95bbf  docs: cap nhat quyet dinh ve Chuong 2 + max_stock
 47b4775  feat(ai): chay 100 cap, du bao 30 ngay, danh gia 3 mo hinh
@@ -753,6 +754,90 @@ Test với mật khẩu sai (port 8001):
 - Sửa "Database đang rỗng" → "**đã có dữ liệu** (912.999 `order_items` · 3.000 `forecasts`)"
 - Bỏ dòng "Còn thiếu: fastapi, uvicorn, pydantic"
 - Thêm gotcha: `_IncludedRouter`, `cd backend`, `.env`, console cp1252
+
+### Bổ sung lần 2 (12/10/2026) — chỉnh theo yêu cầu mới
+
+B1 đã xong ở commit `0ca104d`. Lần này chỉ bổ sung 4 điểm còn thiếu:
+
+| Việc | Kết quả |
+|------|---------|
+| Tạo `backend/.env.example` | ✅ Mới — mẫu cấu hình, `DB_PASSWORD=your_password_here` (không phải mật khẩu thật) |
+| Thêm `GET /api/v1/health` | ✅ Mới — giữ cả `/health` cho hạ tầng |
+| Thêm key `"message"` cho `GET /` | ✅ Mới — `{"message": "API dang chay", ...}` |
+| Chụp m��nh `/docs` | ✅ Xong — Swagger UI hiển thị đủ 3 endpoint |
+
+**Quyết định đã chốt khi hỏi lại:**
+
+| Câu hỏi | Quyết định | Lý do |
+|---------|-----------|-------|
+| Vị trí `.env` thật | **Giữ ở thư mục gốc** | Script AI/ML cũng đọc từ đó — chuyển đi sẽ phá vỡ |
+| Endpoint health | **Cả hai** `/health` và `/api/v1/health` | Tuân thủ quy tắc tiền tố mà vẫn giữ được endpoint uptime check |
+| Response `GET /` | **Thêm key `message`, giữ thông tin khác** | Không mất link `/docs` và `/health` |
+
+#### Lỗi thật: `CORS_ORIGINS` dạng dấu phẩy sẽ gây lỗi cho người clone repo
+
+`backend/.env.example` dùng dạng thân thiện:
+
+```
+CORS_ORIGINS=http://localhost:3000,http://localhost:5173
+```
+
+Nhưng `config.py` khai báo `CORS_ORIGINS: list[str]`. Biến môi trường **luôn là chuỗi**, pydantic-settings chỉ đọc chuỗi đó theo **dạng JSON** → sẽ báo:
+
+```
+ValidationError: Input should be a valid list [type=list_type]
+```
+
+Nghĩa là **file `.env.example` sẽ làm hỏng người dùng khác sau khi copy**, dù file mẫu trông đúng.
+
+**Đã thử 2 hướng:**
+
+| Hướng | Kết quả |
+|-------|---------|
+| `@field_validator(mode="before")` | ❌ **Không hoạt động** — validator không can thiệp được vào env source của pydantic-settings, vẫn `ValidationError` |
+| Khai báo `str` + `property` tách thủ công | ✅ **Chạy đúng** |
+
+Cách đã dùng trong `config.py`:
+
+```python
+CORS_ORIGINS: str = ",".join(DEFAULT_CORS_ORIGINS)
+
+@property
+def cors_origins(self) -> list[str]:
+    raw = self.CORS_ORIGINS.strip()
+    if raw.startswith("["):
+        try:  # thu doc dang JSON truoc
+            import json
+            parsed = json.loads(raw)
+            ...
+        except (ValueError, TypeError):
+            pass
+    return [item.strip() for item in raw.split(",") if item.strip()]
+```
+
+**Test 4 trường hợp — tất cả đúng:**
+
+| Input | Kết quả |
+|-------|---------|
+| `["http://a:3000","http://b:5173"]` (JSON) | `['http://a:3000', 'http://b:5173']` |
+| `http://a:3000,http://b:5173` (dấu phẩy) | `['http://a:3000', 'http://b:5173']` |
+| ` http://a:3000 , , http://b:5173 ` (khoảng trắng + rỗng) | `['http://a:3000', 'http://b:5173']` |
+| Không cấu hình | 4 origin mặc định |
+
+`main.py` đổi sang dùng `settings.cors_origins` (property) thay vì `settings.CORS_ORIGINS`.
+
+### Kết quả test cuối — 6/6 endpoint 200 OK
+
+| Endpoint | Kết quả |
+|----------|---------|
+| `GET /` | 200 — `{"message":"API dang chay", ...}` |
+| `GET /api/v1/health` | 200 — `{"status":"ok"}` |
+| `GET /health` | 200 — `{"status":"ok"}` |
+| `GET /health/database` | 200 — `"connected": true` |
+| `GET /docs` | 200 — Swagger UI, 3 endpoint hiển thị đúng |
+| `GET /openapi.json` | 200 — 3 paths: `/health`, `/health/database`, `/api/v1/health` |
+
+CORS test cho cả `:3000` và `:5173` → header trả đúng origin.
 
 ### Việc tiếp theo — B2
 

@@ -17,6 +17,15 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_DIR = PROJECT_ROOT / "backend"
 
+# Danh sach mac dinh khi khong cau hinh duoc tu .env.
+# Frontend Vite mac dinh chay o cong 3000; 5173 la port fallback.
+DEFAULT_CORS_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:5173",   # Vite co the random port
+    "http://127.0.0.1:5173",
+]
+
 
 class Settings(BaseSettings):
     """
@@ -51,12 +60,34 @@ class Settings(BaseSettings):
     # ---- CORS ----
     # Frontend Vite mac dinh chay o cong 3000.
     # WebSocket yeu cau CORS cho frontend localhost:3000 (xem AGENTS.md).
-    CORS_ORIGINS: list[str] = [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:5173",   # Vite co the random port
-        "http://127.0.0.1:5173",
-    ]
+    #
+    # KHONG khai bao kieu `list[str]`. Bien moi truong luon la CHUOI, va
+    # pydantic-settings chi doc chuoi do theo dang JSON:
+    #     CORS_ORIGINS=["http://localhost:3000"]
+    # Nguoi doc duong dan lai se viet "a,b" va gap ValidationError.
+    # Vi vay khai bao str roi tach thu cong trong property ben duoi.
+    CORS_ORIGINS: str = ",".join(DEFAULT_CORS_ORIGINS)
+
+    @property
+    def cors_origins(self) -> list[str]:
+        """
+        Danh sach origin cho middleware CORS.
+
+        Chap nhan ca hai dang trong .env:
+            CORS_ORIGINS=["http://localhost:3000"]        (JSON)
+            CORS_ORIGINS=http://localhost:3000,http://x   (danh sach)
+        """
+        raw = self.CORS_ORIGINS.strip()
+        if raw.startswith("["):
+            try:
+                import json
+
+                parsed = json.loads(raw)
+                if isinstance(parsed, list):
+                    return [str(item).strip() for item in parsed]
+            except (ValueError, TypeError):
+                pass  # JSON hong -> thu tach bang dau phay
+        return [item.strip() for item in raw.split(",") if item.strip()]
 
     @property
     def database_url(self) -> str:

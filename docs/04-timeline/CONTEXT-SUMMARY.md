@@ -59,22 +59,23 @@ Hệ thống gồm 4 thành phần chính:
 | File | Vai trò |
 |------|---------|
 | `backend/requirements.txt` | 7 thư viện, ghim phiên bản |
-| `backend/app/config.py` | Đọc `.env` qua pydantic-settings · `@lru_cache` · dựng `database_url` |
+| `backend/.env.example` | **File mẫu** — hướng dẫn clone repo. KHÔNG chứa mật khẩu thật |
+| `backend/app/config.py` | Đọc `.env` qua pydantic-settings · `@lru_cache` · `cors_origins` tách 2 kiểu |
 | `backend/app/database.py` | `create_engine` + `SessionLocal` + `Base` + `get_db()` + `check_database()` |
-| `backend/app/main.py` | Khởi tạo FastAPI + CORS + gắn router |
-| `backend/app/routers/health.py` | 2 endpoint health check |
+| `backend/app/main.py` | Khởi tạo FastAPI + CORS + gắn 2 router |
+| `backend/app/routers/health.py` | 3 endpoint health check |
 
-**Endpoint hiện có (2, đều ngoài `/api/v1/` vì thuộc hạ tầng):**
+**Endpoint hiện có:**
 
-| Endpoint | Mục đích |
-|----------|----------|
-| `GET /` | Hướng dẫn nhanh, không hiện trong /docs |
-| `GET /health` | Kiểm tra server còn sống |
-| `GET /health/database` | Kiểm tra kết nối PostgreSQL |
-| `GET /docs` | Swagger UI |
-| `GET /redoc` · `GET /openapi.json` | Tài liệu API |
+| Endpoint | Mục đích | Tiền tố |
+|----------|----------|---------|
+| `GET /` | Hướng dẫn nhanh (`"message": "API dang chay"`) | — |
+| `GET /health` | Kiểm tra server còn sống | hạ tầng |
+| `GET /health/database` | Kiểm tra kết nối PostgreSQL | hạ tầng |
+| `GET /api/v1/health` | Trùng nội dung `/health`, có tiền tố theo quy tắc dự án | `/api/v1/` |
+| `GET /docs` · `/redoc` · `/openapi.json` | Tài liệu API | — |
 
-**Đã test thật** — tất cả trả `200 OK`, kết nối DB `"connected": true`, CORS trả đúng header cho `Origin: http://localhost:3000`.
+**Đã test thật** — 6/6 endpoint trả `200 OK`, DB `"connected": true`, CORS trả đúng header cho cả `:3000` và `:5173`. Đã chụp màn hình Swagger UI xác nhận 3 endpoint hiện đúng.
 
 Phiên bản: FastAPI 0.143.0 · uvicorn 0.54.0 · pydantic 2.14.1 · pydantic-settings 2.15.0.
 
@@ -308,7 +309,8 @@ cd frontend; npm run dev
 | ✅ Đã cài đủ thư viện backend | FastAPI · uvicorn · pydantic · pydantic-settings (12/10/2026) |
 | **Chạy uvicorn phải `cd backend` trước** | Module import tuyệt đối `from app.config import settings`. Chạy từ thư mục gốc → `ModuleNotFoundError: No module named 'app'` |
 | **FastAPI 0.143 đổi `include_router`** | `app.routes` chứa `_IncludedRouter` thay vì flatten endpoint. **Đừng kiểm tra `app.routes`** để xác nhận router — hãy gọi thật qua HTTP |
-| File `.env` đã tạo ở thư mục gốc | Có trong `.gitignore` · backend và script AI/ML đều đọc từ đó. Không cần set `$env:DB_PASSWORD` khi chạy trong `backend/` |
+| File `.env` đã tạo ở **thư mục gốc** | Có trong `.gitignore` · backend **và script AI/ML** đều đọc từ đó → KHÔNG chuyển sang `backend/` sẽ phá vỡ script. Mẫu cấu hình cho người clone: `backend/.env.example` |
+| **`CORS_ORIGINS` nhận cả 2 kiểu viết** | `CORS_ORIGINS=http://a:3000,http://b:5173` (dấu phẩy) **hoặc** `CORS_ORIGINS=["http://a:3000"]` (JSON). Nếu khai báo `list[str]` thì chỉ chấp nhận JSON và sẽ báo `ValidationError` với dạng dấu phẩy |
 | Console Windows cp1252 | In chuỗi tiếng Việt ra terminal → `UnicodeEncodeError: charmap`. Thêm `sys.stdout.reconfigure(encoding="utf-8", errors="replace")` |
 
 ---
