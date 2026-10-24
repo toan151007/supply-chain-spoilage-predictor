@@ -2604,3 +2604,10 @@ pm run build (frontend) | Thành công (675 modules transformed) |
 ---
 
 *I1 xong. Bu?c ti?p theo: tích h?p AI Model và hoàn thi?n CRUD.*\
+\
+## 8x. FIX — THÊM NÚT QUAY L?I CHO CÁC TRANG CON (24/10/2026)
+
+- Thêm BackButton component dùng 
+avigate(-1)`n- Áp d?ng cho: S?n ph?m, Kho hàng, Ðon hàng, C?nh báo, D? báo, Nhóm hàng, C?a hàng
+- H? tr? Dark Mode và Responsive
+- Build frontend thành công\

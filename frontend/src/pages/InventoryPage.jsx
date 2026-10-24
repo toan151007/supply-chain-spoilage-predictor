@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 import Icon from '../components/common/Icon.jsx'
 import Spinner from '../components/common/Spinner.jsx'
@@ -33,6 +34,7 @@ function TableSkeleton({ cols }) {
 }
 
 export default function InventoryPage() {
+  const navigate = useNavigate()
   const { isAdmin } = useAuth()
   const [tab, setTab] = useState('all')
   const [page, setPage] = useState(1)
@@ -97,6 +99,16 @@ export default function InventoryPage() {
 
   return (
     <div className="space-y-5 animate-fade-in">
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          className="btn-secondary inline-flex items-center gap-2 px-3 py-2"
+        >
+          <Icon name="chevronLeft" className="h-4 w-4" />
+          <span>Quay lại</span>
+        </button>
+      </div>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-2xl">Kho hàng</h1>
