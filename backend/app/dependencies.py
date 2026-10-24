@@ -1,5 +1,5 @@
 """
-Shared FastAPI dependencies: authentication and role checks (B12).
+Shared FastAPI dependencies: authentication and role checks (B12 / B3).
 
 The logout denylist lives here rather than in a database table on purpose.
 Adding a table means a migration, and the three seeded users plus a demo
@@ -9,6 +9,9 @@ every logged-out token.** For a single-process development server that is
 acceptable; for a multi-process deployment it is not, and the denylist would
 have to move to Redis or a table. Entries are dropped once they expire, so
 the set cannot grow without bound.
+
+B3: the user row now comes from `EXEC dbo.sp_Users_GetById` instead of the
+ORM, so the authenticated principal is a plain dict.
 """
 
 import threading
@@ -17,10 +20,9 @@ from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy.orm import Session
+from pyodbc import Error as PyodbcError
 
-from app.database import get_db
-from app.models import User
+from app.database import DbSession, get_db, map_sqlserver_error
 from app.security import (
     ACCESS_TOKEN_TYPE,
     REFRESH_TOKEN_TYPE,
@@ -73,12 +75,17 @@ class TokenDenylist:
 denylist = TokenDenylist()
 
 
+def load_user(db: DbSession, user_id: int) -> dict | None:
+    """Load one user row (including password_hash) through the procedure."""
+    return db.one("sp_Users_GetById", {"UserId": user_id})
+
+
 def get_current_user(
     credentials: Annotated[
         HTTPAuthorizationCredentials | None, Depends(bearer_scheme)
     ],
-    db: Session = Depends(get_db),
-) -> User:
+    db: DbSession = Depends(get_db),
+) -> dict:
     """
     Resolve the caller from the bearer token, or raise 401.
 
@@ -120,14 +127,18 @@ def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
 
-    user = db.get(User, user_id)
+    try:
+        user = load_user(db, user_id)
+    except PyodbcError as exc:
+        raise map_sqlserver_error(exc) from exc
+
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User no longer exists",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    if not user.is_active:
+    if not user["is_active"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is deactivated",
@@ -148,11 +159,6 @@ def get_current_active_refresh_token(
     back to a token in the request body. A token that IS present but
     invalid still raises, because that is a real error rather than a
     missing credential.
-
-    Making this lenient matters: if it raised on a missing header, a client
-    sending the refresh token in the body - which is the usual pattern for a
-    browser holding it in an httpOnly cookie - would be rejected before the
-    body was ever read.
     """
     if credentials is None or not credentials.credentials:
         return None
@@ -188,12 +194,12 @@ def require_role(*allowed: str):
     """
     wanted = set(allowed)
 
-    def _checker(current: Annotated[User, Depends(get_current_user)]) -> User:
-        if current.role not in wanted:
+    def _checker(current: Annotated[dict, Depends(get_current_user)]) -> dict:
+        if current["role"] not in wanted:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=(
-                    f"Role '{current.role}' cannot perform this action; "
+                    f"Role '{current['role']}' cannot perform this action; "
                     f"requires one of: {sorted(wanted)}"
                 ),
             )
@@ -203,7 +209,7 @@ def require_role(*allowed: str):
 
 
 # Convenience aliases so routers read clearly.
-CurrentUser = Annotated[User, Depends(get_current_user)]
-AdminOnly = Annotated[User, Depends(require_role("owner"))]
-ManagerOrOwner = Annotated[User, Depends(require_role("owner", "manager"))]
-AnyStaff = Annotated[User, Depends(require_role("owner", "manager", "staff"))]
+CurrentUser = Annotated[dict, Depends(get_current_user)]
+AdminOnly = Annotated[dict, Depends(require_role("owner"))]
+ManagerOrOwner = Annotated[dict, Depends(require_role("owner", "manager"))]
+AnyStaff = Annotated[dict, Depends(require_role("owner", "manager", "staff"))]

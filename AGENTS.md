@@ -231,6 +231,15 @@ Vì vậy **không dùng được** tiêu chí "hệ số biến động mùa v�
 
 ### SQL Server (24/10/2026) — mới
 
+- **Bước 3 dùng `DbSession` bọc `pyodbc` raw connection, KHÔNG dùng SQLAlchemy Session.** `Session` không có `nextset()`, và procedure tự `COMMIT` transaction ngầm của pyodbc gây lỗi `266 Transaction count after EXECUTE...`. Engine tạo với `autocommit=True`, lấy connection bằng `engine.raw_connection()`. Router gọi `db.call("sp_Ten", {TenThamSo: value})` → `list[list[dict]]` (mỗi result set là list dict theo TÊN cột).
+- **Chuỗi kết nối phải dựng qua `mssql+pyodbc:///?odbc_connect=<quote_plus(...)>`** vì host chứa dấu `\` bị URL-encode sai nếu viết dạng `user:pass@host`.
+- **Có 74 Stored Procedure**: 49 trong `database/HUONG-DAN-CHAY-SSMS.md` + 25 trong `database/03-migrations/010-sqlserver-analytics-procedures.sql` (dashboard, dashboard nâng cao, đề xuất nhập hàng, báo cáo, import dùng `OPENJSON`). Chạy migration 010 sau file hướng dẫn.
+- **Nạp dữ liệu dev**: `python scripts/convert_seed_to_sqlserver.py` (sinh `database/02-seed/seed-sqlserver.sql`) rồi `python scripts/load_sqlserver_data.py`. Script nạp **bỏ các dòng `sales = 0`** để không vi phạm `CHECK (quantity > 0)` — đúng bài học cũ.
+- **`sp_Orders_Delete` xoá dòng hàng trước rồi xoá đơn** trong cùng transaction (khôi phục `ON DELETE CASCADE` của PostgreSQL). Xoá đơn `completed` vẫn bị chặn ở tầng trạng thái.
+- **Dữ liệu nạp lại hiện có 2.820 `forecasts`** (94 cặp prophet × 30 ngày), không phải 3.000/2.910 — file `ai-model/outputs/forecast_summary_30d.csv` chỉ có 94 cặp. Báo cáo phải dùng đúng số trong DB.
+- **Smoke test API**: `python scripts/smoke_test_api.py` (48 check đọc) và `python scripts/smoke_test_writes.py` (29 check ghi). Cần chạy server trước bằng `python -m uvicorn` — máy này KHÔNG có `uvicorn` trên PATH.
+- **sqlcmd cần `-I`** khi xoá/sửa bảng có computed column / filtered index, nếu không báo lỗi 1934 về `QUOTED_IDENTIFIER`.
+
 - **sqlcmd mặc định tắt `QUOTED_IDENTIFIER`** → tạo filtered index / computed column báo lỗi 1934. Đầu file T-SQL phải có `SET QUOTED_IDENTIFIER ON; SET ANSI_NULLS ON;` (file hướng dẫn đã có).
 - **SQL Server coi nhiều `NULL` là trùng nhau** trong UNIQUE. `inventory` và `inventory_transactions` phải dùng filtered unique index `WHERE ... IS NOT NULL`.
 - **Không cascade được trên khoá tự tham chiếu** (`categories.parent_category_id`) → lỗi 1785. `sp_Categories_Delete` tự set `parent_category_id = NULL` cho các con rồi mới xoá.
@@ -387,7 +396,8 @@ Chương 2 là cơ sở lý thuyết, trình bày cả 5 mô hình, chỉ **kỳ
 - [x] B12: Authentication JWT — login · refresh · me · logout + bảo vệ **28** endpoint ghi
 - [x] **SQL Server BƯỚC 1**: cập nhật AGENTS.md + GHI-CHU-TIEN-DO.md cho migration PostgreSQL → SQL Server (24/10/2026)
 - [x] **SQL Server BƯỚC 2**: `database/HUONG-DAN-CHAY-SSMS.md` — 10 bảng + index + 6 trigger + 4 view + **49 Stored Procedure** (đã test thật trên SQL Server 2025)
-- [ ] **SQL Server BƯỚC 3**: đổi `config.py`/`database.py` sang pyodbc, chuyển toàn bộ router sang gọi Stored Procedure, nạp lại dữ liệu
+- [x] **SQL Server BƯỚC 3**: `config.py`/`database.py` dùng pyodbc (`DbSession` + `autocommit`), 18 router gọi Stored Procedure, migration `010` thêm **25 SP** (tổng **74**), nạp lại **912.999 `order_items`** — test HTTP **48/48** đọc + **29/29** ghi PASS (24/10/2026)
 - [ ] F1: Setup Frontend React
 - [ ] T2: README con cho từng thư mục
 - [ ] Tích hợp AI Model
+

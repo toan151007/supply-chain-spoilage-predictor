@@ -1,58 +1,45 @@
-"""
-CRUD router for products.
+﻿"""
+CRUD router for products (B3 - SQL Server Stored Procedure).
 
-All database access goes through the SQLAlchemy ORM - no raw SQL here,
-as required by the project rules.
-
-DELETE is expected to fail for products that already have history: the
-`products` table is referenced with ON DELETE RESTRICT by `order_items`,
-`inventory`, `inventory_transactions` and `forecasts`. That is correct
-behaviour - sales history must not be silently deleted - so a failed
-delete returns HTTP 409 with a clear message instead of a 500.
+All database access goes through `EXEC dbo.sp_Products_*`; there is no ORM
+query in this file. The update contract is "send the COMPLETE row", so a
+partial PUT is merged into the current row before the call - that keeps
+"field omitted" (keep current) different from "field set to null" (clear).
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session, joinedload
+from pyodbc import Error as PyodbcError
 
+from app.database import DbSession, get_db, map_sqlserver_error
 from app.dependencies import require_role
-from app.database import get_db
-from app.models import Category, Product
 from app.schemas.product_schema import (
     ProductCreate,
     ProductPage,
     ProductRead,
     ProductUpdate,
 )
+from app.sp_helpers import as_bit, attach_category
 
 router = APIRouter(prefix="/products", tags=["products"])
 
-# Starlette deprecated `HTTP_422_UNPROCESSABLE_ENTITY` in favour of
-# `HTTP_422_UNPROCESSABLE_CONTENT`. Both mean 422; using the new name keeps
-# the deprecation warning out of the logs.
-HTTP_422_UNPROCESSABLE_CONTENT = 422
+
+def _to_read(row: dict) -> dict:
+    return attach_category(dict(row))
 
 
-def _get_product_or_404(db: Session, product_id: int) -> Product:
-    """Load one product with its category, or raise 404."""
-    product = db.execute(
-        select(Product)
-        .options(joinedload(Product.category))
-        .where(Product.product_id == product_id)
-    ).scalar_one_or_none()
-
-    if product is None:
+def _get_row_or_404(db: DbSession, product_id: int) -> dict:
+    row = db.one("sp_Products_Get", {"ProductId": product_id})
+    if row is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Product {product_id} not found",
         )
-    return product
+    return row
 
 
 @router.get("", response_model=ProductPage, summary="List products with pagination")
 def list_products(
-    db: Session = Depends(get_db),
+    db: DbSession = Depends(get_db),
     page: int = Query(1, ge=1, description="Page number, starting at 1"),
     page_size: int = Query(20, ge=1, le=100, description="Rows per page, max 100"),
     category_id: int | None = Query(None, gt=0, description="Filter by category"),
@@ -62,151 +49,120 @@ def list_products(
         description="Case-insensitive match on product code or name",
     ),
 ) -> ProductPage:
-    """
-    Return a paginated product list.
-
-    Default page size is 20 and the maximum is 100. The cap matters because
-    the products table is read together with its category for every row.
-    """
-    filters = []
-    if category_id is not None:
-        filters.append(Product.category_id == category_id)
-    if is_active is not None:
-        filters.append(Product.is_active.is_(is_active))
-    if search:
-        pattern = f"%{search}%"
-        filters.append(
-            Product.product_name.ilike(pattern) | Product.product_code.ilike(pattern)
+    try:
+        sets = db.call(
+            "sp_Products_List",
+            {
+                "Search": search,
+                "CategoryId": category_id,
+                "IsActive": as_bit(is_active),
+                "Page": page,
+                "PageSize": page_size,
+            },
         )
+    except PyodbcError as exc:
+        raise map_sqlserver_error(exc) from exc
 
-    total = db.execute(
-        select(func.count()).select_from(Product).where(*filters)
-    ).scalar_one()
-
-    query = (
-        select(Product)
-        .options(joinedload(Product.category))
-        .where(*filters)
-        .order_by(Product.product_id)
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-    )
-    items = db.execute(query).scalars().all()
-
-    # Ceiling division so an empty result set reports 0 pages, not 1.
+    total = int(sets[0][0]["total"]) if sets and sets[0] else 0
+    items = [_to_read(row) for row in (sets[1] if len(sets) > 1 else [])]
     pages = (total + page_size - 1) // page_size
-
     return ProductPage(
         total=total, page=page, page_size=page_size, pages=pages, items=items
     )
 
 
 @router.get("/{product_id}", response_model=ProductRead, summary="Get one product")
-def get_product(product_id: int, db: Session = Depends(get_db)) -> Product:
-    return _get_product_or_404(db, product_id)
+def get_product(product_id: int, db: DbSession = Depends(get_db)) -> dict:
+    try:
+        return _to_read(_get_row_or_404(db, product_id))
+    except PyodbcError as exc:
+        raise map_sqlserver_error(exc) from exc
 
 
 @router.post(
     "", response_model=ProductRead, status_code=status.HTTP_201_CREATED,
     summary="Create a product",
- dependencies=[Depends(require_role('owner', 'manager'))],)
-def create_product(payload: ProductCreate, db: Session = Depends(get_db)) -> Product:
-    """Insert a new product.
-
-    `product_code` and `product_name` are not exposed as unique in the
-    schema, but the database has UNIQUE constraints on both, so a
-    duplicate raises IntegrityError and is turned into HTTP 409.
-    """
-    if db.get(Category, payload.category_id) is None:
-        raise HTTPException(
-            status_code=HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"Category {payload.category_id} does not exist",
-        )
-
-    product = Product(**payload.model_dump())
-    db.add(product)
-
+    dependencies=[Depends(require_role("owner", "manager"))],
+)
+def create_product(payload: ProductCreate, db: DbSession = Depends(get_db)) -> dict:
+    data = payload.model_dump()
     try:
-        db.commit()
-    except IntegrityError as exc:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Product code or name already exists",
-        ) from exc
+        row = db.one(
+            "sp_Products_Create",
+            {
+                "ProductCode": data["product_code"],
+                "ProductName": data["product_name"],
+                "CategoryId": data["category_id"],
+                "Unit": data["unit"],
+                "UnitCost": data["unit_cost"],
+                "SellingPrice": data["selling_price"],
+                "ShelfLifeDays": data["shelf_life_days"],
+                "MinStock": data["min_stock"],
+                "MaxStock": data["max_stock"],
+                "IsPerishable": as_bit(data["is_perishable"]),
+                "ReorderPoint": data["reorder_point"],
+                "Supplier": data["supplier"],
+                "IsActive": as_bit(data["is_active"]),
+            },
+        )
+    except PyodbcError as exc:
+        raise map_sqlserver_error(exc) from exc
 
-    db.refresh(product)
-    return product
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Create succeeded but the row could not be read back",
+        )
+    return _to_read(row)
 
 
 @router.put(
-    "/{product_id}", response_model=ProductRead, summary="Update a product"
-, dependencies=[Depends(require_role('owner', 'manager'))])
+    "/{product_id}", response_model=ProductRead, summary="Update a product",
+    dependencies=[Depends(require_role("owner", "manager"))],
+)
 def update_product(
-    product_id: int, payload: ProductUpdate, db: Session = Depends(get_db)
-) -> Product:
-    """
-    Partially update a product.
-
-    Fields absent from the request body keep their current value, so this
-    behaves like a merge rather than a full replace.
-    """
-    product = _get_product_or_404(db, product_id)
-
-    changes = payload.model_dump(exclude_unset=True)
-    if not changes:
-        # Nothing to change - return the current state untouched.
-        return product
-
-    new_category_id = changes.get("category_id")
-    if new_category_id is not None and new_category_id != product.category_id:
-        if db.get(Category, new_category_id) is None:
-            raise HTTPException(
-                status_code=HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"Category {new_category_id} does not exist",
-            )
-
-    for field, value in changes.items():
-        setattr(product, field, value)
-
+    product_id: int, payload: ProductUpdate, db: DbSession = Depends(get_db)
+) -> dict:
     try:
-        db.commit()
-    except IntegrityError as exc:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Product code or name already exists, or max_stock < min_stock",
-        ) from exc
+        current = _get_row_or_404(db, product_id)
+        changes = payload.model_dump(exclude_unset=True)
+        merged = {**current, **changes}
 
-    db.refresh(product)
-    return product
+        row = db.one(
+            "sp_Products_Update",
+            {
+                "ProductId": product_id,
+                "ProductCode": merged["product_code"],
+                "ProductName": merged["product_name"],
+                "CategoryId": merged["category_id"],
+                "Unit": merged["unit"],
+                "UnitCost": merged["unit_cost"],
+                "SellingPrice": merged["selling_price"],
+                "ShelfLifeDays": merged["shelf_life_days"],
+                "MinStock": merged["min_stock"],
+                "MaxStock": merged["max_stock"],
+                "IsPerishable": as_bit(merged["is_perishable"]),
+                "ReorderPoint": merged["reorder_point"],
+                "Supplier": merged["supplier"],
+                "IsActive": as_bit(merged["is_active"]),
+            },
+        )
+    except HTTPException:
+        raise
+    except PyodbcError as exc:
+        raise map_sqlserver_error(exc) from exc
+
+    return _to_read(row)
 
 
 @router.delete(
     "/{product_id}", status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a product",
- dependencies=[Depends(require_role('owner', 'manager'))],)
-def delete_product(product_id: int, db: Session = Depends(get_db)) -> None:
-    """
-    Delete a product that has no history.
-
-    Returns 409 when the product is referenced by sales, stock or forecast
-    rows. This is the normal outcome for this dataset: every one of the 50
-    seeded products already has order_items rows, because product_id 1-50
-    map directly to the Kaggle item ids. Use `is_active = false` to retire
-    a product instead of deleting it.
-    """
-    product = _get_product_or_404(db, product_id)
-
-    db.delete(product)
+    dependencies=[Depends(require_role("owner", "manager"))],
+)
+def delete_product(product_id: int, db: DbSession = Depends(get_db)) -> None:
     try:
-        db.commit()
-    except IntegrityError as exc:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=(
-                "Cannot delete: the product is referenced by orders, stock or "
-                "forecasts. Set is_active to false instead."
-            ),
-        ) from exc
+        db.call("sp_Products_Delete", {"ProductId": product_id})
+    except PyodbcError as exc:
+        raise map_sqlserver_error(exc) from exc
+    return None

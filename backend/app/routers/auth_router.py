@@ -1,15 +1,15 @@
 """
-Authentication endpoints (B12): login, refresh, me, logout.
+Authentication endpoints (B12 / B3): login, refresh, me, logout,
+change-password.
 
-All database access goes through the SQLAlchemy ORM - no raw SQL here.
+All database access goes through `EXEC dbo.sp_Users_*`; there is no ORM
+query in this file.
 
 Two things worth knowing before reading the code.
 
-The three seeded users shipped with `password_hash` holding the literal
-string `PLACEHOLDER_NOT_A_REAL_HASH`, not a real hash. No password could ever
-match, so a login attempt failed with a bare 401 that looked exactly like a
-wrong password. `is_placeholder_hash` detects that case and returns an
-explicit message telling the operator to run the reset script. That is the
+The three seeded users ship with a placeholder `password_hash` in some
+setups, not a real hash. `is_placeholder_hash` detects that case and returns
+an explicit message telling the operator to run the reset script. That is the
 difference between "your password is wrong" and "this account has never had
 a password set", which is the difference between a user being able to fix it
 and being stuck.
@@ -24,17 +24,16 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from pyodbc import Error as PyodbcError
 
 from app.config import settings
-from app.database import get_db
+from app.database import DbSession, get_db, map_sqlserver_error
 from app.dependencies import (
     CurrentUser,
     denylist,
     get_current_active_refresh_token,
+    load_user,
 )
-from app.models import User
 from app.schemas.auth_schema import (
     LoginRequest,
     Message,
@@ -58,27 +57,25 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 HTTP_422_UNPROCESSABLE_CONTENT = 422
 
 # Reused by /logout, which needs the raw token to find its `jti` - the
-# authenticated User alone is not enough to revoke a specific token.
+# authenticated user alone is not enough to revoke a specific token.
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
-def _load_user_by_name(db: Session, username: str) -> User | None:
-    return db.execute(
-        select(User).where(User.username == username)
-    ).scalar_one_or_none()
+def _load_user_by_name(db: DbSession, username: str) -> dict | None:
+    return db.one("sp_Users_GetByUsername", {"Username": username})
 
 
-def _issue_tokens(user: User) -> TokenResponse:
+def _issue_tokens(user: dict) -> TokenResponse:
     return TokenResponse(
-        access_token=create_access_token(user.user_id, user.role),
-        refresh_token=create_refresh_token(user.user_id),
+        access_token=create_access_token(user["user_id"], user["role"]),
+        refresh_token=create_refresh_token(user["user_id"]),
         expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         user=UserRead.model_validate(user),
     )
 
 
 @router.post("/login", response_model=TokenResponse, summary="Exchange credentials for tokens")
-def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
+def login(payload: LoginRequest, db: DbSession = Depends(get_db)) -> TokenResponse:
     """
     Authenticate and return an access + refresh token pair.
 
@@ -89,16 +86,19 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse
     Deactivated accounts get 403: the credentials were correct, so this is
     not an authentication failure.
     """
-    user = _load_user_by_name(db, payload.username)
+    try:
+        user = _load_user_by_name(db, payload.username)
+    except PyodbcError as exc:
+        raise map_sqlserver_error(exc) from exc
 
-    if user is None or not verify_password(payload.password, user.password_hash):
+    if user is None or not verify_password(payload.password, user["password_hash"]):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    if not user.is_active:
+    if not user["is_active"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is deactivated",
@@ -106,11 +106,11 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse
 
     # Credentials were valid but the account can never work. Say so instead
     # of pretending the password was wrong.
-    if is_placeholder_hash(user.password_hash):
+    if is_placeholder_hash(user["password_hash"]):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=(
-                f"Account '{user.username}' has no usable password hash "
+                f"Account '{user['username']}' has no usable password hash "
                 "(seeded placeholder). Run scripts/reset_user_passwords.py "
                 "to set real passwords."
             ),
@@ -122,7 +122,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse
 @router.post("/refresh", response_model=TokenResponse, summary="Mint a new access token")
 def refresh(
     payload: RefreshRequest | None = None,
-    db: Session = Depends(get_db),
+    db: DbSession = Depends(get_db),
     header_claims: dict | None = Depends(get_current_active_refresh_token),
 ) -> TokenResponse:
     """
@@ -177,13 +177,17 @@ def refresh(
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
 
-    user = db.get(User, user_id)
+    try:
+        user = load_user(db, user_id)
+    except PyodbcError as exc:
+        raise map_sqlserver_error(exc) from exc
+
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User no longer exists",
         )
-    if not user.is_active:
+    if not user["is_active"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Account is deactivated"
         )
@@ -252,30 +256,35 @@ def logout(
 def change_password(
     current: CurrentUser,
     payload: LoginRequest,
-    db: Session = Depends(get_db),
+    db: DbSession = Depends(get_db),
 ) -> Message:
     """
     Replace the caller's own password.
 
     Reuses `LoginRequest` for the body: it carries exactly the two fields
     needed (`username` is ignored in favour of the authenticated identity,
-    `password` is the new value). A dedicated schema would add a field that
-    is never read, which is worse.
+    `password` is the new value).
     """
-    if not verify_password(payload.password, current.password_hash):
+    if not verify_password(payload.password, current["password_hash"]):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="New password cannot be the same as the current one",
         )
 
     try:
-        current.password_hash = hash_password(payload.password)
-        db.commit()
+        new_hash = hash_password(payload.password)
     except ValueError as exc:
-        db.rollback()
         raise HTTPException(
             status_code=HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
         ) from exc
+
+    try:
+        db.call(
+            "sp_Users_ChangePassword",
+            {"UserId": current["user_id"], "NewPasswordHash": new_hash},
+        )
+    except PyodbcError as exc:
+        raise map_sqlserver_error(exc) from exc
 
     # Force other sessions to log in again with the new credentials.
     denylist.clear()

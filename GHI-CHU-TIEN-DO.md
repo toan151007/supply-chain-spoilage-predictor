@@ -2344,7 +2344,7 @@ Mật khẩu thử nghiệm dài **7 byte** — thông báo hoàn toàn bịa, v
 
 ---
 
-## 8t. CHUYỂN DATABASE SANG SQL SERVER — BƯỚC 1 & 2 (24/10/2026)
+## 8t. CHUYỂN DATABASE SANG SQL SERVER — BƯỚC 1, 2 & 3 (24/10/2026)
 
 ### Bối cảnh
 
@@ -2357,7 +2357,7 @@ giá trị tham khảo.
 |-----|---------|
 | SQL Server | 2025 Express · `17.0.1000.7` |
 | Instance | `LAPTOP-I39E3UT2\SQLEXPRESS` |
-| Database | `spoilage_predictor` (đã tạo, **đang trống**) |
+| Database | `spoilage_predictor` (đã nạp lại đầy đủ dữ liệu ở Bước 3) |
 | Xác thực | SQL Server Authentication (`sa`) — mật khẩu chỉ trong `.env` |
 | Driver | `pyodbc 5.3.0` + ODBC Driver 18 for SQL Server |
 
@@ -2367,7 +2367,7 @@ giá trị tham khảo.
 |------|----------|-----------|
 | 1 | Cập nhật `AGENTS.md` (tech stack, commands, rules, SQL rules, môi trường, Known Issues, Current Progress) và file này | Xong |
 | 2 | Tạo `database/HUONG-DAN-CHAY-SSMS.md` chứa **toàn bộ T-SQL** để copy/paste trên SSMS | Xong |
-| 3 | Đổi `config.py` / `database.py` sang pyodbc + chuyển router sang Stored Procedure + nạp lại dữ liệu | **Chờ user chạy thử file T-SQL** |
+| 3 | Đổi `config.py` / `database.py` sang pyodbc + chuyển router sang Stored Procedure + nạp lại dữ liệu | Xong (xem mục dưới) |
 
 ### Nội dung file `HUONG-DAN-CHAY-SSMS.md`
 
@@ -2430,23 +2430,56 @@ Chạy trên database tạm `spoilage_tsql_test` (đã drop sau khi test):
 - Smoke test: tạo cửa hàng, nhóm cha/con, sản phẩm, tồn kho, đơn hàng 2 dòng,
   cập nhật/xoá dòng hàng, đổi trạng thái, sinh cảnh báo, đọc 4 view.
 - Các ràng buộc **chặn đúng**: vòng lặp nhóm hàng, trùng `product_code`,
-  trùng dòng hàng trong đơn, `completed → pending`, xoá đơn còn dòng,
-  xoá sản phẩm/cửa hàng còn lịch sử.
+  trùng dòng hàng trong đơn, `completed → pending`, xoá sản phẩm/cửa hàng còn lịch sử.
+  (Xoá đơn hàng **được phép** và xoá kèm dòng hàng trong cùng transaction — xem Bước 3.)
 - Tổng đơn khớp lại sau mỗi lần thêm/sửa/xoá dòng hàng.
 
-### Việc chưa làm (Bước 3)
+### Bước 3 — đã hoàn tất (24/10/2026)
 
-1. `backend/app/config.py`: thêm `DB_SERVER`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`,
-   `DB_DRIVER` và property `database_url` dạng pyodbc.
-2. `backend/app/database.py`: bỏ `sessionmaker`, tạo `get_connection()` / context manager.
-3. Chuyển 10 router sang `EXEC dbo.sp_...`; map mã lỗi 50001–50005 sang HTTP.
-4. Nạp lại dữ liệu từ `datasets/raw/train.csv` + seed (912.999 `order_items`,
-   3.000 `forecasts`…). **Dữ liệu PostgreSQL không tự chuyển sang.**
-5. Bổ sung Stored Procedure cho dashboard / báo cáo / đề xuất nhập hàng
-   (các endpoint đọc phức tạp) — hiện file Bước 2 mới phủ CRUD + nghiệp vụ lõi.
+| Hạng mục | Kết quả |
+|----------|---------|
+| `backend/app/config.py` | `DB_DRIVER`, `DB_HOST = LAPTOP-I39E3UT2\SQLEXPRESS`, `DB_PORT = 1433`, `DB_USER = sa`; `database_url` dựng qua `odbc_connect` (host có dấu `\` nên không dùng dạng `user:pass@host`) |
+| `backend/app/database.py` | Engine `mssql+pyodbc` với `autocommit=True`; `DbSession` bọc pyodbc raw connection (`call/scalar/rows/one/commit/rollback/close`); `map_sqlserver_error()` map 50001–50005 + 2601/2627/547 |
+| `backend/app/sp_helpers.py` | Gắn object lồng `store` / `product` / `category`, ép `BIT` → `bool`, `Decimal` → `float` |
+| 18 router | Gọi `db.call("sp_...", {...})` — **không còn ORM, không còn raw SQL** trong router |
+| Migration `010` | Thêm **25 Stored Procedure** cho dashboard, dashboard nâng cao, đề xuất nhập hàng, báo cáo, import (dùng `OPENJSON`) + sửa `sp_Orders_Delete` xoá kèm dòng hàng |
+| Tổng Stored Procedure | **74** (49 CRUD/nghiệp vụ + 25 phân tích/báo cáo/import) |
+| Dữ liệu nạp lại | 8 nhóm · 10 cửa hàng · 50 sản phẩm · 3 user · **18.260 đơn / 912.999 dòng hàng** · 1.330 lô tồn kho · 1.596 giao dịch kho · 2.820 dự báo · 492 cảnh báo |
+| Công cụ nạp | `scripts/convert_seed_to_sqlserver.py` + `database/02-seed/seed-sqlserver.sql` + `scripts/load_sqlserver_data.py` |
+
+### Vì sao KHÔNG dùng SQLAlchemy Session cho Stored Procedure
+
+`Session` không có `nextset()`, và procedure tự `COMMIT` transaction ngầm của pyodbc
+gây lỗi `266 Transaction count after EXECUTE indicates a mismatching number`.
+Vì vậy `DbSession` giữ **raw pyodbc connection** lấy từ `engine.raw_connection()`,
+engine đặt `autocommit=True` để procedure tự quản lý transaction của nó.
+
+### Đã test thật ở Bước 3 (qua HTTP, không chỉ đọc code)
+
+- `scripts/smoke_test_api.py`: **48/48 check PASS** — health, auth (login/me), mọi nhóm
+  GET (products, stores, categories, inventory, forecasts, alerts, orders, order-items),
+  toàn bộ dashboard + dashboard nâng cao, 3 recommendation, 4 báo cáo × 3 định dạng
+  (CSV/XLSX/PDF), import template, và các case lỗi 404/409/422/401.
+- `scripts/smoke_test_writes.py`: **29/29 check PASS** — tạo/sửa/xoá sản phẩm,
+  trùng `product_code` → 409, `staff` tạo sản phẩm → 403, tồn kho + trùng lô → 409,
+  đơn hàng 2 dòng (tổng tiền khớp công thức), trùng `order_code` → 409,
+  `completed` bị khoá sửa và không quay lại `pending` → 409,
+  đọc/giải quyết/mở lại cảnh báo, xoá đơn `pending` → 204,
+  import CSV sản phẩm (2 dòng) + xoá sạch dữ liệu test.
+- `python -c "import app.main"` sạch, không còn cảnh báo `HTTP_422_UNPROCESSABLE_ENTITY`.
+
+### Ghi chú còn lại cho Chương 4 / phiên sau
+
+1. `forecasts` nạp **2.820** dòng (94 cặp × 30 ngày) vì file `forecast_summary_30d.csv`
+   hiện có 94 cặp prophet, không phải 100. Khi viết báo cáo dùng đúng số trong DB.
+2. `sp_Orders_Delete` đã đổi sang **xoá dòng hàng trước rồi xoá đơn** trong cùng
+   transaction (khôi phục hành vi `ON DELETE CASCADE` của PostgreSQL). File
+   `HUONG-DAN-CHAY-SSMS.md` cũng đã cập nhật theo.
+3. Xoá tay dữ liệu test: đơn `completed` không xoá được qua API (đúng thiết kế) —
+   dùng SQL trực tiếp như đã làm với các đơn `SMOKE-%`.
 
 ---
 
-*Phiên sau: user chạy `database/HUONG-DAN-CHAY-SSMS.md` trên SSMS và xác nhận
-không lỗi → làm **Bước 3** (pyodbc + router gọi Stored Procedure + nạp dữ liệu)
-→ sau đó **F1 — Setup Frontend React**.*
+*Bước 3 xong. Phiên sau: **F1 — Setup Frontend React** (phân quyền owner/manager vs staff,
+Dark Mode, Responsive).*
+

@@ -47,15 +47,19 @@ def health_v1() -> dict:
     return _health_payload()
 
 
+@api_router.get("/health/database", summary="Kiem tra ket noi database (co tien to /api/v1)")
+def health_database_v1() -> dict:
+    return health_database()
+
+
 @router.get("/health/database", summary="Kiem tra ket noi database")
 def health_database() -> dict:
     """
-    Kiem tra ket noi PostgreSQL.
+    Kiem tra ket noi SQL Server.
 
     `connected` la False thi frontend nen hien thi canh bao thay vi goi
-    cac API khac. `error` chi la TEN LOI (vd OperationalError) de giup
-    chan doan - KHONG tra ve message cua psycopg2 vi co the chua thong
-    tin ket noi nho cam.
+    cac API khac. `error` chi la TEN LOI (vd Error) de giup chan doan -
+    KHONG tra ve message cua driver vi co the chua thong tin ket noi.
     """
     connected, error = check_database()
 

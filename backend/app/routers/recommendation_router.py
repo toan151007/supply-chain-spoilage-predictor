@@ -1,14 +1,16 @@
 """
-Recommendation endpoints (B10): reorder, expiring stock, slow movers.
+Recommendation endpoints (B10 / SQL Server Stored Procedure).
 
-All database access goes through the SQLAlchemy ORM - no raw SQL here.
+All database access goes through `EXEC dbo.sp_Recommendations_*`; there is
+no ORM query in this file. The procedures return the numbers, this module
+turns them into the human-readable `reason`, `priority` and `action` fields.
 
 The anchor date is the most important decision in this module. Sales data
 ends 2017-12-31 and the forecast horizon is January 2018, so "the last 30
 days" has to mean the last 30 days *of available data*, not the last 30 days
 before today. Anchoring on `CURRENT_DATE` would put the window in 2026,
 find zero sales for every product, and report the entire catalogue as
-dead stock. `_data_anchor_date` reads the real maximum sale date instead.
+dead stock. `sp_Recommendations_SlowMoving` finds the real maximum sale date.
 
 A second consequence of that gap: the recommended quantities are not
 actionable in a real sense. The forecast covers a period for which no actual
@@ -19,34 +21,19 @@ stated in each `reason` string so the number never travels without its
 caveat.
 """
 
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import date, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import Integer, case, func, select
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, Query
+from pyodbc import Error as PyodbcError
 
-from app.database import get_db
-from app.models import (
-    Category,
-    Forecast,
-    Inventory,
-    Order,
-    OrderItem,
-    Product,
-    Store,
-)
+from app.database import DbSession, get_db, map_sqlserver_error
 from app.schemas.recommendation_schema import (
     ExpiringRecommendation,
     ImportRecommendation,
-    RecommendationSummary,
     SlowMovingProduct,
 )
 
 router = APIRouter(prefix="/recommendations", tags=["recommendations"])
-
-HTTP_422_UNPROCESSABLE_CONTENT = 422
-
-VN_TZ = timezone(timedelta(hours=7))
 
 # Window used for the "recent sales" side of both recommendations.
 DEFAULT_LOOKBACK_DAYS = 30
@@ -68,36 +55,6 @@ def _f(value) -> float:
     return 0.0 if value is None else float(value)
 
 
-def _start_of_day(day: date) -> datetime:
-    return datetime.combine(day, time.min, tzinfo=VN_TZ)
-
-
-def _data_anchor_date(db: Session) -> date:
-    """
-    The most recent day that actually has SOLD.
-
-    Two filters matter here, and dropping either one breaks the module:
-
-    - Anchoring on CURRENT_DATE would put the window in 2026, find no sales
-      at all, and report the entire catalogue as dead stock.
-    - Anchoring on the newest order of any status is just as wrong. A
-      single draft order created "now" carries today's date, so creating one
-      would drag the anchor forward and silently zero every sales figure in
-      the recommendations. Only completed sales count.
-
-    Returns today when there is no completed sales history at all, which
-    keeps the query well-formed and surfaces an empty result rather than an
-    error.
-    """
-    latest = db.execute(
-        select(func.max(Order.order_date))
-        .where(Order.status == "completed", Order.order_type == "sale")
-    ).scalar_one()
-    if latest is None:
-        return date.today()
-    return latest.date() if isinstance(latest, datetime) else latest
-
-
 def _priority_for(value: float, high: float, medium: float) -> str:
     """Map a magnitude onto high / medium / low."""
     if value >= high:
@@ -107,16 +64,13 @@ def _priority_for(value: float, high: float, medium: float) -> str:
     return "low"
 
 
-# ===========================================================================
-# GET /recommendations/import
-# ===========================================================================
 @router.get(
     "/import",
     response_model=list[ImportRecommendation],
     summary="Recommended reorder quantity per store and product",
 )
 def recommend_import(
-    db: Session = Depends(get_db),
+    db: DbSession = Depends(get_db),
     store_id: int | None = Query(None, gt=0),
     product_id: int | None = Query(None, gt=0),
     min_qty: float = Query(0, ge=0, description="Hide rows at or below this"),
@@ -138,120 +92,31 @@ def recommend_import(
     combinations. Note that products 13, 28 and 45 have forecasts for only 9
     stores - see AGENTS.md.
     """
-    anchor = _data_anchor_date(db)
-
-    # Forecast horizon read from the data rather than assumed to be 30 days.
-    horizon_start, horizon_end = db.execute(
-        select(func.min(Forecast.forecast_date), func.max(Forecast.forecast_date))
-    ).one()
-    horizon_days = (
-        (horizon_end - horizon_start).days + 1
-        if horizon_start and horizon_end
-        else 0
-    )
-
-    # 1. Demand: sum the forecast across the horizon, per store+product.
-    fc_filters = []
-    if store_id is not None:
-        fc_filters.append(Forecast.store_id == store_id)
-    if product_id is not None:
-        fc_filters.append(Forecast.product_id == product_id)
-
-    demand_rows = db.execute(
-        select(
-            Forecast.store_id,
-            Forecast.product_id,
-            func.sum(Forecast.predicted_quantity),
-            func.sum(Forecast.lower_bound),
-            func.sum(Forecast.upper_bound),
+    try:
+        rows = db.rows(
+            "sp_Recommendations_Import",
+            {
+                "StoreId": store_id,
+                "ProductId": product_id,
+                "MinQty": min_qty,
+                "Limit": limit,
+            },
         )
-        .where(*fc_filters)
-        .group_by(Forecast.store_id, Forecast.product_id)
-    ).all()
-
-    if not demand_rows:
-        return []
-
-    store_ids = {r[0] for r in demand_rows}
-    product_ids = {r[1] for r in demand_rows}
-
-    # 2. Stock on hand, split into usable and at-risk.
-    # The CASE keeps the two sums in one pass over the rows. A NULL
-    # expiry_date falls to else_=0, which is right: an undated batch has no
-    # expiry risk and counts entirely as usable.
-    risk_cutoff = date.today() + timedelta(days=EXPIRY_RISK_DAYS)
-    stock_rows = db.execute(
-        select(
-            Inventory.store_id,
-            Inventory.product_id,
-            func.coalesce(func.sum(Inventory.quantity), 0),
-            func.coalesce(
-                func.sum(
-                    case(
-                        (Inventory.expiry_date <= risk_cutoff, Inventory.quantity),
-                        else_=0,
-                    )
-                ),
-                0,
-            ),
-        )
-        .where(
-            Inventory.store_id.in_(store_ids),
-            Inventory.product_id.in_(product_ids),
-            Inventory.quantity > 0,
-        )
-        .group_by(Inventory.store_id, Inventory.product_id)
-    ).all()
-
-    stock = {(s, p): (total, at_risk) for s, p, total, at_risk in stock_rows}
-
-    # 3. Product and store metadata, in one query each.
-    products = {
-        p.product_id: p
-        for p in db.execute(
-            select(Product).where(Product.product_id.in_(product_ids))
-        ).scalars().all()
-    }
-    categories = {
-        c.category_id: c
-        for c in db.execute(
-            select(Category).where(
-                Category.category_id.in_(
-                    [p.category_id for p in products.values()]
-                )
-            )
-        ).scalars().all()
-    }
-    stores = {
-        s.store_id: s
-        for s in db.execute(
-            select(Store).where(Store.store_id.in_(store_ids))
-        ).scalars().all()
-    }
+    except PyodbcError as exc:
+        raise map_sqlserver_error(exc) from exc
 
     results = []
-    for s_id, p_id, predicted, lower, upper in demand_rows:
-        product = products.get(p_id)
-        store = stores.get(s_id)
-        if product is None or store is None:
-            continue
-
-        predicted = _f(predicted)
-        current_stock, at_risk = stock.get((s_id, p_id), (0.0, 0.0))
-        current_stock = _f(current_stock)
-        at_risk = _f(at_risk)
+    for r in rows:
+        predicted = _f(r["predicted_demand"])
+        current_stock = _f(r["current_stock"])
+        at_risk = _f(r["expiring_stock"])
+        safety = _f(r["safety_stock"])
+        recommended = _f(r["recommended_import_qty"])
+        horizon_days = int(r["horizon_days"] or 0)
+        lower = r["lower_sum"]
+        upper = r["upper_sum"]
 
         usable_stock = max(0.0, current_stock - at_risk)
-        safety = _f(
-            product.reorder_point
-            if product.reorder_point is not None
-            else product.min_stock
-        )
-
-        recommended = max(0.0, predicted - usable_stock + safety)
-
-        if recommended <= min_qty:
-            continue
 
         # Thresholds are relative to the forecast itself: a gap equal to a
         # whole day's forecast is a normal refill, several times that is a
@@ -282,17 +147,13 @@ def recommend_import(
 
         results.append(
             ImportRecommendation(
-                product_id=p_id,
-                product_code=product.product_code,
-                product_name=product.product_name,
-                category_name=(
-                    categories[product.category_id].category_name
-                    if product.category_id in categories
-                    else None
-                ),
-                store_id=s_id,
-                store_code=store.store_code,
-                store_name=store.store_name,
+                product_id=r["product_id"],
+                product_code=r["product_code"],
+                product_name=r["product_name"],
+                category_name=r["category_name"],
+                store_id=r["store_id"],
+                store_code=r["store_code"],
+                store_name=r["store_name"],
                 current_stock=current_stock,
                 expiring_stock=at_risk,
                 predicted_demand=round(predicted, 3),
@@ -303,20 +164,16 @@ def recommend_import(
             )
         )
 
-    results.sort(key=lambda r: r.recommended_import_qty, reverse=True)
-    return results[:limit]
+    return results
 
 
-# ===========================================================================
-# GET /recommendations/expiring
-# ===========================================================================
 @router.get(
     "/expiring",
     response_model=list[ExpiringRecommendation],
     summary="Recommended actions for batches about to expire",
 )
 def recommend_expiring(
-    db: Session = Depends(get_db),
+    db: DbSession = Depends(get_db),
     days: int = Query(
         DEFAULT_EXPIRING_WINDOW_DAYS, ge=1, le=EXPIRY_RISK_DAYS,
         description="Include batches expiring within this many days",
@@ -337,72 +194,28 @@ def recommend_expiring(
       - already expired or expiring within 2 days -> destroy, too late for
         either and moving it would only shift the loss to another store
     """
+    try:
+        rows = db.rows(
+            "sp_Recommendations_Expiring",
+            {
+                "Days": days,
+                "StoreId": store_id,
+                "ProductId": product_id,
+                "MinValue": min_value,
+                "Limit": limit,
+            },
+        )
+    except PyodbcError as exc:
+        raise map_sqlserver_error(exc) from exc
+
     today = date.today()
-    cutoff = today + timedelta(days=days)
     halfway = today + timedelta(days=days // 2)
 
-    filters = [
-        Inventory.quantity > 0,
-        Inventory.expiry_date.isnot(None),
-        Inventory.expiry_date <= cutoff,
-    ]
-    if store_id is not None:
-        filters.append(Inventory.store_id == store_id)
-    if product_id is not None:
-        filters.append(Inventory.product_id == product_id)
-
-    days_left = func.cast(
-        Inventory.expiry_date - func.current_date(), Integer
-    )
-
-    rows = db.execute(
-        select(
-            Inventory.inventory_id,
-            Inventory.store_id,
-            Store.store_code,
-            Store.store_name,
-            Inventory.product_id,
-            Product.product_code,
-            Product.product_name,
-            Inventory.expiry_date,
-            days_left.label("days_to_expiry"),
-            Inventory.quantity,
-            Product.unit_cost,
-            (Inventory.quantity * Product.unit_cost).label("total_value"),
-        )
-        .select_from(Inventory)
-        .join(Store, Store.store_id == Inventory.store_id)
-        .join(Product, Product.product_id == Inventory.product_id)
-        .where(*filters)
-        .order_by((Inventory.quantity * Product.unit_cost).desc())
-        .limit(limit)
-    ).all()
-
     results = []
-    for row in rows:
-        # Unpack by name. Reading row[10] when the tuple has twelve columns
-        # is a silent way to report the unit cost as the batch total, which
-        # is exactly the bug this replaced.
-        (
-            inventory_id,
-            store_id,
-            store_code,
-            store_name,
-            product_id,
-            product_code,
-            product_name,
-            expiry_date,
-            days_left,
-            quantity,
-            unit_cost,
-            total_value,
-        ) = row
-
-        total_value = _f(total_value)
-        if total_value < min_value:
-            continue
-
-        d_left = int(days_left)
+    for r in rows:
+        expiry_date = r["expiry_date"]
+        d_left = int(r["days_to_expiry"] or 0)
+        total_value = _f(r["total_value"])
 
         if d_left < 0:
             action = "destroy"
@@ -429,17 +242,17 @@ def recommend_expiring(
 
         results.append(
             ExpiringRecommendation(
-                inventory_id=inventory_id,
-                store_id=store_id,
-                store_code=store_code,
-                store_name=store_name,
-                product_id=product_id,
-                product_code=product_code,
-                product_name=product_name,
+                inventory_id=r["inventory_id"],
+                store_id=r["store_id"],
+                store_code=r["store_code"],
+                store_name=r["store_name"],
+                product_id=r["product_id"],
+                product_code=r["product_code"],
+                product_name=r["product_name"],
                 expiry_date=expiry_date.isoformat(),
                 days_to_expiry=d_left,
-                quantity=_f(quantity),
-                unit_value=_f(unit_cost),
+                quantity=_f(r["quantity"]),
+                unit_value=_f(r["unit_value"]),
                 total_value=round(total_value, 2),
                 priority=priority,
                 action=action,
@@ -450,16 +263,13 @@ def recommend_expiring(
     return results
 
 
-# ===========================================================================
-# GET /recommendations/slow-moving
-# ===========================================================================
 @router.get(
     "/slow-moving",
     response_model=list[SlowMovingProduct],
     summary="Products holding stock that is not selling",
 )
 def recommend_slow_moving(
-    db: Session = Depends(get_db),
+    db: DbSession = Depends(get_db),
     days: int = Query(
         DEFAULT_LOOKBACK_DAYS, ge=1, le=365,
         description="Lookback window, measured back from the last day with sales",
@@ -478,97 +288,39 @@ def recommend_slow_moving(
     """
     Find stock that is not moving while capital sits in it.
 
-    The window ends at the most recent day that has sales, not today - see
-    `_data_anchor_date`. Anchoring on CURRENT_DATE would find zero sales
-    everywhere and flag the entire catalogue.
+    The window ends at the most recent day that has sales, not today - the
+    procedure computes that anchor. Anchoring on CURRENT_DATE would find
+    zero sales everywhere and flag the entire catalogue.
 
     Pairs with no sales in the window are included with `units_sold_30d = 0`
     and `days_of_cover = None`, because "sold nothing at all" is exactly the
     case worth surfacing and `None` says "no rate exists" rather than
     implying an infinite one.
     """
-    anchor = _data_anchor_date(db)
-    window_start = anchor - timedelta(days=days)
-
-    # Sales per store+product inside the window.
-    sold_rows = db.execute(
-        select(
-            Order.store_id,
-            OrderItem.product_id,
-            func.coalesce(func.sum(OrderItem.quantity), 0),
+    try:
+        rows = db.rows(
+            "sp_Recommendations_SlowMoving",
+            {
+                "Days": days,
+                "StoreId": store_id,
+                "MaxUnitsSold": max_units_sold,
+                "MinStock": min_stock,
+                "Limit": limit,
+            },
         )
-        .select_from(OrderItem)
-        .join(Order, Order.order_id == OrderItem.order_id)
-        .where(
-            Order.status == "completed",
-            Order.order_type == "sale",
-            Order.order_date >= _start_of_day(window_start),
-            Order.order_date < _start_of_day(anchor + timedelta(days=1)),
-        )
-        .group_by(Order.store_id, OrderItem.product_id)
-    ).all()
-    sold = {(s, p): _f(q) for s, p, q in sold_rows}
-
-    # Current stock per store+product.
-    stock_rows = db.execute(
-        select(
-            Inventory.store_id,
-            Inventory.product_id,
-            func.coalesce(func.sum(Inventory.quantity), 0),
-        )
-        .where(Inventory.quantity > 0)
-        .group_by(Inventory.store_id, Inventory.product_id)
-    ).all()
-    stock = {(s, p): _f(q) for s, p, q in stock_rows}
-
-    if not stock:
-        return []
-
-    pairs = sorted(stock.keys())
-    product_ids = {p for _, p in pairs}
-    store_ids = {s for s, _ in pairs}
-
-    products = {
-        p.product_id: p
-        for p in db.execute(
-            select(Product).where(Product.product_id.in_(product_ids))
-        ).scalars().all()
-    }
-    categories = {
-        c.category_id: c
-        for c in db.execute(
-            select(Category).where(
-                Category.category_id.in_([p.category_id for p in products.values()])
-            )
-        ).scalars().all()
-    }
-    stores = {
-        s.store_id: s
-        for s in db.execute(
-            select(Store).where(Store.store_id.in_(store_ids))
-        ).scalars().all()
-    }
+    except PyodbcError as exc:
+        raise map_sqlserver_error(exc) from exc
 
     results = []
-    for s_id, p_id in pairs:
-        current = stock[(s_id, p_id)]
-        if current < min_stock:
-            continue
-        units = sold.get((s_id, p_id), 0.0)
-        if units > max_units_sold:
-            continue
-
-        product = products.get(p_id)
-        store = stores.get(s_id)
-        if product is None or store is None:
-            continue
+    for r in rows:
+        current = _f(r["current_stock"])
+        units = _f(r["units_sold"])
+        stock_value = _f(r["stock_value"])
 
         avg_daily = units / days
         # None rather than a huge number: with zero sales there is no rate
         # to compute cover from, and an invented figure would mislead.
         days_of_cover = round(current / avg_daily, 1) if avg_daily > 0 else None
-
-        stock_value = current * _f(product.unit_cost)
 
         if units == 0:
             action = "stop_ordering"
@@ -594,17 +346,13 @@ def recommend_slow_moving(
 
         results.append(
             SlowMovingProduct(
-                product_id=p_id,
-                product_code=product.product_code,
-                product_name=product.product_name,
-                category_name=(
-                    categories[product.category_id].category_name
-                    if product.category_id in categories
-                    else None
-                ),
-                store_id=s_id,
-                store_code=store.store_code,
-                store_name=store.store_name,
+                product_id=r["product_id"],
+                product_code=r["product_code"],
+                product_name=r["product_name"],
+                category_name=r["category_name"],
+                store_id=r["store_id"],
+                store_code=r["store_code"],
+                store_name=r["store_name"],
                 current_stock=current,
                 stock_value=round(stock_value, 2),
                 units_sold_30d=units,
@@ -616,6 +364,4 @@ def recommend_slow_moving(
             )
         )
 
-    results.sort(key=lambda r: r.stock_value, reverse=True)
-    return results[:limit]
-
+    return results

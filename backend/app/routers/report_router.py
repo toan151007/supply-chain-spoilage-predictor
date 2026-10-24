@@ -1,14 +1,14 @@
 """
-Report export endpoints (B11): CSV, XLSX and PDF.
+Report export endpoints (B11 / SQL Server Stored Procedure): CSV, XLSX, PDF.
 
-All database access goes through the SQLAlchemy ORM - no raw SQL here.
+All database access goes through `EXEC dbo.sp_Reports_*`; there is no ORM
+query in this file.
 
 One helper builds the bytes for all three formats from the same row list,
 so a report can never disagree with itself across formats: the CSV, the
 spreadsheet and the PDF are rendered from a single set of rows.
 
-Date filters are `date`, not `datetime`, matching the dashboard endpoints -
-see the timezone note in AGENTS.md.
+Date filters are `date`, not `datetime`, matching the dashboard endpoints.
 
 Filenames are ASCII and deterministic. A Vietnamese filename in the
 `Content-Disposition` header has to be RFC 5987 encoded to survive browsers,
@@ -23,22 +23,18 @@ back partial data.
 """
 
 import io
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import date, timedelta
 
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from sqlalchemy import Integer, case, func, select
-from sqlalchemy.orm import Session
+from pyodbc import Error as PyodbcError
 
-from app.database import get_db
-from app.models import Category, Inventory, Order, OrderItem, Product, Store
+from app.database import DbSession, get_db, map_sqlserver_error
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
 HTTP_422_UNPROCESSABLE_CONTENT = 422
-
-VN_TZ = timezone(timedelta(hours=7))
 
 # Guard against building a workbook that will not fit in memory.
 MAX_EXPORT_ROWS = 50_000
@@ -59,10 +55,6 @@ PDF_MEDIA = "application/pdf"
 
 def _f(value) -> float:
     return 0.0 if value is None else float(value)
-
-
-def _start_of_day(day: date) -> datetime:
-    return datetime.combine(day, time.min, tzinfo=VN_TZ)
 
 
 def _validate_range(from_date: date | None, to_date: date | None) -> None:
@@ -205,7 +197,7 @@ def _pdf_cell(value) -> str:
 # ===========================================================================
 @router.get("/inventory/export", summary="Export the stock report")
 def export_inventory(
-    db: Session = Depends(get_db),
+    db: DbSession = Depends(get_db),
     fmt: str = Query("csv", alias="format", pattern="^(csv|xlsx|pdf)$"),
     store_id: int | None = Query(None, gt=0),
     product_id: int | None = Query(None, gt=0),
@@ -220,58 +212,35 @@ def export_inventory(
     is what a stock report is actually for - a store holding three batches
     of one product has three different deadlines.
     """
-    filters = []
-    if in_stock_only:
-        filters.append(Inventory.quantity > 0)
-    if store_id is not None:
-        filters.append(Inventory.store_id == store_id)
-    if product_id is not None:
-        filters.append(Inventory.product_id == product_id)
-    if category_id is not None:
-        filters.append(Product.category_id == category_id)
-
-    rows = db.execute(
-        select(
-            Inventory.inventory_id,
-            Store.store_code,
-            Store.store_name,
-            Product.product_code,
-            Product.product_name,
-            Category.category_name,
-            Inventory.batch_code,
-            Inventory.expiry_date,
-            func.cast(
-                Inventory.expiry_date - func.current_date(), Integer
-            ).label("days_left"),
-            Inventory.quantity,
-            Product.unit_cost,
-            (Inventory.quantity * Product.unit_cost).label("total_value"),
-            Inventory.received_date,
+    try:
+        rows = db.rows(
+            "sp_Reports_Inventory",
+            {
+                "StoreId": store_id,
+                "ProductId": product_id,
+                "CategoryId": category_id,
+                "InStockOnly": 1 if in_stock_only else 0,
+                "Limit": limit,
+            },
         )
-        .select_from(Inventory)
-        .join(Store, Store.store_id == Inventory.store_id)
-        .join(Product, Product.product_id == Inventory.product_id)
-        .outerjoin(Category, Category.category_id == Product.category_id)
-        .where(*filters)
-        .order_by(Inventory.expiry_date.asc().nulls_last())
-        .limit(limit)
-    ).all()
+    except PyodbcError as exc:
+        raise map_sqlserver_error(exc) from exc
 
     data = [
         {
-            "Ma lot": r[0],
-            "Ma CH": r[1],
-            "Ten CH": r[2],
-            "Ma SP": r[3],
-            "Ten SP": r[4],
-            "Nhom hang": r[5],
-            "So lo": r[6],
-            "Han su dung": r[7].isoformat() if r[7] else "",
-            "Ngay con lai": r[8],
-            "So luong": _f(r[9]),
-            "Gia von/SP": _f(r[10]),
-            "Gia tri ton": round(_f(r[11]), 2),
-            "Ngay nhap": r[12].isoformat() if r[12] else "",
+            "Ma lot": r["inventory_id"],
+            "Ma CH": r["store_code"],
+            "Ten CH": r["store_name"],
+            "Ma SP": r["product_code"],
+            "Ten SP": r["product_name"],
+            "Nhom hang": r["category_name"],
+            "So lo": r["batch_code"],
+            "Han su dung": r["expiry_date"].isoformat() if r["expiry_date"] else "",
+            "Ngay con lai": r["days_left"],
+            "So luong": _f(r["quantity"]),
+            "Gia von/SP": _f(r["unit_cost"]),
+            "Gia tri ton": round(_f(r["total_value"]), 2),
+            "Ngay nhap": r["received_date"].isoformat() if r["received_date"] else "",
         }
         for r in rows
     ]
@@ -290,7 +259,7 @@ def export_inventory(
 # ===========================================================================
 @router.get("/expiring/export", summary="Export the expiring-stock report")
 def export_expiring(
-    db: Session = Depends(get_db),
+    db: DbSession = Depends(get_db),
     fmt: str = Query("csv", alias="format", pattern="^(csv|xlsx|pdf)$"),
     days: int = Query(
         30, ge=1, le=30,
@@ -307,56 +276,28 @@ def export_expiring(
     `CURRENT_DATE + 30`; allowing a larger value would silently return the
     same rows and imply the user had seen a wider window than they did.
     """
-    cutoff = date.today() + timedelta(days=days)
-
-    filters = [
-        Inventory.quantity > 0,
-        Inventory.expiry_date.isnot(None),
-        Inventory.expiry_date <= cutoff,
-    ]
-    if store_id is not None:
-        filters.append(Inventory.store_id == store_id)
-
-    days_left = func.cast(
-        Inventory.expiry_date - func.current_date(), Integer
-    )
-
-    rows = db.execute(
-        select(
-            Inventory.inventory_id,
-            Store.store_code,
-            Store.store_name,
-            Product.product_code,
-            Product.product_name,
-            Inventory.batch_code,
-            Inventory.expiry_date,
-            days_left,
-            Inventory.quantity,
-            Product.unit_cost,
-            (Inventory.quantity * Product.unit_cost).label("total_value"),
+    try:
+        rows = db.rows(
+            "sp_Reports_Expiring",
+            {"Days": days, "StoreId": store_id, "Limit": limit},
         )
-        .select_from(Inventory)
-        .join(Store, Store.store_id == Inventory.store_id)
-        .join(Product, Product.product_id == Inventory.product_id)
-        .where(*filters)
-        .order_by(Inventory.expiry_date)
-        .limit(limit)
-    ).all()
+    except PyodbcError as exc:
+        raise map_sqlserver_error(exc) from exc
 
     data = [
         {
-            "Ma lot": r[0],
-            "Ma CH": r[1],
-            "Ten CH": r[2],
-            "Ma SP": r[3],
-            "Ten SP": r[4],
-            "So lo": r[5],
-            "Han su dung": r[6].isoformat() if r[6] else "",
-            "Ngay con lai": r[7],
-            "Trang thai": "DA HET HAN" if int(r[7]) < 0 else "sap het han",
-            "So luong": _f(r[8]),
-            "Gia von/SP": _f(r[9]),
-            "Gia tri": round(_f(r[10]), 2),
+            "Ma lot": r["inventory_id"],
+            "Ma CH": r["store_code"],
+            "Ten CH": r["store_name"],
+            "Ma SP": r["product_code"],
+            "Ten SP": r["product_name"],
+            "So lo": r["batch_code"],
+            "Han su dung": r["expiry_date"].isoformat() if r["expiry_date"] else "",
+            "Ngay con lai": r["days_left"],
+            "Trang thai": "DA HET HAN" if int(r["days_left"] or 0) < 0 else "sap het han",
+            "So luong": _f(r["quantity"]),
+            "Gia von/SP": _f(r["unit_cost"]),
+            "Gia tri": round(_f(r["total_value"]), 2),
         }
         for r in rows
     ]
@@ -375,7 +316,7 @@ def export_expiring(
 # ===========================================================================
 @router.get("/sales/export", summary="Export the sales report")
 def export_sales(
-    db: Session = Depends(get_db),
+    db: DbSession = Depends(get_db),
     fmt: str = Query("csv", alias="format", pattern="^(csv|xlsx|pdf)$"),
     from_date: date | None = Query(None),
     to_date: date | None = Query(None),
@@ -394,77 +335,38 @@ def export_sales(
     the view carries a redundant GROUP BY that costs a Sort over 912,999
     rows without changing the totals - see the B8 notes in AGENTS.md.
 
-    Day and month rollups use the database's own date_trunc rather than a
-    Python grouping, so the bucketing happens while the rows stream past
+    Day and month rollups use the database's own date arithmetic rather than
+    a Python grouping, so the bucketing happens while the rows stream past
     instead of after they are all in memory.
     """
     _validate_range(from_date, to_date)
 
-    filters = [Order.status == "completed", Order.order_type == "sale"]
-    if from_date is not None:
-        filters.append(Order.order_date >= _start_of_day(from_date))
-    if to_date is not None:
-        filters.append(Order.order_date < _start_of_day(to_date + timedelta(days=1)))
-    if store_id is not None:
-        filters.append(Order.store_id == store_id)
-    if category_id is not None:
-        filters.append(Product.category_id == category_id)
-
-    # One output row per bucket, and nothing else.
-    #
-    # An earlier version also grouped by store and category for the time
-    # rollups, which turned "sales per day" into 1,826 days x 10 stores x
-    # 8 categories = 146,080 rows and a 3 MB file. A time series wants one
-    # row per period; use group_by=store or group_by=category when that
-    # breakdown is what is actually needed.
-    if group_by in ("day", "week", "month"):
-        label = func.date_trunc(group_by, Order.order_date).label("Ky")
-        extra = []
-    elif group_by == "store":
-        label = Store.store_code.label("Ky")
-        extra = []
-    elif group_by == "category":
-        label = Category.category_name.label("Ky")
-        extra = []
-    else:  # product
-        label = Product.product_code.label("Ky")
-        extra = []
-
-    group_cols = [label] + extra
-
-    rows = db.execute(
-        select(
-            *group_cols,
-            func.count(func.distinct(Order.order_id)).label("orders"),
-            func.coalesce(func.sum(OrderItem.quantity), 0).label("quantity"),
-            func.coalesce(func.sum(OrderItem.line_total), 0).label("revenue"),
+    try:
+        rows = db.rows(
+            "sp_Reports_Sales",
+            {
+                "FromDate": from_date,
+                "ToDate": to_date,
+                "StoreId": store_id,
+                "CategoryId": category_id,
+                "GroupBy": group_by,
+                "Limit": limit,
+            },
         )
-        .select_from(OrderItem)
-        .join(Order, Order.order_id == OrderItem.order_id)
-        .join(Store, Store.store_id == Order.store_id)
-        .join(Product, Product.product_id == OrderItem.product_id)
-        .outerjoin(Category, Category.category_id == Product.category_id)
-        .where(*filters)
-        .group_by(*group_cols)
-        .order_by(label)
-        .limit(limit)
-    ).all()
+    except PyodbcError as exc:
+        raise map_sqlserver_error(exc) from exc
 
-    data = []
-    for row in rows:
-        label_value = row[0]
-        if hasattr(label_value, "date"):
-            label_value = label_value.isoformat()
-        entry = {"Ky": label_value}
-        for i, col in enumerate(group_cols[1:]):
-            entry[col] = row[i + 1]
-        tail = row[len(group_cols):]
-        entry["So don"] = int(tail[0])
-        entry["So luong"] = _f(tail[1])
-        entry["Doanh thu"] = round(_f(tail[2]), 2)
-        data.append(entry)
+    data = [
+        {
+            "Ky": r["bucket"],
+            "So don": int(r["orders"] or 0),
+            "So luong": _f(r["quantity"]),
+            "Doanh thu": round(_f(r["revenue"]), 2),
+        }
+        for r in rows
+    ]
 
-    columns = ["Ky"] + group_cols[1:] + ["So don", "So luong", "Doanh thu"]
+    columns = ["Ky", "So don", "So luong", "Doanh thu"]
 
     response = _render(data, columns, fmt, "bao-cao-ban-hang",
                        f"BAO CAO BAN HANG (theo {group_by})")
@@ -477,7 +379,7 @@ def export_sales(
 # ===========================================================================
 @router.get("/waste/export", summary="Export the waste report")
 def export_waste(
-    db: Session = Depends(get_db),
+    db: DbSession = Depends(get_db),
     fmt: str = Query("csv", alias="format", pattern="^(csv|xlsx|pdf)$"),
     days: int = Query(
         30, ge=1, le=30, description="Expiring window; capped at 30"
@@ -493,65 +395,29 @@ def export_waste(
     transfer can recover most of it - and the report says so in the header
     row rather than leaving the reader to assume a total loss.
     """
-    cutoff = date.today() + timedelta(days=days)
-
-    filters = [
-        Inventory.quantity > 0,
-        Inventory.expiry_date.isnot(None),
-        Inventory.expiry_date <= cutoff,
-    ]
-    if store_id is not None:
-        filters.append(Inventory.store_id == store_id)
-
-    days_left = func.cast(
-        Inventory.expiry_date - func.current_date(), Integer
-    )
-
-    state = case(
-        (Inventory.expiry_date < func.current_date(), "DA HET HAN"),
-        else_="SAP HET HAN",
-    )
-
-    rows = db.execute(
-        select(
-            Inventory.inventory_id,
-            Store.store_code,
-            Store.store_name,
-            Product.product_code,
-            Product.product_name,
-            Category.category_name,
-            Inventory.batch_code,
-            Inventory.expiry_date,
-            days_left,
-            state,
-            Inventory.quantity,
-            Product.unit_cost,
-            (Inventory.quantity * Product.unit_cost).label("total_value"),
+    try:
+        rows = db.rows(
+            "sp_Reports_Waste",
+            {"Days": days, "StoreId": store_id, "Limit": limit},
         )
-        .select_from(Inventory)
-        .join(Store, Store.store_id == Inventory.store_id)
-        .join(Product, Product.product_id == Inventory.product_id)
-        .outerjoin(Category, Category.category_id == Product.category_id)
-        .where(*filters)
-        .order_by(state, (Inventory.quantity * Product.unit_cost).desc())
-        .limit(limit)
-    ).all()
+    except PyodbcError as exc:
+        raise map_sqlserver_error(exc) from exc
 
     data = [
         {
-            "Ma lot": r[0],
-            "Ma CH": r[1],
-            "Ten CH": r[2],
-            "Ma SP": r[3],
-            "Ten SP": r[4],
-            "Nhom hang": r[5],
-            "So lo": r[6],
-            "Han su dung": r[7].isoformat() if r[7] else "",
-            "Ngay con lai": r[8],
-            "Trang thai": r[9],
-            "So luong": _f(r[10]),
-            "Gia von/SP": _f(r[11]),
-            "Gia tri (uoc toi da)": round(_f(r[12]), 2),
+            "Ma lot": r["inventory_id"],
+            "Ma CH": r["store_code"],
+            "Ten CH": r["store_name"],
+            "Ma SP": r["product_code"],
+            "Ten SP": r["product_name"],
+            "Nhom hang": r["category_name"],
+            "So lo": r["batch_code"],
+            "Han su dung": r["expiry_date"].isoformat() if r["expiry_date"] else "",
+            "Ngay con lai": r["days_left"],
+            "Trang thai": r["state"],
+            "So luong": _f(r["quantity"]),
+            "Gia von/SP": _f(r["unit_cost"]),
+            "Gia tri (uoc toi da)": round(_f(r["total_value"]), 2),
         }
         for r in rows
     ]
@@ -563,4 +429,3 @@ def export_waste(
                        "BAO CAO LANG PHI (uoc toi da)")
     _truncate_header(rows, limit, response)
     return response
-

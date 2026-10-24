@@ -1,57 +1,57 @@
 """
-CRUD router for inventory (stock batches).
+CRUD router for inventory / stock batches (B3 - SQL Server Stored Procedure).
 
-A product at a store can sit in several batches with different expiry
-dates, so a batch is identified by UNIQUE (store_id, product_id,
-expiry_date). Expiry date lives here rather than on `products` because it
-belongs to a batch, not to the product itself.
+A product at a store can sit in several batches with different expiry dates,
+so a batch is identified by UNIQUE (store_id, product_id, expiry_date). The
+procedure raises 50002 when that triple already exists and the router maps it
+to 409.
 """
 
-from datetime import date, timedelta
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session, joinedload
+from pyodbc import Error as PyodbcError
 
+from app.database import DbSession, get_db, map_sqlserver_error
 from app.dependencies import require_role
-from app.database import get_db
-from app.models import Inventory, Product, Store
+from app.schemas.common import Page
 from app.schemas.inventory_schema import (
-    ExpiringBatch,
     ExpiringReport,
     InventoryCreate,
     InventoryRead,
     InventoryUpdate,
 )
-from app.schemas.common import Page
+from app.sp_helpers import attach_product, attach_store
 
 router = APIRouter(prefix="/inventory", tags=["inventory"])
 
-HTTP_422_UNPROCESSABLE_CONTENT = 422
+
+def _to_read(row: dict) -> dict:
+    row = dict(row)
+    attach_store(row)
+    attach_product(row)
+    return row
 
 
-def _get_batch_or_404(db: Session, inventory_id: int) -> Inventory:
-    batch = db.execute(
-        select(Inventory)
-        .options(joinedload(Inventory.store), joinedload(Inventory.product))
-        .where(Inventory.inventory_id == inventory_id)
-    ).scalar_one_or_none()
-
-    if batch is None:
+def _get_row_or_404(db: DbSession, inventory_id: int) -> dict:
+    row = db.one("sp_Inventory_Get", {"InventoryId": inventory_id})
+    if row is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Inventory batch {inventory_id} not found",
         )
-    return batch
+    return row
 
 
+# NOTE: `/expiring` must be declared BEFORE `/{inventory_id}`. FastAPI
+# matches routes in order; the int path parameter would try to parse
+# "expiring" and answer 422 instead of reaching this handler.
 @router.get(
     "/expiring", response_model=ExpiringReport,
     summary="Batches expiring within N days",
 )
 def list_expiring(
-    db: Session = Depends(get_db),
+    db: DbSession = Depends(get_db),
     days: int = Query(7, ge=1, le=365, description="Window in days"),
     store_id: int | None = Query(None, gt=0),
     product_id: int | None = Query(None, gt=0),
@@ -59,59 +59,35 @@ def list_expiring(
         True, description="Include batches already past their expiry date"
     ),
 ) -> ExpiringReport:
-    """
-    Report batches whose expiry date falls inside the window.
-
-    Expired rows have a negative `days_left`. They are included by default
-    because an expired batch is the most urgent thing on this report; pass
-    `include_expired=false` to look only at batches that are still usable.
-
-    Only batches with `quantity > 0` are returned - an empty batch cannot
-    spoil and would only add noise.
-    """
-    today = date.today()
-    cutoff = today + timedelta(days=days)
-
-    conditions = [
-        Inventory.quantity > 0,
-        Inventory.expiry_date.isnot(None),
-        Inventory.expiry_date <= cutoff,
-    ]
-    if not include_expired:
-        conditions.append(Inventory.expiry_date >= today)
-    if store_id is not None:
-        conditions.append(Inventory.store_id == store_id)
-    if product_id is not None:
-        conditions.append(Inventory.product_id == product_id)
-
-    rows = db.execute(
-        select(Inventory)
-        .options(joinedload(Inventory.product))
-        .where(*conditions)
-        .order_by(Inventory.expiry_date)
-    ).scalars().all()
-
-    items = [
-        ExpiringBatch(
-            inventory_id=b.inventory_id,
-            store_id=b.store_id,
-            product_id=b.product_id,
-            expiry_date=b.expiry_date,
-            days_left=(b.expiry_date - today).days if b.expiry_date else None,
-            quantity=float(b.quantity),
-            product=b.product,
+    try:
+        # The view behind the procedure covers a fixed 30-day window, so a
+        # larger `days` cannot widen the result.
+        sets = db.call(
+            "sp_Inventory_ListExpiring",
+            {
+                "Days": min(days, 30),
+                "StoreId": store_id,
+                "ProductId": product_id,
+                "IncludeExpired": 1 if include_expired else 0,
+            },
         )
-        for b in rows
-    ]
+    except PyodbcError as exc:
+        raise map_sqlserver_error(exc) from exc
+
+    items = []
+    for row in (sets[0] if sets else []):
+        row = dict(row)
+        attach_product(row)
+        items.append(row)
 
     return ExpiringReport(
-        days=days, as_of=today, total=len(items), items=items
+        days=days, as_of=date.today(), total=len(items), items=items
     )
 
 
 @router.get("", response_model=Page[InventoryRead], summary="List stock batches")
 def list_inventory(
-    db: Session = Depends(get_db),
+    db: DbSession = Depends(get_db),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     store_id: int | None = Query(None, gt=0),
@@ -120,31 +96,24 @@ def list_inventory(
     expiry_before: date | None = Query(None, description="Expiry date on or before"),
     in_stock_only: bool = Query(False, description="Only batches with quantity > 0"),
 ) -> Page[InventoryRead]:
-    """Paginated stock batch list with store, product and date filters."""
-    filters = []
-    if store_id is not None:
-        filters.append(Inventory.store_id == store_id)
-    if product_id is not None:
-        filters.append(Inventory.product_id == product_id)
-    if expiry_date is not None:
-        filters.append(Inventory.expiry_date == expiry_date)
-    if expiry_before is not None:
-        filters.append(Inventory.expiry_date <= expiry_before)
-    if in_stock_only:
-        filters.append(Inventory.quantity > 0)
+    try:
+        sets = db.call(
+            "sp_Inventory_List",
+            {
+                "StoreId": store_id,
+                "ProductId": product_id,
+                "ExpiryDate": expiry_date,
+                "ExpiryBefore": expiry_before,
+                "InStockOnly": 1 if in_stock_only else 0,
+                "Page": page,
+                "PageSize": page_size,
+            },
+        )
+    except PyodbcError as exc:
+        raise map_sqlserver_error(exc) from exc
 
-    total = db.execute(
-        select(func.count()).select_from(Inventory).where(*filters)
-    ).scalar_one()
-
-    items = db.execute(
-        select(Inventory)
-        .options(joinedload(Inventory.store), joinedload(Inventory.product))
-        .where(*filters)
-        .order_by(Inventory.inventory_id)
-        .offset((page - 1) * page_size).limit(page_size)
-    ).scalars().all()
-
+    total = int(sets[0][0]["total"]) if sets and sets[0] else 0
+    items = [_to_read(row) for row in (sets[1] if len(sets) > 1 else [])]
     pages = (total + page_size - 1) // page_size
     return Page[InventoryRead](
         total=total, page=page, page_size=page_size, pages=pages, items=items
@@ -152,77 +121,81 @@ def list_inventory(
 
 
 @router.get("/{inventory_id}", response_model=InventoryRead, summary="Get one batch")
-def get_inventory(inventory_id: int, db: Session = Depends(get_db)) -> Inventory:
-    return _get_batch_or_404(db, inventory_id)
+def get_inventory(inventory_id: int, db: DbSession = Depends(get_db)) -> dict:
+    try:
+        return _to_read(_get_row_or_404(db, inventory_id))
+    except PyodbcError as exc:
+        raise map_sqlserver_error(exc) from exc
 
 
 @router.post(
     "", response_model=InventoryRead, status_code=status.HTTP_201_CREATED,
     summary="Create a stock batch",
- dependencies=[Depends(require_role('owner', 'manager', 'staff'))],)
+    dependencies=[Depends(require_role("owner", "manager", "staff"))],
+)
 def create_inventory(
-    payload: InventoryCreate, db: Session = Depends(get_db)
-) -> Inventory:
-    if db.get(Store, payload.store_id) is None:
-        raise HTTPException(
-            status_code=HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"Store {payload.store_id} does not exist",
-        )
-    if db.get(Product, payload.product_id) is None:
-        raise HTTPException(
-            status_code=HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"Product {payload.product_id} does not exist",
-        )
-
-    batch = Inventory(**payload.model_dump())
-    db.add(batch)
+    payload: InventoryCreate, db: DbSession = Depends(get_db)
+) -> dict:
+    data = payload.model_dump()
     try:
-        db.commit()
-    except IntegrityError as exc:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=(
-                "A batch for this store, product and expiry date already "
-                "exists (UNIQUE constraint)."
-            ),
-        ) from exc
-
-    db.refresh(batch)
-    return _get_batch_or_404(db, batch.inventory_id)
+        row = db.one(
+            "sp_Inventory_Create",
+            {
+                "StoreId": data["store_id"],
+                "ProductId": data["product_id"],
+                "ExpiryDate": data["expiry_date"],
+                "Quantity": data["quantity"],
+                "ReceivedDate": data["received_date"],
+                "BatchCode": data["batch_code"],
+            },
+        )
+        if row is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Batch was created but could not be read back",
+            )
+        return _to_read(row)
+    except HTTPException:
+        raise
+    except PyodbcError as exc:
+        raise map_sqlserver_error(exc) from exc
 
 
 @router.put(
-    "/{inventory_id}", response_model=InventoryRead, summary="Update a stock batch"
-, dependencies=[Depends(require_role('owner', 'manager', 'staff'))])
+    "/{inventory_id}", response_model=InventoryRead, summary="Update a stock batch",
+    dependencies=[Depends(require_role("owner", "manager", "staff"))],
+)
 def update_inventory(
-    inventory_id: int, payload: InventoryUpdate, db: Session = Depends(get_db)
-) -> Inventory:
-    batch = _get_batch_or_404(db, inventory_id)
-
-    changes = payload.model_dump(exclude_unset=True)
-    for field, value in changes.items():
-        setattr(batch, field, value)
-
+    inventory_id: int, payload: InventoryUpdate, db: DbSession = Depends(get_db)
+) -> dict:
     try:
-        db.commit()
-    except IntegrityError as exc:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Another batch already uses this store, product and expiry date.",
-        ) from exc
-
-    db.refresh(batch)
-    return batch
+        current = _get_row_or_404(db, inventory_id)
+        merged = {**current, **payload.model_dump(exclude_unset=True)}
+        db.call(
+            "sp_Inventory_Update",
+            {
+                "InventoryId": inventory_id,
+                "ExpiryDate": merged["expiry_date"],
+                "Quantity": merged["quantity"],
+                "ReceivedDate": merged["received_date"],
+                "BatchCode": merged["batch_code"],
+            },
+        )
+        return _to_read(_get_row_or_404(db, inventory_id))
+    except HTTPException:
+        raise
+    except PyodbcError as exc:
+        raise map_sqlserver_error(exc) from exc
 
 
 @router.delete(
     "/{inventory_id}", status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a stock batch",
- dependencies=[Depends(require_role('owner', 'manager', 'staff'))],)
-def delete_inventory(inventory_id: int, db: Session = Depends(get_db)) -> None:
-    """Delete a batch. No table has a foreign key to inventory, so this succeeds."""
-    batch = _get_batch_or_404(db, inventory_id)
-    db.delete(batch)
-    db.commit()
+    dependencies=[Depends(require_role("owner", "manager", "staff"))],
+)
+def delete_inventory(inventory_id: int, db: DbSession = Depends(get_db)) -> None:
+    try:
+        db.call("sp_Inventory_Delete", {"InventoryId": inventory_id})
+    except PyodbcError as exc:
+        raise map_sqlserver_error(exc) from exc
+    return None

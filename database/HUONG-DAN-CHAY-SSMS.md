@@ -1740,9 +1740,8 @@ BEGIN
         IF @@TRANCOUNT = 0 BEGIN TRANSACTION;
         IF NOT EXISTS (SELECT 1 FROM dbo.orders WHERE order_id = @OrderId)
             THROW 50001, N'Order not found', 1;
-        IF EXISTS (SELECT 1 FROM dbo.order_items WHERE order_id = @OrderId)
-            THROW 50003, N'Order still has lines; delete them first', 1;
 
+        DELETE FROM dbo.order_items WHERE order_id = @OrderId;
         DELETE FROM dbo.orders WHERE order_id = @OrderId;
         IF @@TRANCOUNT > 0 COMMIT TRANSACTION;
     END TRY

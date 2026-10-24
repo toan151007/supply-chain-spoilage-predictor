@@ -1,15 +1,16 @@
 """
 File import endpoints (Excel / CSV) for products, inventory and sales.
 
-All database access goes through the SQLAlchemy ORM - no raw SQL here, as
-required by the project rules.
+All database access goes through `EXEC dbo.sp_Import_*`; there is no ORM
+query in this file.
 
 How an import runs
 ------------------
 1. The upload is read and decoded into a DataFrame. A wrong extension or
    undecodable bytes fail with 400 before pandas is involved.
 2. Required columns are checked. A missing one fails with 422.
-3. Every row is validated in memory. Nothing is written yet.
+3. Reference ids (categories, stores, products) are loaded once, then every
+   row is validated in memory. Nothing is written yet.
 4. Only then, depending on the strategy:
      - `rollback` (default): any bad row aborts the whole file, 0 rows
        written.
@@ -19,13 +20,12 @@ Validating before writing is what makes `rollback` meaningful. With a
 row-at-a-time insert there is no "unwritten" state to compare against, and a
 file with row 9,001 bad would leave 9,000 rows behind.
 
-Import dates are interpreted as Asia/Ho_Chi_Minh (+07:00) to match the
-seeded data - see the timezone note in AGENTS.md. `orders.order_date` is
-`timestamptz`, so attaching the offset explicitly is required; a naive
-datetime is rejected by PostgreSQL.
+Import dates are treated as local wall-clock time, matching the seeded data.
+The set-based writes parse a JSON payload with OPENJSON inside the procedure.
 """
 
 import io
+import json
 from datetime import date, datetime, timedelta, timezone
 
 import pandas as pd
@@ -39,14 +39,11 @@ from fastapi import (
     status,
 )
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from pyodbc import Error as PyodbcError
 
+from app.database import DbSession, get_db, map_sqlserver_error
 from app.dependencies import require_role
-from app.database import get_db
 from app.import_specs import SUPPORTED_EXTENSIONS, get_spec
-from app.models import Category, Inventory, Order, OrderItem, Product, Store
 from app.schemas.import_schema import ImportResult, RowError, TemplateInfo
 
 router = APIRouter(prefix="/import", tags=["import"])
@@ -67,6 +64,15 @@ ORDER_STATUSES = {"pending", "completed", "cancelled"}
 PAYMENT_METHODS = {"cash", "card", "transfer", "ewallet", "other"}
 
 XLSX_MAGIC = b"PK\x03\x04"
+
+
+class _Refs:
+    """Ids that exist in the database, loaded once per import request."""
+
+    def __init__(self, categories: set[int], stores: set[int], products: set[int]):
+        self.categories = categories
+        self.stores = stores
+        self.products = products
 
 
 # ===========================================================================
@@ -126,7 +132,7 @@ def _as_date(value):
 
 
 def _as_datetime(value):
-    """Coerce to a timezone-aware datetime in VN_TZ, or None."""
+    """Coerce to an aware datetime in VN_TZ, or None."""
     if _is_blank(value):
         return None
     try:
@@ -252,7 +258,7 @@ def _check_required_columns(frame: pd.DataFrame, spec) -> None:
 # ===========================================================================
 # Row validators - return (clean_value, error_message)
 # ===========================================================================
-def _validate_products(row, db, seen_codes) -> dict:
+def _validate_products(row, refs: _Refs, seen_codes) -> dict:
     """Validate one product row. Returns (values, error)."""
     code = _as_str(row.get("product_code"))
     if not code:
@@ -268,7 +274,7 @@ def _validate_products(row, db, seen_codes) -> dict:
     category_id = _as_int(row.get("category_id"))
     if category_id is None:
         return None, "category_id must be an integer"
-    if not db.get(Category, category_id):
+    if category_id not in refs.categories:
         return None, f"category_id {category_id} does not exist"
 
     unit = _as_str(row.get("unit"))
@@ -313,18 +319,18 @@ def _validate_products(row, db, seen_codes) -> dict:
     }, None
 
 
-def _validate_inventory(row, db, seen_lots) -> dict:
+def _validate_inventory(row, refs: _Refs, seen_lots) -> dict:
     """Validate one inventory (batch) row. Returns (values, error)."""
     product_id = _as_int(row.get("product_id"))
     if product_id is None:
         return None, "product_id must be an integer"
-    if not db.get(Product, product_id):
+    if product_id not in refs.products:
         return None, f"product_id {product_id} does not exist"
 
     store_id = _as_int(row.get("store_id"))
     if store_id is None:
         return None, "store_id must be an integer"
-    if not db.get(Store, store_id):
+    if store_id not in refs.stores:
         return None, f"store_id {store_id} does not exist"
 
     quantity = _as_float(row.get("quantity"))
@@ -358,7 +364,7 @@ def _validate_inventory(row, db, seen_lots) -> dict:
     }, None
 
 
-def _validate_sales(row, db, seen_codes) -> dict:
+def _validate_sales(row, refs: _Refs, seen_codes) -> dict:
     """Validate one sales row. Returns (values, error)."""
     order_date = _as_datetime(row.get("order_date"))
     if order_date is None:
@@ -367,13 +373,13 @@ def _validate_sales(row, db, seen_codes) -> dict:
     store_id = _as_int(row.get("store_id"))
     if store_id is None:
         return None, "store_id must be an integer"
-    if not db.get(Store, store_id):
+    if store_id not in refs.stores:
         return None, f"store_id {store_id} does not exist"
 
     product_id = _as_int(row.get("product_id"))
     if product_id is None:
         return None, "product_id must be an integer"
-    if not db.get(Product, product_id):
+    if product_id not in refs.products:
         return None, f"product_id {product_id} does not exist"
 
     quantity = _as_float(row.get("quantity"))
@@ -433,18 +439,15 @@ VALIDATORS = {
 
 
 # ===========================================================================
-# Writers
+# Writers - set-based, through stored procedures
 # ===========================================================================
-def _write_products(db: Session, rows: list[dict]) -> list[int]:
+def _write_products(db: DbSession, rows: list[dict]) -> list[int]:
     """Insert validated product rows. Returns the new primary keys."""
-    existing = set(
-        db.execute(
-            select(Product.product_code).where(
-                Product.product_code.in_([r["product_code"] for r in rows])
-            )
-        ).scalars().all()
+    codes = [r["product_code"] for r in rows]
+    existing_rows = db.rows(
+        "sp_Import_CheckProductCodes", {"CodesJson": json.dumps(codes)}
     )
-    clash = sorted(existing)
+    clash = sorted(r["product_code"] for r in existing_rows)
     if clash:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -454,33 +457,31 @@ def _write_products(db: Session, rows: list[dict]) -> list[int]:
             ),
         )
 
-    created = []
-    for values in rows:
-        product = Product(**values)
-        db.add(product)
-        db.flush()  # assign product_id so the response can report it
-        created.append(product.product_id)
-    return created
-
-
-def _write_inventory(db: Session, rows: list[dict]) -> list[int]:
-    """Insert validated batches. Returns the new inventory_id values."""
-    store_ids = {r["store_id"] for r in rows}
-    product_ids = {r["product_id"] for r in rows}
-
-    # One query for all existing lots, instead of one per row.
-    existing = set(
-        db.execute(
-            select(
-                Inventory.store_id,
-                Inventory.product_id,
-                Inventory.expiry_date,
-            ).where(
-                Inventory.store_id.in_(store_ids),
-                Inventory.product_id.in_(product_ids),
-            )
-        ).all()
+    created_rows = db.rows(
+        "sp_Import_Products",
+        {"RowsJson": json.dumps(rows, default=str)},
     )
+    return [int(r["product_id"]) for r in created_rows]
+
+
+def _write_inventory(db: DbSession, rows: list[dict]) -> list[int]:
+    """Insert validated batches. Returns the new inventory_id values."""
+    lots_json = json.dumps(
+        [
+            {
+                "store_id": r["store_id"],
+                "product_id": r["product_id"],
+                "expiry_date": r["expiry_date"].isoformat(),
+            }
+            for r in rows
+        ]
+    )
+    existing_rows = db.rows(
+        "sp_Import_CheckInventoryLots", {"LotsJson": lots_json}
+    )
+    existing = {
+        (r["store_id"], r["product_id"], r["expiry_date"]) for r in existing_rows
+    }
 
     clashes = [
         (r["store_id"], r["product_id"], r["expiry_date"])
@@ -499,16 +500,14 @@ def _write_inventory(db: Session, rows: list[dict]) -> list[int]:
             ),
         )
 
-    created = []
-    for values in rows:
-        lot = Inventory(**values)
-        db.add(lot)
-        db.flush()
-        created.append(lot.inventory_id)
-    return created
+    created_rows = db.rows(
+        "sp_Import_Inventory",
+        {"RowsJson": json.dumps(rows, default=str)},
+    )
+    return [int(r["inventory_id"]) for r in created_rows]
 
 
-def _write_sales(db: Session, rows: list[dict]) -> list[int]:
+def _write_sales(db: DbSession, rows: list[dict]) -> list[int]:
     """
     Insert sales rows, grouping lines that share an order_code.
 
@@ -542,66 +541,50 @@ def _write_sales(db: Session, rows: list[dict]) -> list[int]:
         )
 
     # One query for every order_code in the file, not one per code.
-    existing_codes = set(
-        db.execute(
-            select(Order.order_code).where(Order.order_code.in_(list(groups)))
-        ).scalars().all()
+    existing_rows = db.rows(
+        "sp_Import_CheckOrderCodes",
+        {"CodesJson": json.dumps(list(groups))},
     )
+    existing_codes = sorted(r["order_code"] for r in existing_rows)
     if existing_codes:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
                 f"order_code already exists in the database: "
-                f"{', '.join(sorted(existing_codes))}. Nothing was imported."
+                f"{', '.join(existing_codes)}. Nothing was imported."
             ),
         )
 
-    created = []
+    # order_date is DATETIME2 holding local wall-clock time. Strip the
+    # offset before serialising so OPENJSON parses it as-is.
+    payload = []
     for code, lines in groups.items():
         meta = order_meta[code]
-        order = Order(
-            order_code=code,
-            order_date=meta["order_date"],
-            store_id=meta["store_id"],
-            order_type=meta["order_type"],
-            status=meta["status"],
-            payment_method=meta["payment_method"],
-            customer_name=meta["customer_name"],
-            total_amount=0,
-            total_quantity=0,
+        payload.append(
+            {
+                "order_code": code,
+                "order_date": meta["order_date"].replace(tzinfo=None).isoformat(),
+                "store_id": meta["store_id"],
+                "order_type": meta["order_type"],
+                "status": meta["status"],
+                "payment_method": meta["payment_method"],
+                "customer_name": meta["customer_name"],
+                "lines": [
+                    {
+                        "product_id": line["product_id"],
+                        "quantity": line["quantity"],
+                        "unit_price": line["unit_price"],
+                        "discount_percent": line["discount_percent"],
+                    }
+                    for line in lines
+                ],
+            }
         )
-        db.add(order)
-        db.flush()
 
-        for line in lines:
-            db.add(
-                OrderItem(
-                    order_id=order.order_id,
-                    product_id=line["product_id"],
-                    quantity=line["quantity"],
-                    unit_price=line["unit_price"],
-                    unit_cost=None,
-                    discount_percent=line["discount_percent"],
-                    # line_total is a generated column - the database owns it.
-                )
-            )
-        created.append(order.order_id)
-
-    # Same pattern as the orders router: flush first because the session
-    # runs with autoflush=False, otherwise the SUM reads the old state.
-    db.flush()
-    for order_id in created:
-        total_amount, total_quantity = db.execute(
-            select(
-                func.coalesce(func.sum(OrderItem.line_total), 0),
-                func.coalesce(func.sum(OrderItem.quantity), 0),
-            ).where(OrderItem.order_id == order_id)
-        ).one()
-        order = db.get(Order, order_id)
-        order.total_amount = total_amount
-        order.total_quantity = total_quantity
-
-    return created
+    created_rows = db.rows(
+        "sp_Import_Sales", {"OrdersJson": json.dumps(payload)}
+    )
+    return [int(r["order_id"]) for r in created_rows]
 
 
 WRITERS = {
@@ -629,12 +612,25 @@ def _require_spec(resource_type: str):
     return spec
 
 
+def _load_refs(db: DbSession) -> _Refs:
+    sets = db.call("sp_Import_ReferenceIds")
+    categories = {int(r["category_id"]) for r in (sets[0] if sets else [])}
+    stores = {int(r["store_id"]) for r in (sets[1] if len(sets) > 1 else [])}
+    products = {int(r["product_id"]) for r in (sets[2] if len(sets) > 2 else [])}
+    return _Refs(categories, stores, products)
+
+
 def _run_import(
-    resource_type: str, frame: pd.DataFrame, spec, strategy: str, db: Session
+    resource_type: str, frame: pd.DataFrame, spec, strategy: str, db: DbSession
 ) -> ImportResult:
     """Validate every row, then write according to the strategy."""
     validator = VALIDATORS[resource_type]
     writer = WRITERS[resource_type]
+
+    try:
+        refs = _load_refs(db)
+    except PyodbcError as exc:
+        raise map_sqlserver_error(exc) from exc
 
     seen = set()
     clean_rows: list[dict] = []
@@ -642,7 +638,7 @@ def _run_import(
 
     for offset, (_, row) in enumerate(frame.iterrows()):
         row_number = offset + 1  # 1-based, header excluded
-        values, error = validator(row.to_dict(), db, seen)
+        values, error = validator(row.to_dict(), refs, seen)
         if error:
             if len(errors) < MAX_REPORTED_ERRORS:
                 errors.append(RowError(row_number=row_number, message=error))
@@ -684,19 +680,10 @@ def _run_import(
             ),
         )
 
-    created_ids: list[int] = []
     try:
         created_ids = writer(db, clean_rows)
-        db.commit()
-    except IntegrityError as exc:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=(
-                "The database rejected a row that passed validation "
-                f"(constraint: {exc.orig}). Nothing was imported."
-            ),
-        ) from exc
+    except PyodbcError as exc:
+        raise map_sqlserver_error(exc) from exc
 
     message = f"Imported {len(created_ids)} record(s)."
     if errors:
@@ -719,7 +706,7 @@ def _run_import(
 
 
 def _import_endpoint(
-    resource_type: str, file: UploadFile, strategy: str, db: Session
+    resource_type: str, file: UploadFile, strategy: str, db: DbSession
 ) -> ImportResult:
     """Shared body for the three upload endpoints."""
     spec = _require_spec(resource_type)
@@ -740,7 +727,7 @@ def import_products(
         "rollback", pattern="^(rollback|skip)$",
         description="rollback: write nothing if any row fails. skip: import the good rows.",
     ),
-    db: Session = Depends(get_db),
+    db: DbSession = Depends(get_db),
 ) -> ImportResult:
     """
     Import products.
@@ -760,7 +747,7 @@ def import_inventory(
         "rollback", pattern="^(rollback|skip)$",
         description="rollback: write nothing if any row fails. skip: import the good rows.",
     ),
-    db: Session = Depends(get_db),
+    db: DbSession = Depends(get_db),
 ) -> ImportResult:
     """
     Import inventory batches.
@@ -780,7 +767,7 @@ def import_sales(
         "rollback", pattern="^(rollback|skip)$",
         description="rollback: write nothing if any row fails. skip: import the good rows.",
     ),
-    db: Session = Depends(get_db),
+    db: DbSession = Depends(get_db),
 ) -> ImportResult:
     """
     Import sales.

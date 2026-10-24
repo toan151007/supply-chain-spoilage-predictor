@@ -42,11 +42,13 @@ class Settings(BaseSettings):
     )
 
     # ---- Database ----
-    DB_USER: str = "postgres"
+    DB_USER: str = "sa"
     DB_PASSWORD: str = ""
-    DB_HOST: str = "localhost"
-    DB_PORT: int = 5432
+    DB_HOST: str = "LAPTOP-I39E3UT2\\SQLEXPRESS"
+    DB_PORT: int = 1433
     DB_NAME: str = "spoilage_predictor"
+    # SQL Server (ODBC)
+    DB_DRIVER: str = "ODBC Driver 18 for SQL Server"
 
     # ---- Application ----
     APP_NAME: str = "Supply Chain Spoilage Predictor API"
@@ -111,11 +113,19 @@ class Settings(BaseSettings):
 
     @property
     def database_url(self) -> str:
-        """Chuoi ket noi SQLAlchemy (chuan PostgreSQL + psycopg2)."""
-        return (
-            f"postgresql+psycopg2://{self.DB_USER}:{self.DB_PASSWORD}"
-            f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        """Chuoi ket noi SQLAlchemy (SQL Server + pyodbc - B3)."""
+        from urllib.parse import quote_plus
+
+        odbc = (
+            f"DRIVER={{{self.DB_DRIVER}}};"
+            f"SERVER={self.DB_HOST};"
+            f"DATABASE={self.DB_NAME};"
+            f"UID={self.DB_USER};"
+            f"PWD={self.DB_PASSWORD};"
+            "TrustServerCertificate=yes;"
+            "Encrypt=yes;"
         )
+        return "mssql+pyodbc:///?odbc_connect=" + quote_plus(odbc)
 
 
 @lru_cache
