@@ -2483,3 +2483,61 @@ engine đặt `autocommit=True` để procedure tự quản lý transaction củ
 *Bước 3 xong. Phiên sau: **F1 — Setup Frontend React** (phân quyền owner/manager vs staff,
 Dark Mode, Responsive).*
 
+## 8u. F1 — SETUP FRONTEND REACT + TAILWIND (24/10/2026)
+
+### Công nghệ đã cài
+
+| Thành phần | Phiên bản | Ghi chú |
+|-----------|-----------|---------|
+| Vite | 8.3.5 | Scaffold `react` (React 19), dev server cổng **3000** |
+| React | 19.3.1 | `BrowserRouter` + React Router 7 |
+| Tailwind CSS | 3.4.17 | `darkMode: 'class'`, PostCSS + Autoprefixer |
+| React Router DOM | 7.18.4 | Route lồng nhau, `ProtectedRoute`, `NavLink` |
+| Axios | 1.20.0 | Instance dùng chung + interceptor token/refresh |
+| Recharts | 3.10.1 | Biểu đồ dashboard |
+
+### Cấu trúc frontend
+
+| Đường dẫn | Nội dung |
+|-----------|----------|
+| `frontend/vite.config.js` | Proxy `/api` → `http://localhost:8000`, cổng 3000 |
+| `frontend/tailwind.config.js` | `darkMode: 'class'`, bảng màu `brand` (emerald), animation |
+| `frontend/src/services/api.js` | Axios `baseURL: /api/v1`; tự gắn Bearer; refresh token một lần cho cả loạt 401 |
+| `frontend/src/contexts/AuthContext.jsx` | Lưu phiên (`scsp_access_token`, `scsp_refresh_token`, `scsp_user`); `isAdmin` = owner/manager |
+| `frontend/src/contexts/ThemeContext.jsx` | Sáng/Tối, lưu `scsp_theme`; mặc định theo `prefers-color-scheme` |
+| `frontend/src/components/layout/` | `Layout`, `Sidebar` (drawer mobile), `Header`, `ProtectedRoute` |
+| `frontend/src/pages/LoginPage.jsx` | Đăng nhập thật qua `/api/v1/auth/login` + tài khoản dùng thử |
+| `frontend/src/pages/DashboardPage.jsx` | Mockup UI: 4 KPI, biểu đồ doanh thu, top sản phẩm, cảnh báo, lô cận hạn |
+| `frontend/src/pages/ProductsPage.jsx` | **Gọi API thật** `GET /api/v1/products`: tìm kiếm, lọc trạng thái, phân trang |
+
+### Phân quyền / Dark Mode / Responsive
+
+- `owner` + `manager`: thấy đầy đủ menu (kể cả nhóm Phân tích) và nút **Thêm / Sửa / Xoá**.
+- `staff`: menu Phân tích bị ẩn; cột thao tác và nút thêm sản phẩm không render.
+- Backend vẫn là nơi quyết định cuối cùng (`require_role`), frontend chỉ ẩn/hiện.
+- Dark Mode: nút ở Header và trang Login; class `dark` gắn trên `<html>`; script trong
+  `index.html` áp dụng theme trước khi React mount để không bị nháy sáng.
+- Responsive: sidebar cố định từ `lg`, dưới `lg` là drawer + backdrop + nút hamburger;
+  bảng sản phẩm cuộn ngang, KPI dùng grid 1 → 2 → 4 cột.
+
+### Đã kiểm chứng
+
+| Kiểm tra | Kết quả |
+|----------|---------|
+| `npm run build` | Thành công (732 kB JS / 32 kB CSS, gzip 221 kB / 6 kB) |
+| `GET http://localhost:3000/` | 200 — Vite dev server chạy |
+| Login qua proxy `POST /api/v1/auth/login` | 200 — `owner` / `Chu chuoi` |
+| `GET /api/v1/products?page=1&page_size=3` qua proxy | 200 — `total=50`, trả đúng 3 dòng kèm `category` |
+
+### Ghi chú cho phiên sau
+
+- Dashboard đang dùng **số liệu minh hoạ** (có badge "Số liệu minh hoạ giao diện"),
+  chưa nối `/dashboard/overview`.
+- Nút Thêm/Sửa/Xoá sản phẩm mới chỉ hiện theo quyền và báo "sẽ nối ở bước sau";
+  CRUD thật + các trang Tồn kho / Đơn hàng / Dự báo / Cảnh báo / Báo cáo còn lại.
+- Các trang "Sắp" trong sidebar là chỗ đặt trước, chưa có route.
+
+---
+
+*F1 xong. Bước tiếp theo: nối Dashboard với API thật và hoàn thiện CRUD sản phẩm.*
+

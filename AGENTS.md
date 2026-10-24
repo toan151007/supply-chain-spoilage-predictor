@@ -45,16 +45,24 @@ Mục tiêu: Dự báo nhu cầu, tối ưu nhập hàng, giảm lãng phí th�
 - /datasets/ Dữ liệu mẫu (raw, processed)
 - /tests/ Unit tests
 
-## Yêu cầu Frontend tương lai (chốt 24/10/2026)
+## Frontend (đã triển khai F1 — 24/10/2026)
 
-Làm sau khi backend chạy được trên SQL Server:
-
-1. **Phân quyền Admin và User thường**
+1. **Công nghệ:** Vite 8 + React 19 + Tailwind CSS 3.4 (`darkMode: 'class'`) +
+   React Router 7 + Axios + Recharts. Dev server cổng **3000**, proxy `/api` →
+   `http://localhost:8000` (không cần CORS khi dev).
+2. **Phân quyền Admin và User thường**
    - `owner` / `manager` → quyền quản trị (master data, import, dự báo, xoá cảnh báo)
    - `staff` → chỉ thao tác tồn kho, đơn hàng, trạng thái cảnh báo
    - Ẩn/hiện menu và nút theo role; backend vẫn là nơi quyết định cuối cùng.
-2. **Dark Mode (Sáng / Tối)** — lưu lựa chọn, mặc định theo `prefers-color-scheme`.
-3. **Responsive Design** — dùng được trên điện thoại và PC (Tailwind breakpoints).
+   - Frontend dùng `isAdmin` từ `AuthContext` (owner/manager); role lấy từ `/auth/me`.
+3. **Dark Mode (Sáng / Tối)** — lưu `scsp_theme` trong `localStorage`, mặc định theo
+   `prefers-color-scheme`; script trong `index.html` áp dụng class `dark` trước khi React mount.
+4. **Responsive Design** — sidebar cố định từ breakpoint `lg`, dưới `lg` là drawer +
+   backdrop + hamburger; nội dung dùng grid/flex và bảng cuộn ngang.
+5. **Trang đã có:** Login (JWT thật), Layout (Header/Sidebar/Content),
+   Dashboard (mockup số liệu minh hoạ), Sản phẩm (gọi API thật, tìm kiếm/lọc/phân trang).
+6. **Việc còn lại:** nối Dashboard với API thật, hoàn thiện CRUD sản phẩm và các trang
+   Tồn kho / Đơn hàng / Dự báo / Cảnh báo / Đề xuất nhập hàng / Báo cáo.
 
 ## Rules (BẮT BUỘC TUÂN THỦ)
 
@@ -397,7 +405,7 @@ Chương 2 là cơ sở lý thuyết, trình bày cả 5 mô hình, chỉ **kỳ
 - [x] **SQL Server BƯỚC 1**: cập nhật AGENTS.md + GHI-CHU-TIEN-DO.md cho migration PostgreSQL → SQL Server (24/10/2026)
 - [x] **SQL Server BƯỚC 2**: `database/HUONG-DAN-CHAY-SSMS.md` — 10 bảng + index + 6 trigger + 4 view + **49 Stored Procedure** (đã test thật trên SQL Server 2025)
 - [x] **SQL Server BƯỚC 3**: `config.py`/`database.py` dùng pyodbc (`DbSession` + `autocommit`), 18 router gọi Stored Procedure, migration `010` thêm **25 SP** (tổng **74**), nạp lại **912.999 `order_items`** — test HTTP **48/48** đọc + **29/29** ghi PASS (24/10/2026)
-- [ ] F1: Setup Frontend React
+- [x] F1: Setup Frontend React + Tailwind — Login JWT, phân quyền owner/manager vs staff, Dark Mode, Responsive, Dashboard mockup, trang Sản phẩm gọi API thật (24/10/2026)
 - [ ] T2: README con cho từng thư mục
 - [ ] Tích hợp AI Model
 
