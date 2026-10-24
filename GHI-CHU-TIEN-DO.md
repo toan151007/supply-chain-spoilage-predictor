@@ -2342,4 +2342,111 @@ Mật khẩu thử nghiệm dài **7 byte** — thông báo hoàn toàn bịa, v
 
 ---
 
-*Phiên sau: đọc `AGENTS.md` + file này, chạy `git status`, rồi làm **F1 — Setup Frontend React**.*
+---
+
+## 8t. CHUYỂN DATABASE SANG SQL SERVER — BƯỚC 1 & 2 (24/10/2026)
+
+### Bối cảnh
+
+GVHD **bắt buộc** dùng SQL Server (giữ backend FastAPI) và yêu cầu
+**100% thao tác dữ liệu qua Stored Procedure**. Toàn bộ quyết định PostgreSQL
+trước đây (ORM, `v_daily_sales` bản PostgreSQL, sequence, migration 005…) chỉ còn
+giá trị tham khảo.
+
+| Mục | Giá trị |
+|-----|---------|
+| SQL Server | 2025 Express · `17.0.1000.7` |
+| Instance | `LAPTOP-I39E3UT2\SQLEXPRESS` |
+| Database | `spoilage_predictor` (đã tạo, **đang trống**) |
+| Xác thực | SQL Server Authentication (`sa`) — mật khẩu chỉ trong `.env` |
+| Driver | `pyodbc 5.3.0` + ODBC Driver 18 for SQL Server |
+
+### Đã làm trong phiên này
+
+| Bước | Nội dung | Trạng thái |
+|------|----------|-----------|
+| 1 | Cập nhật `AGENTS.md` (tech stack, commands, rules, SQL rules, môi trường, Known Issues, Current Progress) và file này | Xong |
+| 2 | Tạo `database/HUONG-DAN-CHAY-SSMS.md` chứa **toàn bộ T-SQL** để copy/paste trên SSMS | Xong |
+| 3 | Đổi `config.py` / `database.py` sang pyodbc + chuyển router sang Stored Procedure + nạp lại dữ liệu | **Chờ user chạy thử file T-SQL** |
+
+### Nội dung file `HUONG-DAN-CHAY-SSMS.md`
+
+| Phần | Số lượng | Ghi chú |
+|------|----------|---------|
+| Bảng | **10** | `stores, users, categories, products, inventory, inventory_transactions, orders, order_items, forecasts, alerts` |
+| Index | 27 | gồm 2 filtered unique index thay cho UNIQUE + NULL của PostgreSQL |
+| Trigger | 6 | tự cập nhật `updated_at` |
+| View | 4 | `v_daily_sales`, `v_low_stock`, `v_expiring_inventory`, `v_product_stock_summary` |
+| Stored Procedure | **49** | CRUD + nghiệp vụ, tất cả có `TRY...CATCH` + `TRANSACTION` |
+
+### Danh sách Stored Procedure (49)
+
+| Nhóm | Procedure |
+|------|-----------|
+| Products (5) | `sp_Products_List/Get/Create/Update/Delete` |
+| Stores (5) | `sp_Stores_List/Get/Create/Update/Delete` |
+| Categories (5) | `sp_Categories_List/Get/Create/Update/Delete` |
+| Inventory (6) | `sp_Inventory_List/ListExpiring/Get/Create/Update/Delete` |
+| Orders (6) | `sp_Orders_List/Get/Create/Update/UpdateStatus/Delete` |
+| Order items (5) | `sp_OrderItems_List/Get/Create/Update/Delete` |
+| Forecasts (5) | `sp_Forecasts_List/Get/Latest/Delete/DeleteByFilter` |
+| Alerts (7) | `sp_Alerts_List/Get/UnreadCount/MarkRead/MarkAllRead/Resolve/Delete` |
+| Users (3) | `sp_Users_GetByUsername/GetById/ChangePassword` |
+| Nghiệp vụ (2) | `sp_Alerts_Generate`, `sp_Orders_RecalculateTotals` |
+
+### Khác biệt kỹ thuật so với PostgreSQL (phải nhớ)
+
+| # | PostgreSQL | SQL Server | Cách xử lý |
+|---|-----------|-----------|-----------|
+| 1 | `SERIAL` / `BIGSERIAL` | `IDENTITY(1,1)` | Dùng `SCOPE_IDENTITY()` để lấy id |
+| 2 | `TIMESTAMPTZ` | `DATETIME2(7)` | Lưu giờ địa phương; seed dùng mốc ngày |
+| 3 | `NUMERIC` | `DECIMAL` | Giữ nguyên độ chính xác |
+| 4 | `TEXT` | `NVARCHAR(MAX)` | Hỗ trợ tiếng Việt |
+| 5 | `BOOLEAN` | `BIT` | 0/1 |
+| 6 | UNIQUE cho phép nhiều NULL | UNIQUE coi NULL là trùng | **Filtered unique index** `WHERE ... IS NOT NULL` |
+| 7 | `ON DELETE SET NULL` trên cây tự tham chiếu | Báo lỗi 1785 | Procedure tự set NULL cho con rồi xoá |
+| 8 | Generated column `line_total` | Computed column `PERSISTED` | Không được gán khi INSERT/UPDATE |
+| 9 | `RETURNING` | `OUTPUT` / `SCOPE_IDENTITY()` | Procedure trả result set sau khi ghi |
+| 10 | `ILIKE` | Collation mặc định không phân biệt hoa/thường | Dùng `LIKE` |
+| 11 | `date_trunc` | `DATEPART` / `CAST(... AS DATE)` | View đã viết lại |
+| 12 | `ISODOW` | `DATEPART(WEEKDAY)` phụ thuộc `DATEFIRST` | Tính bằng `DATEDIFF(DAY,'1900-01-01',...) % 7 + 1` |
+
+### Mã lỗi nghiệp vụ (router map sang HTTP ở Bước 3)
+
+| Mã | Ý nghĩa | HTTP |
+|----|---------|------|
+| 50001 | NOT_FOUND | 404 |
+| 50002 | DUPLICATE | 409 |
+| 50003 | REFERENCED (còn dữ liệu con) | 409 |
+| 50004 | INVALID_STATE (trạng thái không cho phép) | 409 |
+| 50005 | INVALID_INPUT | 422 |
+
+### Đã test thật trên SQL Server (không chỉ đọc code)
+
+Chạy trên database tạm `spoilage_tsql_test` (đã drop sau khi test):
+
+- DDL: **10 bảng · 4 view · 6 trigger · 27 index** — không lỗi.
+- Procedure: **49/49 tạo thành công**.
+- Smoke test: tạo cửa hàng, nhóm cha/con, sản phẩm, tồn kho, đơn hàng 2 dòng,
+  cập nhật/xoá dòng hàng, đổi trạng thái, sinh cảnh báo, đọc 4 view.
+- Các ràng buộc **chặn đúng**: vòng lặp nhóm hàng, trùng `product_code`,
+  trùng dòng hàng trong đơn, `completed → pending`, xoá đơn còn dòng,
+  xoá sản phẩm/cửa hàng còn lịch sử.
+- Tổng đơn khớp lại sau mỗi lần thêm/sửa/xoá dòng hàng.
+
+### Việc chưa làm (Bước 3)
+
+1. `backend/app/config.py`: thêm `DB_SERVER`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`,
+   `DB_DRIVER` và property `database_url` dạng pyodbc.
+2. `backend/app/database.py`: bỏ `sessionmaker`, tạo `get_connection()` / context manager.
+3. Chuyển 10 router sang `EXEC dbo.sp_...`; map mã lỗi 50001–50005 sang HTTP.
+4. Nạp lại dữ liệu từ `datasets/raw/train.csv` + seed (912.999 `order_items`,
+   3.000 `forecasts`…). **Dữ liệu PostgreSQL không tự chuyển sang.**
+5. Bổ sung Stored Procedure cho dashboard / báo cáo / đề xuất nhập hàng
+   (các endpoint đọc phức tạp) — hiện file Bước 2 mới phủ CRUD + nghiệp vụ lõi.
+
+---
+
+*Phiên sau: user chạy `database/HUONG-DAN-CHAY-SSMS.md` trên SSMS và xác nhận
+không lỗi → làm **Bước 3** (pyodbc + router gọi Stored Procedure + nạp dữ liệu)
+→ sau đó **F1 — Setup Frontend React**.*

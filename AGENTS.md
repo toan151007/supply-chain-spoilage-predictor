@@ -9,7 +9,8 @@ Mục tiêu: Dự báo nhu cầu, tối ưu nhập hàng, giảm lãng phí th�
 
 - Frontend: React.js + Vite + Tailwind CSS
 - Backend: Python FastAPI (hoặc Node.js/Express)
-- Database: PostgreSQL
+- Database: **Microsoft SQL Server 2025 Express** — instance `LAPTOP-I39E3UT2\SQLEXPRESS`, database `spoilage_predictor` (**bắt buộc theo yêu cầu GVHD**)
+- Truy cập DB: `pyodbc` + ODBC Driver 18 for SQL Server, **100% Stored Procedure**
 - AI/ML: Prophet, XGBoost, ARIMA (Python)
 - Real-time: WebSocket
 - AI Agent: Gemini API (chatbot hỏi đáp kho)
@@ -21,9 +22,14 @@ Mục tiêu: Dự báo nhu cầu, tối ưu nhập hàng, giảm lãng phí th�
 - Test backend: mở `http://localhost:8000/docs`
 - Cài đặt frontend: `cd frontend && npm install`
 - Chạy frontend: `npm run dev` (cổng 3000)
-- Chạy database: `psql -U postgres -d spoilage_predictor`
-- Import SQL schema: `psql -U postgres -d spoilage_predictor -f database/01-schema/02-create-tables.sql`
+- Kết nối database (SSMS): server `LAPTOP-I39E3UT2\SQLEXPRESS`, login `sa`, database `spoilage_predictor`
+- Chạy SQL bằng dòng lệnh: `sqlcmd -S "LAPTOP-I39E3UT2\SQLEXPRESS" -U sa -P <mat_khau> -C -d spoilage_predictor -i <file.sql>`
+- Tạo schema + Stored Procedure: xem `database/HUONG-DAN-CHAY-SSMS.md` (copy/paste trên SSMS)
 - Chạy AI model: `cd ai-model && jupyter notebook`
+
+> ⚠️ **Dữ liệu PostgreSQL cũ KHÔNG tự chuyển sang SQL Server.** File T-SQL trong
+> `HUONG-DAN-CHAY-SSMS.md` chỉ tạo cấu trúc (10 bảng + trigger + view + procedure).
+> Việc nạp lại dữ liệu (912.999 `order_items`, 3.000 `forecasts`…) sẽ làm ở bước sau.
 
 > ⚠️ `cd backend` là **bắt buộc** khi chạy uvicorn — các module import
 > theo đường dẫn tuyệt đối `from app.config import settings`.
@@ -39,24 +45,46 @@ Mục tiêu: Dự báo nhu cầu, tối ưu nhập hàng, giảm lãng phí th�
 - /datasets/ Dữ liệu mẫu (raw, processed)
 - /tests/ Unit tests
 
+## Yêu cầu Frontend tương lai (chốt 24/10/2026)
+
+Làm sau khi backend chạy được trên SQL Server:
+
+1. **Phân quyền Admin và User thường**
+   - `owner` / `manager` → quyền quản trị (master data, import, dự báo, xoá cảnh báo)
+   - `staff` → chỉ thao tác tồn kho, đơn hàng, trạng thái cảnh báo
+   - Ẩn/hiện menu và nút theo role; backend vẫn là nơi quyết định cuối cùng.
+2. **Dark Mode (Sáng / Tối)** — lưu lựa chọn, mặc định theo `prefers-color-scheme`.
+3. **Responsive Design** — dùng được trên điện thoại và PC (Tailwind breakpoints).
+
 ## Rules (BẮT BUỘC TUÂN THỦ)
 
 - KHÔNG dùng PHP, ASP.NET, hay bất kỳ framework nào ngoài danh sách trên.
 - KHÔNG sửa file cấu hình (config.py, .env) mà không hỏi trước.
 - Mọi API phải có prefix `/api/v1/`.
-- Mọi truy vấn database phải qua ORM, KHÔNG viết raw SQL trong routers.
+- **Mọi thao tác dữ liệu phải gọi Stored Procedure** (`EXEC dbo.sp_...`). KHÔNG viết `SELECT/INSERT/UPDATE/DELETE` trực tiếp trong router, KHÔNG dùng ORM để đọc/ghi nghiệp vụ.
+- **Mỗi Stored Procedure bắt buộc có `BEGIN TRY ... BEGIN CATCH` và `TRANSACTION`** (mẫu: `IF @@TRANCOUNT = 0 BEGIN TRANSACTION; ... IF @@TRANCOUNT > 0 COMMIT;` / `CATCH: IF @@TRANCOUNT > 0 ROLLBACK; THROW;`).
 - Đặt tên file Python: snake_case. Tên React component: PascalCase.
 - **Comment trong code Python dùng tiếng Anh KHÔNG DẤU** (tương thích console Windows cp1252). Tài liệu `.md` và file SQL vẫn dùng tiếng Việt / ASCII theo quy tắc riêng.
 - Trước khi commit, chạy `git status` để kiểm tra.
 
 ## SQL Rules (BẮT BUỘC TUÂN THỦ)
 
-- Trước khi viết INDEX / VIEW / FUNCTION, phải kiểm tra cột đã tồn tại trong CREATE TABLE chưa.
+- **SQL Server / T-SQL**, không dùng cú pháp PostgreSQL (`SERIAL`, `RETURNING`, `::`, `ILIKE`, `ON CONFLICT`…).
+- Kiểu dữ liệu: `IDENTITY(1,1)`, `DATETIME2(7)`, `NVARCHAR`/`NVARCHAR(MAX)`, `BIT`, `DECIMAL`.
+- Trước khi viết INDEX / VIEW / PROCEDURE, phải kiểm tra cột đã tồn tại trong CREATE TABLE chưa.
 - KHÔNG tham chiếu cột không tồn tại. Chỉ dùng cột của bảng trong đúng JOIN đó.
-- Sau khi viết file SQL, PHẢI tự test bằng `psql -f file.sql` trước khi commit.
+- Sau khi viết file SQL, PHẢI tự test thật bằng `sqlcmd -i file.sql` (hoặc SSMS) trước khi commit.
 - Nếu có lỗi, sửa ngay, không để lỗi sang task khác.
 - File SQL giữ ASCII (comment tiếng Anh) để chạy được trên Windows PowerShell.
 - Muốn thêm tiếng Việt vào SQL thì dùng cơ chế i18n: lưu KEY, dịch ở `backend/app/i18n/vi.json`.
+- **UNIQUE + NULL:** SQL Server coi nhiều `NULL` là trùng nhau, PostgreSQL thì không. Với cột cho phép NULL (vd `inventory.expiry_date`), dùng **filtered unique index** `WHERE expiry_date IS NOT NULL`.
+- **Không có `ON DELETE` ghép nhiều đường cascade** và **không cascade trên khoá tự tham chiếu** (`categories.parent_category_id`) — SQL Server báo lỗi 1785. Xử lý bằng Stored Procedure (set NULL cho con trước khi xoá).
+- **Mã lỗi nghiệp vụ** do `THROW` trong procedure (router map sang HTTP):
+  `50001` NOT_FOUND → 404 · `50002` DUPLICATE → 409 · `50003` REFERENCED → 409 · `50004` INVALID_STATE → 409 · `50005` INVALID_INPUT → 422.
+- **Partial update:** Stored Procedure `Update` nhận **toàn bộ dòng đích**; router phải merge thay đổi vào dòng hiện tại trước khi gọi, để phân biệt "không đổi" và "xoá về NULL".
+- **Không gọi procedure ghi khác bên trong một transaction đang mở** nếu procedure đó cũng `COMMIT` — sẽ commit sớm transaction ngoài. Các procedure đọc không được gọi trong transaction ghi.
+- **`GO` là lệnh của SSMS/sqlcmd, KHÔNG gửi được qua pyodbc.** Khi gọi từ Python chỉ gửi một câu `EXEC dbo.sp_...`.
+- **Bắt buộc bật `SET QUOTED_IDENTIFIER ON` + `SET ANSI_NULLS ON`** khi tạo bảng có filtered index / computed column (SSMS bật sẵn, sqlcmd thì không).
 
 ## Môi trường phát triển (đã kiểm chứng 02/10/2026)
 
@@ -65,16 +93,17 @@ Mục tiêu: Dự báo nhu cầu, tối ưu nhập hàng, giảm lãng phí th�
 | Python | 3.14.7 (pip 26.2.1) |
 | pandas | 3.0.6 |
 | numpy | 2.5.3 |
-| SQLAlchemy | 2.1.2 |
-| psycopg2-binary | 2.9.13 |
+| SQLAlchemy | 2.1.2 (chỉ dùng ở giai đoạn PostgreSQL cũ — sẽ bỏ dần) |
+| pyodbc | 5.3.0 |
+| ODBC Driver | 18 for SQL Server |
 | FastAPI | 0.143.0 |
 | uvicorn | 0.54.0 (`[standard]` — kèm websockets cho realtime) |
 | pydantic | 2.14.1 |
 | pydantic-settings | 2.15.0 |
 | Node.js | v24.15.0 (npm 11.12.1) |
-| PostgreSQL | 18.6 · service `postgresql-x64-18` · port 5432 |
-| Database | `spoilage_predictor` · 10 bảng · **đã có dữ liệu** (912.999 `order_items` · 3.000 `forecasts`) |
-| Xác thực | `scram-sha-256` · mật khẩu nằm trong `.env` cục bộ, KHÔNG commit |
+| SQL Server | 2025 Express (17.0.1000.7) · instance `LAPTOP-I39E3UT2\SQLEXPRESS` · port 1433 |
+| Database | `spoilage_predictor` · 10 bảng · **dữ liệu sẽ nạp lại** (PostgreSQL cũ không tự chuyển) |
+| Xác thực | SQL Server Authentication (`sa`) · mật khẩu nằm trong `.env` cục bộ, KHÔNG commit |
 
 | statsmodels | 0.15.0 (ARIMA) |
 | scikit-learn | 1.9.1 |
@@ -107,7 +136,9 @@ Kiểm tra lại môi trường ML: `python scripts/check_ml_env.py`
 - **Prophet** = mô hình cơ sở, **XGBoost** = mô hình chính, **ARIMA + trung bình động** = đối chứng
 - **KHÔNG dùng LSTM** trong hệ thống (chỉ trình bày lý thuyết — dữ liệu quá nhỏ)
 - **`expiry_date`** đặt ở `inventory` + `inventory_transactions`, không đặt ở `products`
-- **CHECK constraint** thay vì PostgreSQL `ENUM` (dễ migrate, tương thích SQLAlchemy)
+- **CHECK constraint** thay vì ENUM (dễ migrate, tương thích cả SQL Server)
+- **Chuyển sang SQL Server (24/10/2026):** toàn bộ schema + Stored Procedure nằm trong `database/HUONG-DAN-CHAY-SSMS.md`. Các file `.sql` PostgreSQL cũ chỉ còn giá trị tham khảo, **KHÔNG chạy lại**.
+- **100% thao tác dữ liệu qua Stored Procedure** — không ORM, không raw SQL trong router.
 
 ## Cấu hình mô hình dự báo (đã chốt 03/10/2026)
 
@@ -192,6 +223,28 @@ Mua vụ của Walmart **tác động đồng đều lên mọi mặt hàng**:
 Vì vậy **không dùng được** tiêu chí "hệ số biến động mùa vụ" để chọn sản phẩm. Đã chọn theo **doanh số năm + đa dạng 7 nhóm hàng**.
 
 ## Known Issues & Gotchas
+
+> **Lưu ý lịch sử:** các mục trong tiểu mục **"Giai đoạn PostgreSQL (lịch sử)"**
+> bên dưới được ghi trong giai đoạn PostgreSQL. Nhiều mục **không còn áp dụng**
+> (view `v_daily_sales` bản PostgreSQL, sequence, `psycopg2`, `timestamptz`…).
+> Giữ lại để tham khảo lịch sử.
+
+### SQL Server (24/10/2026) — mới
+
+- **sqlcmd mặc định tắt `QUOTED_IDENTIFIER`** → tạo filtered index / computed column báo lỗi 1934. Đầu file T-SQL phải có `SET QUOTED_IDENTIFIER ON; SET ANSI_NULLS ON;` (file hướng dẫn đã có).
+- **SQL Server coi nhiều `NULL` là trùng nhau** trong UNIQUE. `inventory` và `inventory_transactions` phải dùng filtered unique index `WHERE ... IS NOT NULL`.
+- **Không cascade được trên khoá tự tham chiếu** (`categories.parent_category_id`) → lỗi 1785. `sp_Categories_Delete` tự set `parent_category_id = NULL` cho các con rồi mới xoá.
+- **`DATEPART(WEEKDAY, ...)` phụ thuộc `DATEFIRST`.** View `v_daily_sales` tính thứ bằng `DATEDIFF(DAY, '1900-01-01', ngày) % 7 + 1` (1900-01-01 là thứ Hai) để không phụ thuộc cấu hình.
+- **`ORDER BY` + `OFFSET/FETCH` phải nằm trong CTE** khi cần join thêm bảng, nếu không SQL Server báo lỗi cú pháp.
+- **`WITH` (CTE) không đứng ngay sau `IF`** → phải gán biến trong CTE rồi mới `IF`.
+- **Không gọi procedure ghi khác trong lúc transaction đang mở** nếu procedure đó cũng `COMMIT` — transaction ngoài bị commit sớm. Các procedure `Create/Update` trong file đã tự inline phần tính lại tổng thay vì gọi `sp_Orders_RecalculateTotals`.
+- **`GO` không gửi được qua pyodbc** — chỉ dùng trong SSMS/sqlcmd.
+- **`THROW` bắt buộc câu lệnh trước kết thúc bằng `;`.** Đã gặp lỗi cú pháp khi đặt `IF ... THROW` ngay sau CTE.
+- **`@@ROWCOUNT` phải đọc ngay sau câu lệnh vừa chạy**, trước mọi `IF`/`SELECT` khác.
+- **Mã lỗi nghiệp vụ** 50001–50005 (xem mục SQL Rules) — router phải map sang HTTP, không trả 500.
+- **Script tạo schema có `DROP`** — chạy trên DB đang có dữ liệu sẽ mất sạch. Chỉ chạy khi DB trống hoặc đã backup.
+
+### Giai đoạn PostgreSQL (lịch sử)
 
 - Token Antigravity có giới hạn → cần commit thường xuyên.
 - Khi chuyển sang Cursor/OpenCode, PHẢI yêu cầu AI đọc file AGENTS.md trước.
@@ -332,6 +385,9 @@ Chương 2 là cơ sở lý thuyết, trình bày cả 5 mô hình, chỉ **kỳ
 - [x] B10: API đề xuất nhập hàng — 3 endpoint (import · expiring · slow-moving)
 - [x] B11: API xuất báo cáo — 4 endpoint × 3 định dạng (CSV · XLSX · PDF)
 - [x] B12: Authentication JWT — login · refresh · me · logout + bảo vệ **28** endpoint ghi
+- [x] **SQL Server BƯỚC 1**: cập nhật AGENTS.md + GHI-CHU-TIEN-DO.md cho migration PostgreSQL → SQL Server (24/10/2026)
+- [x] **SQL Server BƯỚC 2**: `database/HUONG-DAN-CHAY-SSMS.md` — 10 bảng + index + 6 trigger + 4 view + **49 Stored Procedure** (đã test thật trên SQL Server 2025)
+- [ ] **SQL Server BƯỚC 3**: đổi `config.py`/`database.py` sang pyodbc, chuyển toàn bộ router sang gọi Stored Procedure, nạp lại dữ liệu
 - [ ] F1: Setup Frontend React
 - [ ] T2: README con cho từng thư mục
 - [ ] Tích hợp AI Model

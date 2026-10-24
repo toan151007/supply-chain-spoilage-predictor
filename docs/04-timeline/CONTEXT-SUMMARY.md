@@ -422,7 +422,8 @@ f55dce4  T4.1: Chapter 1
 
 | Mã | Việc | Ưu tiên | Ghi chú |
 |----|------|---------|---------|
-| **F1** | Setup Frontend React + Vite + Tailwind | 🔴 Tiếp theo | CORS đã bật cho `:3000` và `:5173` |
+| **SQL Server Bước 3** | pyodbc + router gọi Stored Procedure + nạp lại dữ liệu | 🔴 Tiếp theo | Chờ user chạy `database/HUONG-DAN-CHAY-SSMS.md` trên SSMS |
+| **F1** | Setup Frontend React + Vite + Tailwind | 🔴 Sau Bước 3 | CORS đã bật cho `:3000` và `:5173` |
 | T4.3 | Viết Chương 3 — Thiết kế hệ thống | 🟡 TB | Cần kết quả M1–M3 làm căn cứ |
 | T4.4 | Viết Chương 4 — Thực nghiệm | 🟡 TB | **BẮT BUỘC đọc mục 8j GHI-CHU-TIEN-DO.md trước** |
 | T2 | README con cho từng thư mục | 🟢 Thấp | |
@@ -442,22 +443,25 @@ Còn 1 việc tồn đọng: `docs/03-thiet-ke/kien-truc-he-thong.md` mục 7 c�
 | 1 | KHÔNG dùng PHP, ASP.NET hoặc framework ngoài danh sách trong AGENTS.md |
 | 2 | KHÔNG sửa `config.py`, `.env` mà không hỏi trước |
 | 3 | Mọi API có prefix `/api/v1/` |
-| 4 | Mọi truy vấn DB qua ORM — **không raw SQL trong routers** |
+| 4 | **Mọi thao tác dữ liệu qua Stored Procedure** (`EXEC dbo.sp_...`) — không ORM, không raw SQL trong router |
 | 5 | File Python: `snake_case` · Component React: `PascalCase` · **Comment code Python dùng tiếng Anh không dấu** (tương thích cp1252). Tài liệu `.md` và SQL giữ tiếng Việt / ASCII |
 | 6 | Trước khi commit chạy `git status` |
 | 7 | 🔒 Không ghi mật khẩu vào bất kỳ file nào trong repo |
 | 8 | Token Antigravity có giới hạn → **cần commit thường xuyên** |
 
-### 5.2 SQL Rules
+### 5.2 SQL Rules (SQL Server / T-SQL)
 
-1. Kiểm tra cột đã tồn tại trong `CREATE TABLE` trước khi viết INDEX/VIEW/FUNCTION
+1. Kiểm tra cột đã tồn tại trong `CREATE TABLE` trước khi viết INDEX/VIEW/PROCEDURE
 2. KHÔNG tham chiếu cột không tồn tại — chỉ dùng cột của bảng trong đúng JOIN đó
-3. **PHẢI test `psql -f file.sql` trước khi commit**
+3. **PHẢI test thật bằng `sqlcmd -i file.sql` (hoặc SSMS) trước khi commit**
 4. Lỗi thì sửa ngay, không để sang task khác
 5. File SQL giữ **ASCII** (comment tiếng Anh) để chạy được trên Windows PowerShell
 6. Tiếng Việt trong SQL → dùng **i18n key**, dịch ở `backend/app/i18n/vi.json`
+7. Mỗi procedure phải có `BEGIN TRY ... BEGIN CATCH` + transaction có kiểm tra `@@TRANCOUNT`
+8. Cột UNIQUE cho phép NULL → dùng **filtered unique index** `WHERE ... IS NOT NULL`
 
-⚠️ **KHÔNG chạy lại `database/01-schema/02-create-tables.sql`** khi DB đã có dữ liệu — file đó có `DROP TABLE ... CASCADE`. Dùng file trong `database/03-migrations/`.
+⚠️ **Script `database/HUONG-DAN-CHAY-SSMS.md` có `DROP`** — chỉ chạy khi DB trống hoặc đã backup.
+Các file `.sql` PostgreSQL cũ (`01-schema/02-create-tables.sql`, migrations) **chỉ còn giá trị tham khảo, KHÔNG chạy lại**.
 
 ### 5.3 Quyết định KHÔNG sửa
 
@@ -586,6 +590,22 @@ cd frontend; npm run dev
 > nhưng **không hành động được thực tế**. Thêm nữa `forecasts` phủ 01/2018 còn dữ liệu
 > bán hàng kết thúc 31/12/2017, nên **không kiểm chứng ngoài mẫu được**. Cả hai điểm
 > phải nêu rõ, không trình bày như kết quả vận hành thật.
+
+### 2.14 — Chuyển sang SQL Server, Bước 1 & 2 (24/10/2026) ✅
+
+GVHD **bắt buộc dùng SQL Server** (giữ backend FastAPI) và **100% Stored Procedure**.
+
+| Mục | Kết quả |
+|-----|---------|
+| Instance | `LAPTOP-I39E3UT2\SQLEXPRESS` · SQL Server 2025 Express · DB `spoilage_predictor` |
+| Tài liệu | `database/HUONG-DAN-CHAY-SSMS.md` — copy/paste trên SSMS |
+| Schema | **10 bảng · 27 index · 6 trigger · 4 view** |
+| Stored Procedure | **49** — CRUD + nghiệp vụ, đủ `TRY...CATCH` + `TRANSACTION` |
+| Kiểm thử | Chạy thật trên DB tạm: DDL + 49 procedure + smoke test **PASS**, đã drop DB tạm |
+| Dữ liệu | **Chưa nạp lại** — PostgreSQL không tự chuyển sang; sẽ làm ở Bước 3 |
+
+Điểm khác PostgreSQL: `IDENTITY`, `DATETIME2`, `NVARCHAR`, `BIT`, filtered unique index
+cho cột nullable, không cascade trên `categories` tự tham chiếu, mã lỗi 50001–50005.
 
 ---
 
