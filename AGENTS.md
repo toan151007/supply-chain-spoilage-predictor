@@ -406,6 +406,7 @@ Chương 2 là cơ sở lý thuyết, trình bày cả 5 mô hình, chỉ **kỳ
 - [x] **SQL Server BƯỚC 2**: `database/HUONG-DAN-CHAY-SSMS.md` — 10 bảng + index + 6 trigger + 4 view + **49 Stored Procedure** (đã test thật trên SQL Server 2025)
 - [x] **SQL Server BƯỚC 3**: `config.py`/`database.py` dùng pyodbc (`DbSession` + `autocommit`), 18 router gọi Stored Procedure, migration `010` thêm **25 SP** (tổng **74**), nạp lại **912.999 `order_items`** — test HTTP **48/48** đọc + **29/29** ghi PASS (24/10/2026)
 - [x] F1: Setup Frontend React + Tailwind — Login JWT, phân quyền owner/manager vs staff, Dark Mode, Responsive, Dashboard mockup, trang Sản phẩm gọi API thật (24/10/2026)
+- [x] F2: Hoàn thiện các trang giao diện còn lại — Kho hàng (tabs hết hạn), Đơn hàng (xem chi tiết), Cảnh báo (đánh dấu đã đọc), Dự báo (bảng + biểu đồ), Nhóm hàng/Cửa hàng, cập nhật menu/routes (24/10/2026)
 - [ ] T2: README con cho từng thư mục
 - [ ] Tích hợp AI Model
 

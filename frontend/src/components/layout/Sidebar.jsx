@@ -14,10 +14,17 @@ const NAV_GROUPS = [
   {
     title: 'Vận hành',
     items: [
-      { label: 'Tồn kho', icon: 'inventory', soon: true },
-      { label: 'Đơn hàng', icon: 'orders', soon: true },
-      { label: 'Dự báo nhu cầu', icon: 'forecast', soon: true },
-      { label: 'Cảnh báo', icon: 'alerts', soon: true },
+      { to: '/inventory', label: 'Kho hàng', icon: 'inventory' },
+      { to: '/orders', label: 'Bán hàng', icon: 'orders' },
+      { to: '/alerts', label: 'Cảnh báo', icon: 'alerts' },
+      { to: '/forecasts', label: 'Dự báo nhu cầu', icon: 'forecast' },
+    ],
+  },
+  {
+    title: 'Danh mục',
+    items: [
+      { to: '/categories', label: 'Nhóm hàng', icon: 'box' },
+      { to: '/stores', label: 'Cửa hàng', icon: 'dashboard' },
     ],
   },
   {

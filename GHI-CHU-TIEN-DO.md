@@ -2541,3 +2541,34 @@ Dark Mode, Responsive).*
 
 *F1 xong. Bước tiếp theo: nối Dashboard với API thật và hoàn thiện CRUD sản phẩm.*
 
+## 8v. F2 — HOÀN THIỆN CÁC TRANG GIAO DIỆN CÒN LẠI (24/10/2026)
+
+### Đã thêm
+
+| Trang | API gọi | Tính năng |
+|-------|---------|-----------|
+| `InventoryPage` | `/inventory`, `/inventory/expiring` | Tab "Tất cả lô hàng" / "Hàng sắp hết hạn", bộ lọc ngày (3/7/14/30), badge tình trạng hạn sử dụng |
+| `OrdersPage` | `/orders`, `/orders/{id}` | Lọc theo loại/trạng thái, nút "Tạo đơn mới" (owner/manager), modal xem chi tiết đơn hàng |
+| `AlertsPage` | `/alerts`, `/alerts/unread`, `PUT /alerts/{id}/read` | Lọc theo mức độ, tab "Chỉ chưa đọc"/"Tất cả", nút "Đánh dấu đã đọc" |
+| `ForecastsPage` | `/forecasts/latest` | Bảng dự báo mới nhất theo cặp SP×CH, biểu đồ top 10, thông tin mô hình Prophet |
+| `CategoriesPage` | `/categories` | Hiển thị dạng cây (nhóm cha/con), CRUD (owner/manager) — nối ở bước sau |
+| `StoresPage` | `/stores` | Bảng cửa hàng, CRUD (owner/manager) — nối ở bước sau |
+
+### Cập nhật layout
+
+- `Sidebar`: thêm menu Kho hàng, Bán hàng, Cảnh báo, Dự báo nhu cầu, Nhóm hàng, Cửa hàng
+- `Header`: cập nhật tiêu đề trang
+- `App.jsx`: thêm routes cho các trang mới
+
+### Kiểm chứng
+
+| Kiểm tra | Kết quả |
+|----------|---------|
+| `npm run build` (frontend) | Thành công (673 modules transformed) |
+| Phân quyền | Nút thêm/xóa/đánh dấu chỉ hiện theo role (owner/manager/staff) |
+| Dark Mode / Responsive | Áp dụng cho toàn bộ trang mới |
+
+---
+
+*F2 xong. Bước tiếp theo: nối Dashboard với API thật và hoàn thiện CRUD sản phẩm/nhóm hàng/cửa hàng.*
+

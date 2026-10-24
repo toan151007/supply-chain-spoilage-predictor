@@ -7,6 +7,12 @@ import Icon from '../common/Icon.jsx'
 const PAGE_TITLES = {
   '/': 'Bảng điều khiển',
   '/products': 'Quản lý sản phẩm',
+  '/inventory': 'Kho hàng',
+  '/orders': 'Đơn hàng / Bán hàng',
+  '/alerts': 'Cảnh báo',
+  '/forecasts': 'Dự báo nhu cầu',
+  '/categories': 'Nhóm hàng',
+  '/stores': 'Cửa hàng',
 }
 
 function initials(name = '') {
