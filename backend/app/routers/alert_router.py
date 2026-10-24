@@ -7,6 +7,8 @@ and mark it resolved. `sp_Alerts_Resolve` keeps `resolved_at` consistent with
 `is_resolved`, which the CHECK constraint requires.
 """
 
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pyodbc import Error as PyodbcError
 
@@ -15,6 +17,7 @@ from app.dependencies import require_role
 from app.schemas.alert_schema import AlertPage, MarkReadRequest, ResolveRequest
 from app.schemas.common import Message
 from app.sp_helpers import as_bit, attach_product, attach_store
+from app.websocket_manager import manager
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
@@ -180,7 +183,20 @@ def resolve_alert(
         )
     except PyodbcError as exc:
         raise map_sqlserver_error(exc) from exc
-    return _to_read(row)
+    alert_data = _to_read(row)
+    try:
+        asyncio.create_task(
+            manager.broadcast(
+                {
+                    "type": "alert_updated",
+                    "alert": alert_data,
+                    "message": "Canh bao da duoc cap nhat",
+                }
+            )
+        )
+    except Exception:
+        pass
+    return alert_data
 
 
 @router.put(
@@ -214,4 +230,16 @@ def delete_alert(alert_id: int, db: DbSession = Depends(get_db)) -> None:
         db.call("sp_Alerts_Delete", {"AlertId": alert_id})
     except PyodbcError as exc:
         raise map_sqlserver_error(exc) from exc
+    try:
+        asyncio.create_task(
+            manager.broadcast(
+                {
+                    "type": "alert_deleted",
+                    "alert_id": alert_id,
+                    "message": "Canh bao da duoc xoa",
+                }
+            )
+        )
+    except Exception:
+        pass
     return None

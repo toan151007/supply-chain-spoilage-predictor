@@ -82,6 +82,10 @@ class Settings(BaseSettings):
     # Refresh token song dai (ngay) - chi dung de lay access token moi.
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
+    # ---- AI Agent (Gemini) ----
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-1.5-flash"
+
     @property
     def cors_origins_list(self) -> list[str]:
         """

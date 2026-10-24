@@ -52,3 +52,9 @@ bcrypt==5.0.0
 
 # ---- Xuat bao cao PDF (B11) ----
 reportlab==5.0.1
+
+# ---- AI Agent Chatbot (Gemini) ----
+google-generativeai==0.8.3
+
+# ---- Realtime WebSocket ----
+websockets==14.1

@@ -2572,3 +2572,35 @@ Dark Mode, Responsive).*
 
 *F2 xong. BÆ°á»›c tiáº¿p theo: ná»‘i Dashboard vá»›i API tháº­t vÃ  hoÃ n thiá»‡n CRUD sáº£n pháº©m/nhÃ³m hÃ ng/cá»­a hÃ ng.*
 
+\
+## 8w. I1 — TÍCH H?P AI CHATBOT VÀ REALTIME WEBSOCKET (24/10/2026)
+
+### Backend
+
+| Thành ph?n | Mô t? |
+|------------|-------|
+| google-generativeai | Thêm vào equirements.txt; c?u hình GEMINI_API_KEY, GEMINI_MODEL trong .env/config.py |
+| POST /api/v1/chat | Nh?n câu h?i, xây d?ng ng? c?nh t? t?n kho/don hàng/c?nh báo/d? báo qua Stored Procedure, g?i kèm Gemini d? tr? l?i d?a trên d? li?u th?t (fallback hi?n th? ng? c?nh n?u chua có API key) |
+| WebSocket /ws/alerts | Endpoint realtime; ConnectionManager broadcast tin nh?n |
+| Broadcast c?nh báo | Khi resolve/xóa c?nh báo, backend push lert_updated/lert_deleted qua WebSocket |
+
+### Frontend
+
+| Thành ph?n | Mô t? |
+|------------|-------|
+| Chatbot.jsx | Bong bóng chat n?i góc ph?i, hi?n th? tin nh?n ngu?i dùng/AI, loading, quick questions, h? tr? Dark Mode |
+| RealtimeAlerts.jsx | L?ng nghe WebSocket, hi?n th? toast thông báo realtime góc trái không c?n reload |
+| Tích h?p App.jsx | Thêm Chatbot và RealtimeAlerts toàn c?c cho user dã dang nh?p |
+
+### Ki?m ch?ng
+
+| Ki?m tra | K?t qu? |
+|----------|---------|
+| 
+pm run build (frontend) | Thành công (675 modules transformed) |
+| Endpoint chat (Swagger) | Có s?n POST /api/v1/chat |
+| WebSocket | Endpoint ws://localhost:8000/ws/alerts ho?t d?ng |
+
+---
+
+*I1 xong. Bu?c ti?p theo: tích h?p AI Model và hoàn thi?n CRUD.*\

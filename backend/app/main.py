@@ -16,6 +16,7 @@ from app.routers import (
     alert_router,
     auth_router,
     category_router,
+    chat_router,
     dashboard_router,
     dashboard_advanced_router,
     forecast_router,
@@ -28,6 +29,7 @@ from app.routers import (
     recommendation_router,
     report_router,
     store_router,
+    websocket_router,
 )
 
 app = FastAPI(
@@ -89,6 +91,8 @@ app.include_router(auth_router.router, prefix=settings.API_V1_PREFIX)
 
 app.include_router(recommendation_router.router, prefix=settings.API_V1_PREFIX)
 app.include_router(report_router.router, prefix=settings.API_V1_PREFIX)
+app.include_router(chat_router.router, prefix=settings.API_V1_PREFIX)
+app.include_router(websocket_router.router)
 
 
 @app.get("/", include_in_schema=False)
