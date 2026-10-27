@@ -63,13 +63,28 @@ BUSINESS_ERROR_HTTP = {
 
 
 def _extract_detail(message: str) -> str:
-    """Pull the human-readable text that follows the business error number."""
-    marker = re.search(r"\((5000[1-5])\)\s*(.*)", message)
+    """
+    Pull the human-readable text that accompanies the business error number.
+
+    pyodbc renders a THROW as a tuple:
+        ('42000', '[42000] [Microsoft][ODBC Driver 18 for SQL Server]
+         [SQL Server]product_code already exists (50002) (SQLExecDirectW)')
+
+    The text sits BEFORE the error number here, not after it. Handle both
+    orders so the API never returns the raw driver tuple to the client.
+    """
+    text = re.split(r"\[SQL Server\]", message)[-1]
+    marker = re.search(r"\((5000[1-5])\)", text)
     if marker:
-        detail = marker.group(2).strip()
-        # pyodbc appends driver noise; cut at the first bracket.
-        detail = re.split(r"\s*\(SQL|\[Microsoft\]", detail)[0].strip()
-        return detail or message
+        before = text[: marker.start()].strip().strip(" '()\",")
+        if before:
+            return before
+
+        after = text[marker.end() :].strip()
+        after = re.split(r"\s*\(SQL|\[Microsoft\]", after)[0].strip().strip(" '()\",")
+        if after:
+            return after
+
     return message
 
 

@@ -2573,52 +2573,52 @@ Dark Mode, Responsive).*
 *F2 xong. Bước tiếp theo: nối Dashboard với API thật và hoàn thiện CRUD sản phẩm/nhóm hàng/cửa hàng.*
 
 \
-## 8w. I1 � T�CH H?P AI CHATBOT V� REALTIME WEBSOCKET (24/10/2026)
+## 8w. I1 — TÍCH HỢP AI CHATBOT VÀ REALTIME WEBSOCKET (24/10/2026)
 
 ### Backend
 
-| Th�nh ph?n | M� t? |
+| Thành ph?n | Mô t? |
 |------------|-------|
-| google-generativeai | Th�m v�o equirements.txt; c?u h�nh GEMINI_API_KEY, GEMINI_MODEL trong .env/config.py |
-| POST /api/v1/chat | Nh?n c�u h?i, x�y d?ng ng? c?nh t? t?n kho/don h�ng/c?nh b�o/d? b�o qua Stored Procedure, g?i k�m Gemini d? tr? l?i d?a tr�n d? li?u th?t (fallback hi?n th? ng? c?nh n?u chua c� API key) |
+| google-generativeai | Thêm vào equirements.txt; c?u hình GEMINI_API_KEY, GEMINI_MODEL trong .env/config.py |
+| POST /api/v1/chat | Nh?n câu h?i, xây d?ng ng? c?nh t? t?n kho/don hàng/c?nh báo/d? báo qua Stored Procedure, g?i kèm Gemini d? tr? l?i d?a trên d? li?u th?t (fallback hi?n th? ng? c?nh n?u chua có API key) |
 | WebSocket /ws/alerts | Endpoint realtime; ConnectionManager broadcast tin nh?n |
-| Broadcast c?nh b�o | Khi resolve/x�a c?nh b�o, backend push lert_updated/lert_deleted qua WebSocket |
+| Broadcast c?nh báo | Khi resolve/xóa c?nh báo, backend push lert_updated/lert_deleted qua WebSocket |
 
 ### Frontend
 
-| Th�nh ph?n | M� t? |
+| Thành ph?n | Mô t? |
 |------------|-------|
-| Chatbot.jsx | Bong b�ng chat n?i g�c ph?i, hi?n th? tin nh?n ngu?i d�ng/AI, loading, quick questions, h? tr? Dark Mode |
-| RealtimeAlerts.jsx | L?ng nghe WebSocket, hi?n th? toast th�ng b�o realtime g�c tr�i kh�ng c?n reload |
-| T�ch h?p App.jsx | Th�m Chatbot v� RealtimeAlerts to�n c?c cho user d� dang nh?p |
+| Chatbot.jsx | Bong bóng chat n?i góc ph?i, hi?n th? tin nh?n ngu?i dùng/AI, loading, quick questions, h? tr? Dark Mode |
+| RealtimeAlerts.jsx | L?ng nghe WebSocket, hi?n th? toast thông báo realtime góc trái không c?n reload |
+| Tích h?p App.jsx | Thêm Chatbot và RealtimeAlerts toàn c?c cho user dã dang nh?p |
 
 ### Ki?m ch?ng
 
 | Ki?m tra | K?t qu? |
 |----------|---------|
 | 
-pm run build (frontend) | Th�nh c�ng (675 modules transformed) |
-| Endpoint chat (Swagger) | C� s?n POST /api/v1/chat |
+pm run build (frontend) | Thành công (675 modules transformed) |
+| Endpoint chat (Swagger) | Có s?n POST /api/v1/chat |
 | WebSocket | Endpoint ws://localhost:8000/ws/alerts ho?t d?ng |
 
 ---
 
-*I1 xong. Bu?c ti?p theo: t�ch h?p AI Model v� ho�n thi?n CRUD.*\
+*I1 xong. Bu?c ti?p theo: tích h?p AI Model và hoàn thi?n CRUD.*\
 \
-## 8x. FIX � TH�M N�T QUAY L?I CHO C�C TRANG CON (24/10/2026)
+## 8x. FIX — THÊM NÚT QUAY LẠI CHO CÁC TRANG CON (24/10/2026)
 
-- Th�m BackButton component d�ng 
-avigate(-1)`n- �p d?ng cho: S?n ph?m, Kho h�ng, �on h�ng, C?nh b�o, D? b�o, Nh�m h�ng, C?a h�ng
-- H? tr? Dark Mode v� Responsive
-- Build frontend th�nh c�ng\
+- Thêm BackButton component dùng 
+avigate(-1)`n- Áp d?ng cho: S?n ph?m, Kho hàng, Ðon hàng, C?nh báo, D? báo, Nhóm hàng, C?a hàng
+- H? tr? Dark Mode và Responsive
+- Build frontend thành công\
 \
-## 8y. SCRIPT � start_all.bat (27/10/2026)
+## 8y. SCRIPT — start_all.bat (27/10/2026)
 
 - File start_all.bat o thu muc goc: tu dong kill process tren cong 8000 va 3000, khoi dong Backend va Frontend trong 2 cua so moi
 - Cach dung: chi can click dup chuot de chay ca 2 server
 - Tranh loi WinError 10013 do cong bi chiem dung\
 \
-## 8z. DOCS � VIET LAI README.md (27/10/2026)
+## 8z. DOCS — VIET LAI README.md (27/10/2026)
 
 - Thay ban nhap PostgreSQL cu bang README phan anh dung hien trang
 - Tech stack: React 19 + Vite 8 + Tailwind 3.4 / FastAPI / SQL Server 2025 Express (74 SP) / Prophet + Gemini / WebSocket
@@ -2626,7 +2626,7 @@ avigate(-1)`n- �p d?ng cho: S?n ph?m, Kho h�ng, �on h�ng, C?nh b�o, D? b�o, Nh�m
 - Huong dan chay nhanh bang start_all.bat
 - Bang ket qua model: Prophet RMSE 9,97 thang 97/100 cap\
 \
-## 9a. FIX � CHATBOT 503 + START_ALL.BAT (27/10/2026)
+## 9a. FIX — CHATBOT 503 + START_ALL.BAT (27/10/2026)
 
 ### Chatbot
 - Doi GEMINI_MODEL=gemini-3.5-flash-lite trong .env de tranh loi 503 qua tai
@@ -2637,7 +2637,7 @@ avigate(-1)`n- �p d?ng cho: S?n ph?m, Kho h�ng, �on h�ng, C?nh b�o, D? b�o, Nh�m
 - Dung cd backend && ... va cd frontend && ... (chay tu thu muc goc khi click dup)
 - Ket thuc bang 	imeout /t 3 de cua so tu dong dong\
 \
-## 9b. FIX � TAO LAI start_all.bat BANG SCRIPT PYTHON (27/10/2026)
+## 9b. FIX — TAO LAI start_all.bat BANG SCRIPT PYTHON (27/10/2026)
 
 ### Nguyen nhan click dup khong chay
 - File .bat cu duoc ghi bang LF (khong phai CRLF) va co the dinh BOM -> cmd.exe doc sai
@@ -2656,7 +2656,7 @@ ewline=\\\r\\n\ -> CRLF chuan, khong BOM
 - GET http://localhost:3000/ -> **200** (tra ve HTML cua Vite)
 - Kiem tra byte: khong BOM, 11 CRLF, 0 lone-LF, 100% ASCII\
 
-## 9c. FIX � CHATBOT TRA LOI TU NHIEN HON (27/10/2026)
+## 9c. FIX — CHATBOT TRA LOI TU NHIEN HON (27/10/2026)
 
 ### Van de
 - Chatbot in ra danh sach tho voi cac viet tat: `- Kho #16 SP#6 CH#1 SL=355000 HH=2026-10-28`
@@ -2683,3 +2683,52 @@ ewline=\\\r\\n\ -> CRLF chuan, khong BOM
 - *'Co canh bao nao chua xu ly khong?'* -> '...tong cong 492 canh bao chua duoc xu ly... nuoc dua 250ml, si-rap dau... tai Cua hang tien loi Da Nang...'
 - *'San pham Rau muong con bao nhieu trong kho?'* -> '...Rau muong toi tai Cua hang tien loi Q.3 hien con 3 lo voi tong so luong 741 san pham. Dang chu y, co 1 lo da het han 63 ngay...'
 - Ca 3 cau tra loi: dung dau tieng Viet, 3-5 cau, khong danh sach tho, khong viet tat, co ten san pham that
+
+## 10a. F3 — HOÀN THIỆN CRUD THẬT CHO 4 TRANG (27/10/2026)
+
+### Trước khi sửa
+- Nút Thêm / Sửa / Xoá chỉ hiện thông báo "sẽ được nối với API ở bước tiếp theo", không gọi API.
+
+### Component dùng chung mới (`frontend/src/components/common/`)
+- `Modal.jsx` — hộp thoại có header/footer, đóng bằng Escape hoặc click backdrop, khoá scroll body, footer dính đáy trên mobile.
+- `ConfirmDialog.jsx` — hộp xác nhận xoá, nút Xoá màu đỏ, có trạng thái `busy` nên không bấm được 2 lần.
+- `Toast.jsx` — thông báo nổi giữa phía trên (tránh đè lên bong bóng Chatbot ở góc phải), tự tắt sau 4,5 giây, 3 sắc thái success / error / info.
+- `Field.jsx` — label + dấu * bắt buộc + hint, dùng chung cho cả 4 form.
+
+### Trang đã nối API thật
+
+| Trang | Thêm | Sửa | Xoá |
+|-------|------|-----|-----|
+| Sản phẩm | `POST /products` | `PUT /products/{id}` | `DELETE /products/{id}` |
+| Nhóm hàng | `POST /categories` | `PUT /categories/{id}` | `DELETE /categories/{id}` |
+| Cửa hàng | `POST /stores` | `PUT /stores/{id}` | `DELETE /stores/{id}` |
+| Kho hàng | `POST /inventory` | `PUT /inventory/{id}` | `DELETE /inventory/{id}` |
+
+- Modal Sửa điền sẵn dữ liệu cũ (`openEdit` map từng field, ép string cho input).
+- Validate client trước khi gửi: mã / tên / nhóm hàng / đơn vị / hạn dùng > 0; `max_stock >= min_stock` (giống CHECK trong DB).
+- Lỗi hiện **chữ đỏ ngay trong modal**, modal không đóng; thành công thì đóng modal + toast xanh + tải lại danh sách.
+- Xoá luôn qua `ConfirmDialog`; xoá dòng cuối của trang thì tự lùi 1 trang.
+- Sửa luôn gửi **toàn bộ dòng** — đúng quy ước `Update` của Stored Procedure.
+- Kho hàng: ô chọn Cửa hàng / Sản phẩm bị khoá khi Sửa (không đổi được khoá của lô).
+
+### Phân quyền
+- Nút Thêm / Sửa / Xoá và cột "Thao tác" chỉ render khi `isAdmin` (owner / manager).
+- Đã test thật: đăng nhập `staff` → không có nút Thêm, 0 nút Sửa, 0 nút Xoá.
+
+### Sửa thêm ở backend
+- `_extract_detail` trong `database.py` đọc sai vị trí mã lỗi: SQL Server đặt text TRƯỚC `(50002)`, hàm cũ tìm text SAU nên trả về cả tuple pyodbc.
+- Hậu quả cũ: lỗi trùng mã hiện nguyên chuỗi `('42000', '[42000] [Microsoft]... product_code already exists (50002) (SQLExecDirectW)')`.
+- Đã sửa: cắt `[SQL Server]`, lấy phần trước `(5000X)`, vẫn hỗ trợ định dạng text-nằm-sau.
+- Kết quả: `{"detail":"product_code already exists"}` (409), `{"detail":"Product not found"}` (404).
+
+### Kiểm chứng
+- `npm run build`: PASS (679 module, chỉ còn cảnh báo chunk > 500 kB).
+- `npm run lint`: 0 error (chỉ còn warning có sẵn của dự án).
+- Test API thật (tạo → sửa → trùng mã 409 → xoá) cho cả 4 resource: PASS hết, đã xoá sạch dữ liệu test.
+- Test UI thật trên trình duyệt:
+  - Bấm "Thêm sản phẩm" → modal mở, 8 nhóm hàng nạp từ API.
+  - Lưu → toast "Đã thêm sản phẩm mới.", tổng 50 → 51.
+  - Nhập trùng mã → lỗi đỏ "product_code already exists", modal vẫn mở.
+  - Bấm bút chì → modal điền sẵn dữ liệu, sửa tên → toast "Đã cập nhật sản phẩm."
+  - Bấm thùng rác → hộp xác nhận → "Đã xoá sản phẩm ...", dòng biến mất, tổng về 50.
+  - Modal Nhóm hàng / Cửa hàng / Kho hàng đều mở đúng field (Kho hàng nạp 10 cửa hàng + 50 sản phẩm).

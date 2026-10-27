@@ -1,13 +1,25 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
+import ConfirmDialog from '../components/common/ConfirmDialog.jsx'
+import Field from '../components/common/Field.jsx'
 import Icon from '../components/common/Icon.jsx'
-import Spinner from '../components/common/Spinner.jsx'
+import Modal from '../components/common/Modal.jsx'
+import Toast from '../components/common/Toast.jsx'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import api from '../services/api.js'
 import { formatDate, formatNumber, getErrorMessage } from '../utils/format.js'
 
 const PAGE_SIZE = 20
+
+const EMPTY_FORM = {
+  store_id: '',
+  product_id: '',
+  quantity: '0',
+  received_date: '',
+  expiry_date: '',
+  batch_code: '',
+}
 
 function daysBadge(daysLeft) {
   if (daysLeft == null) return { text: 'Không rõ', cls: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' }
@@ -33,6 +45,12 @@ function TableSkeleton({ cols }) {
   )
 }
 
+/** The API expects a plain `YYYY-MM-DD` date, not an ISO timestamp. */
+function toDateOnly(value) {
+  const text = String(value ?? '').trim()
+  return text === '' ? null : text
+}
+
 export default function InventoryPage() {
   const navigate = useNavigate()
   const { isAdmin } = useAuth()
@@ -44,6 +62,21 @@ export default function InventoryPage() {
   const [error, setError] = useState('')
   const [data, setData] = useState({ items: [], total: 0, pages: 0 })
   const [expiring, setExpiring] = useState({ items: [], total: 0 })
+
+  /* Reference lists for the create form. */
+  const [stores, setStores] = useState([])
+  const [products, setProducts] = useState([])
+
+  const [formOpen, setFormOpen] = useState(false)
+  const [editing, setEditing] = useState(null)
+  const [form, setForm] = useState(EMPTY_FORM)
+  const [formError, setFormError] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleting, setDeleting] = useState(false)
+
+  const [toast, setToast] = useState(null)
 
   useEffect(() => {
     setPage(1)
@@ -89,16 +122,171 @@ export default function InventoryPage() {
     }
   }, [tab, page, expDays, reloadKey])
 
+  /* Only admins can write, so only they need the dropdown data. */
+  useEffect(() => {
+    if (!isAdmin) return undefined
+    let cancelled = false
+
+    Promise.all([
+      api.get('/stores', { params: { page_size: 100 } }),
+      api.get('/products', { params: { page_size: 100 } }),
+    ])
+      .then(([storesRes, productsRes]) => {
+        if (cancelled) return
+        setStores(storesRes.data.items || [])
+        setProducts(productsRes.data.items || [])
+      })
+      .catch(() => {
+        /* The form still opens; the selects just have no options. */
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [isAdmin])
+
   const items = tab === 'expiring' ? expiring.items : data.items
   const totalCount = tab === 'expiring' ? expiring.total : data.total
+  const columns = isAdmin ? 8 : 7
+
+  const storeNameById = useMemo(() => {
+    const map = new Map()
+    stores.forEach((store) => map.set(store.store_id, store.store_name))
+    return map
+  }, [stores])
+
+  const productNameById = useMemo(() => {
+    const map = new Map()
+    products.forEach((product) => map.set(product.product_id, product.product_name))
+    return map
+  }, [products])
 
   const goToPage = (next) => {
     if (next < 1 || next > data.pages || next === page) return
     setPage(next)
   }
 
+  const setField = (name, value) => {
+    setForm((previous) => ({ ...previous, [name]: value }))
+  }
+
+  const openCreate = () => {
+    setEditing(null)
+    setForm({ ...EMPTY_FORM })
+    setFormError('')
+    setFormOpen(true)
+  }
+
+  const openEdit = (item) => {
+    setEditing(item)
+    setForm({
+      store_id: String(item.store_id ?? ''),
+      product_id: String(item.product_id ?? ''),
+      quantity: String(item.quantity ?? 0),
+      received_date: item.received_date ? String(item.received_date).slice(0, 10) : '',
+      expiry_date: item.expiry_date ? String(item.expiry_date).slice(0, 10) : '',
+      batch_code: item.batch_code ?? '',
+    })
+    setFormError('')
+    setFormOpen(true)
+  }
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+
+    const quantity = Number(form.quantity)
+    if (!Number.isFinite(quantity) || quantity < 0) {
+      setFormError('Số lượng phải là số lớn hơn hoặc bằng 0.')
+      return
+    }
+
+    if (!editing) {
+      if (!form.store_id) {
+        setFormError('Vui lòng chọn cửa hàng.')
+        return
+      }
+      if (!form.product_id) {
+        setFormError('Vui lòng chọn sản phẩm.')
+        return
+      }
+    }
+
+    const shared = {
+      quantity,
+      received_date: toDateOnly(form.received_date),
+      expiry_date: toDateOnly(form.expiry_date),
+      batch_code: form.batch_code.trim() || null,
+    }
+
+    setSaving(true)
+    setFormError('')
+
+    try {
+      if (editing) {
+        /* Store and product identify the batch and cannot be changed. */
+        await api.put(`/inventory/${editing.inventory_id}`, shared)
+      } else {
+        await api.post('/inventory', {
+          store_id: Number(form.store_id),
+          product_id: Number(form.product_id),
+          ...shared,
+        })
+      }
+
+      setFormOpen(false)
+      setToast({
+        type: 'success',
+        message: editing ? 'Đã cập nhật lô hàng.' : 'Đã thêm lô hàng mới.',
+      })
+      setReloadKey((key) => key + 1)
+    } catch (requestError) {
+      setFormError(getErrorMessage(requestError, 'Không lưu được lô hàng.'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return
+
+    setDeleting(true)
+    try {
+      await api.delete(`/inventory/${deleteTarget.inventory_id}`)
+      setToast({ type: 'success', message: 'Đã xoá lô hàng.' })
+      setDeleteTarget(null)
+
+      if (tab === 'all' && data.items.length === 1 && page > 1) {
+        setPage((current) => current - 1)
+      } else {
+        setReloadKey((key) => key + 1)
+      }
+    } catch (requestError) {
+      setToast({
+        type: 'error',
+        message: getErrorMessage(requestError, 'Không xoá được lô hàng.'),
+      })
+      setDeleteTarget(null)
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const labelForRow = (item) => {
+    const productName =
+      item.product?.product_name ||
+      productNameById.get(item.product_id) ||
+      `sản phẩm #${item.product_id}`
+    const storeName =
+      item.store?.store_name ||
+      storeNameById.get(item.store_id) ||
+      `cửa hàng #${item.store_id}`
+    return `${productName} tại ${storeName}`
+  }
+
   return (
     <div className="space-y-5 animate-fade-in">
+      <Toast type={toast?.type} message={toast?.message} onClose={() => setToast(null)} />
+
       <div className="flex items-center gap-3">
         <button
           type="button"
@@ -114,12 +302,18 @@ export default function InventoryPage() {
           <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-2xl">Kho hàng</h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Quản lý lô hàng tồn kho theo cửa hàng và ngày hết hạn.</p>
         </div>
-        {isAdmin && (
+        <div className="flex items-center gap-2">
+          {isAdmin && (
+            <button type="button" onClick={openCreate} className="btn-primary w-fit">
+              <Icon name="plus" className="h-4 w-4" />
+              Thêm lô hàng
+            </button>
+          )}
           <button type="button" onClick={() => setReloadKey((k) => k + 1)} className="btn-secondary w-fit">
             <Icon name="refresh" className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             Tải lại
           </button>
-        )}
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -177,14 +371,15 @@ export default function InventoryPage() {
                     <th className="px-4 py-3 font-semibold">Ngày nhập</th>
                     <th className="px-4 py-3 font-semibold">Hạn sử dụng</th>
                     <th className="px-4 py-3 font-semibold">Tình trạng</th>
+                    {isAdmin && <th className="px-4 py-3 text-right font-semibold">Thao tác</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {loading ? (
-                    <TableSkeleton cols={7} />
+                    <TableSkeleton cols={columns} />
                   ) : items.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-16 text-center">
+                      <td colSpan={columns} className="px-6 py-16 text-center">
                         <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500">
                           <Icon name="inventory" className="h-6 w-6" />
                         </span>
@@ -211,6 +406,30 @@ export default function InventoryPage() {
                           <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">{formatDate(item.received_date)}</td>
                           <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">{formatDate(item.expiry_date)}</td>
                           <td className="px-4 py-3.5"><span className={['badge', badge.cls].join(' ')}>{badge.text}</span></td>
+                          {isAdmin && (
+                            <td className="px-4 py-3.5">
+                              <div className="flex items-center justify-end gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => openEdit(item)}
+                                  className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-sky-50 hover:text-sky-600 dark:text-slate-400 dark:hover:bg-sky-950/50 dark:hover:text-sky-400"
+                                  aria-label={`Sửa lô hàng ${item.batch_code || item.inventory_id}`}
+                                  title="Sửa lô hàng"
+                                >
+                                  <Icon name="pencil" className="h-4 w-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setDeleteTarget(item)}
+                                  className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-950/50 dark:hover:text-red-400"
+                                  aria-label={`Xoá lô hàng ${item.batch_code || item.inventory_id}`}
+                                  title="Xoá lô hàng"
+                                >
+                                  <Icon name="trash" className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </td>
+                          )}
                         </tr>
                       )
                     })
@@ -244,6 +463,144 @@ export default function InventoryPage() {
           Tài khoản nhân viên có thể xem tồn kho. Chức năng thêm/sửa/xoá chỉ dành cho owner/manager.
         </p>
       )}
+
+      <Modal
+        open={formOpen}
+        title={editing ? 'Sửa lô hàng' : 'Thêm lô hàng'}
+        description={
+          editing
+            ? 'Cửa hàng và sản phẩm của lô hàng không thể thay đổi.'
+            : 'Chọn cửa hàng, sản phẩm và nhập thông tin lô hàng. Các trường có dấu * là bắt buộc.'
+        }
+        onClose={() => {
+          if (!saving) setFormOpen(false)
+        }}
+        size="lg"
+        footer={
+          <>
+            <button type="button" onClick={() => setFormOpen(false)} disabled={saving} className="btn-secondary">
+              Huỷ
+            </button>
+            <button type="submit" form="inventory-form" disabled={saving} className="btn-primary">
+              {saving ? (
+                <>
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                  Đang lưu…
+                </>
+              ) : (
+                <>
+                  <Icon name="check" className="h-4 w-4" />
+                  {editing ? 'Lưu thay đổi' : 'Thêm lô hàng'}
+                </>
+              )}
+            </button>
+          </>
+        }
+      >
+        <form id="inventory-form" onSubmit={handleSubmit} className="space-y-4">
+          {formError && (
+            <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
+              <Icon name="warning" className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{formError}</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Cửa hàng" htmlFor="store_id" required>
+              <select
+                id="store_id"
+                value={form.store_id}
+                onChange={(event) => setField('store_id', event.target.value)}
+                className="input"
+                disabled={Boolean(editing)}
+                required
+              >
+                <option value="">— Chọn cửa hàng —</option>
+                {stores.map((store) => (
+                  <option key={store.store_id} value={store.store_id}>
+                    {store.store_name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label="Sản phẩm" htmlFor="product_id" required>
+              <select
+                id="product_id"
+                value={form.product_id}
+                onChange={(event) => setField('product_id', event.target.value)}
+                className="input"
+                disabled={Boolean(editing)}
+                required
+              >
+                <option value="">— Chọn sản phẩm —</option>
+                {products.map((product) => (
+                  <option key={product.product_id} value={product.product_id}>
+                    {product.product_name} ({product.product_code})
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label="Số lượng" htmlFor="quantity" required>
+              <input
+                id="quantity"
+                type="number"
+                min="0"
+                step="1"
+                value={form.quantity}
+                onChange={(event) => setField('quantity', event.target.value)}
+                className="input"
+                required
+              />
+            </Field>
+
+            <Field label="Mã lô" htmlFor="batch_code">
+              <input
+                id="batch_code"
+                value={form.batch_code}
+                onChange={(event) => setField('batch_code', event.target.value)}
+                className="input"
+                maxLength={50}
+                placeholder="VD: LOT-2026-01"
+              />
+            </Field>
+
+            <Field label="Ngày nhập" htmlFor="received_date">
+              <input
+                id="received_date"
+                type="date"
+                value={form.received_date}
+                onChange={(event) => setField('received_date', event.target.value)}
+                className="input"
+              />
+            </Field>
+
+            <Field label="Hạn sử dụng" htmlFor="expiry_date" hint="Bắt buộc với hàng dễ hỏng.">
+              <input
+                id="expiry_date"
+                type="date"
+                value={form.expiry_date}
+                onChange={(event) => setField('expiry_date', event.target.value)}
+                className="input"
+              />
+            </Field>
+          </div>
+        </form>
+      </Modal>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Xoá lô hàng"
+        message={
+          deleteTarget
+            ? `Bạn có chắc muốn xoá lô hàng ${deleteTarget.batch_code ? `"${deleteTarget.batch_code}" ` : ''}của ${labelForRow(deleteTarget)}? Hành động này không thể hoàn tác.`
+            : ''
+        }
+        busy={deleting}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+      />
     </div>
   )
 }

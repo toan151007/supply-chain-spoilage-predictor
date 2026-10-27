@@ -61,8 +61,15 @@ Mục tiêu: Dự báo nhu cầu, tối ưu nhập hàng, giảm lãng phí th�
    backdrop + hamburger; nội dung dùng grid/flex và bảng cuộn ngang.
 5. **Trang đã có:** Login (JWT thật), Layout (Header/Sidebar/Content),
    Dashboard (mockup số liệu minh hoạ), Sản phẩm (gọi API thật, tìm kiếm/lọc/phân trang).
-6. **Việc còn lại:** nối Dashboard với API thật, hoàn thiện CRUD sản phẩm và các trang
-   Tồn kho / Đơn hàng / Dự báo / Cảnh báo / Đề xuất nhập hàng / Báo cáo.
+6. **CRUD đã hoàn thiện (27/10/2026):** Sản phẩm, Nhóm hàng, Cửa hàng, Kho hàng đều có
+   Thêm / Sửa / Xoá thật, gọi `POST` · `PUT` · `DELETE` qua `/api/v1/...`.
+   Dùng chung 4 component: `Modal` (hộp thoại), `ConfirmDialog` (xác nhận xoá),
+   `Toast` (thông báo xanh/đỏ) và `Field` (label + ô nhập).
+   - Modal Sửa điền sẵn dữ liệu cũ; lỗi validate hiển thị **chữ đỏ ngay trong modal**.
+   - Xoá luôn hỏi xác nhận; lỗi 409 (trùng mã / đang được tham chiếu) hiện toast đỏ.
+   - Nút thêm/sửa/xoá chỉ render khi `isAdmin` (owner/manager); `staff` chỉ xem.
+7. **Việc còn lại:** nối Dashboard với API thật, tạo đơn hàng mới, trang Đề xuất nhập hàng
+   và Báo cáo (CSV/XLSX/PDF).
 
 ## Rules (BẮT BUỘC TUÂN THỦ)
 
@@ -414,6 +421,7 @@ Chương 2 là cơ sở lý thuyết, trình bày cả 5 mô hình, chỉ **kỳ
 - [x] FIX: Đổi `GEMINI_MODEL=gemini-3.5-flash-lite` tránh lỗi 503 quá tải + sửa `start_all.bat` dùng `cd backend &&` (27/10/2026)
 - [x] FIX: Tạo lại `start_all.bat` bằng script Python — CRLF, ASCII, không BOM, có `cd /d "%~dp0"` để chạy đúng khi đường dẫn có dấu cách; đã test thật cả 2 cổng lên (27/10/2026)
 - [x] FIX: Chatbot trả lời tự nhiên — viết lại System Prompt (3-5 câu, không danh sách thô, xưng "Tôi"/"Bạn") + context dùng tên sản phẩm/cửa hàng thay vì `SP#`/`CH#`, đổi `SL`/`HH` thành câu tiếng Việt (27/10/2026)
+- [x] F3: Hoàn thiện CRUD thật cho Sản phẩm · Nhóm hàng · Cửa hàng · Kho hàng — Modal thêm/sửa, ConfirmDialog xoá, Toast thông báo, phân quyền owner/manager; sửa `_extract_detail` để lỗi 409 không còn trả tuple pyodbc thô (27/10/2026)
 - [ ] T2: README con cho từng thư mục
 - [ ] Tích hợp AI Model
 
