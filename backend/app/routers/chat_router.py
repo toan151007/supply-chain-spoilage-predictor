@@ -1,8 +1,9 @@
 """
-AI Agent Chatbot endpoint using Google Gemini API.
+AI Agent Chatbot endpoint using Google Gemini API (google-genai).
 """
 
-from datetime import date, datetime
+import os
+from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -78,8 +79,9 @@ def _build_context(db: DbSession) -> str:
 @router.post("", response_model=ChatResponse)
 def chat(payload: ChatRequest, db: DbSession = Depends(get_db)) -> ChatResponse:
     context = _build_context(db)
+    api_key = settings.GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY", "")
 
-    if not settings.GEMINI_API_KEY:
+    if not api_key:
         answer = (
             "Chua cau hinh GEMINI_API_KEY. Hien tai toi tra loi dua tren du lieu he thong:\n\n"
             f"{context}\n\n"
@@ -88,10 +90,9 @@ def chat(payload: ChatRequest, db: DbSession = Depends(get_db)) -> ChatResponse:
         return ChatResponse(answer=answer, sources=[{"type": "context", "count": len(context.splitlines())}], model=None)
 
     try:
-        import google.generativeai as genai
+        from google import genai
 
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        model = genai.GenerativeModel(settings.GEMINI_MODEL)
+        client = genai.Client(api_key=api_key)
         prompt = (
             "Ban la tro ly AI cho he thong quan tri chuoi cung ung chong lang phi thuc pham (FreshChain).\n"
             "Chi tra loi dua tren DU LIEU THAT duoc cung cap ben duoi. Neu khong du du lieu de tra loi chinh xac, hay noi ro dieu do.\n"
@@ -101,8 +102,15 @@ def chat(payload: ChatRequest, db: DbSession = Depends(get_db)) -> ChatResponse:
             f"CAU HOI CUA NGUOI DUNG: {payload.message}\n\n"
             "TRA LOI:"
         )
-        response = model.generate_content(prompt)
-        text = response.text if hasattr(response, "text") and response.text else "Khong co phan hoi tu AI."
+        response = client.models.generate_content(model=settings.GEMINI_MODEL or "gemini-2.5-flash", contents=prompt)
+        text = getattr(response, "text", None)
+        if not text and hasattr(response, "candidates") and response.candidates:
+            try:
+                text = response.candidates[0].content.parts[0].text
+            except Exception:
+                text = None
+        if not text:
+            text = str(response)
         return ChatResponse(answer=text, sources=[{"type": "context", "count": len(context.splitlines())}], model=settings.GEMINI_MODEL)
     except Exception as exc:
         raise HTTPException(
