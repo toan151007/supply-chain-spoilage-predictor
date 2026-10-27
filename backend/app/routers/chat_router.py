@@ -102,7 +102,8 @@ def chat(payload: ChatRequest, db: DbSession = Depends(get_db)) -> ChatResponse:
             f"CAU HOI CUA NGUOI DUNG: {payload.message}\n\n"
             "TRA LOI:"
         )
-        response = client.models.generate_content(model=settings.GEMINI_MODEL or "gemini-2.5-flash", contents=prompt)
+        model_name = settings.GEMINI_MODEL or "gemini-3.5-flash-lite"
+        response = client.models.generate_content(model=model_name, contents=prompt)
         text = getattr(response, "text", None)
         if not text and hasattr(response, "candidates") and response.candidates:
             try:
@@ -111,7 +112,7 @@ def chat(payload: ChatRequest, db: DbSession = Depends(get_db)) -> ChatResponse:
                 text = None
         if not text:
             text = str(response)
-        return ChatResponse(answer=text, sources=[{"type": "context", "count": len(context.splitlines())}], model=settings.GEMINI_MODEL)
+        return ChatResponse(answer=text, sources=[{"type": "context", "count": len(context.splitlines())}], model=model_name)
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

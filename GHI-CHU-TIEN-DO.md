@@ -2625,3 +2625,14 @@ avigate(-1)`n- Áp d?ng cho: S?n ph?m, Kho hàng, Ðon hàng, C?nh báo, D? báo, Nhóm
 - 7 muc: gioi thieu, tech stack, tinh nang, cau truc thu muc, huong dan cai dat, tai khoan test, tac gia + giay phep MIT
 - Huong dan chay nhanh bang start_all.bat
 - Bang ket qua model: Prophet RMSE 9,97 thang 97/100 cap\
+\
+## 9a. FIX — CHATBOT 503 + START_ALL.BAT (27/10/2026)
+
+### Chatbot
+- Doi GEMINI_MODEL=gemini-3.5-flash-lite trong .env de tranh loi 503 qua tai
+- chat_router.py doc settings.GEMINI_MODEL (config.py -> pydantic-settings -> .env), fallback mac dinh cung la gemini-3.5-flash-lite`n- Tra ve model dung ten model da goi trong response
+
+### start_all.bat
+- Ghi de bang phien ban gon: chi kill cong 8000/3000, mo 2 cua so cmd /k rieng
+- Dung cd backend && ... va cd frontend && ... (chay tu thu muc goc khi click dup)
+- Ket thuc bang 	imeout /t 3 de cua so tu dong dong\
