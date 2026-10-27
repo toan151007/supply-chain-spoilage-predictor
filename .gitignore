@@ -22,8 +22,12 @@ sql_output.log
 *.log
 
 # Moi truong — KHONG commit mat khau
+# `.env` o goc du an (backend va script AI/ML deu doc tu day)
 .env
+# Phong truong hop dat .env trong backend/ — KHONG BAO GIO commit
+backend/.env
 .env.local
+.env.*.local
 
 # IDE
 .vscode/
