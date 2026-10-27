@@ -2655,3 +2655,31 @@ ewline=\\\r\\n\ -> CRLF chuan, khong BOM
 - GET http://127.0.0.1:8000/health -> **200**
 - GET http://localhost:3000/ -> **200** (tra ve HTML cua Vite)
 - Kiem tra byte: khong BOM, 11 CRLF, 0 lone-LF, 100% ASCII\
+
+## 9c. FIX — CHATBOT TRA LOI TU NHIEN HON (27/10/2026)
+
+### Van de
+- Chatbot in ra danh sach tho voi cac viet tat: `- Kho #16 SP#6 CH#1 SL=355000 HH=2026-10-28`
+- Nguoi dung cuoi khong hieu `SP#`/`CH#`, khong biet ten san pham nao
+
+### Da sua trong `backend/app/routers/chat_router.py`
+1. **System Prompt moi** voi 7 quy tac bat buoc:
+   - Khong in danh sach tho, khong dung `SP#`, `CH#`, `SL`, `HH`, `CB#`, `DH`
+   - Tra loi MOT doan van 3-5 cau, tom tat y chinh
+   - Goi ten san pham / ten cua hang that, khong goi bang ma so
+   - Xung ho `Toi` / `Ban`, giong dieu lich su chuyen nghiep
+   - Ket thuc bang cau hoi moi xem chi tiet khi phu hop
+   - Co vi du TRA LOI DUNG va TRA LOI SAI de neo dinh dang
+2. **Context duoc viet lai than thien** (_build_context):
+   - `sp_Inventory_List` da tra san `product_name`, `store_name`, `days_to_expiry` -> dung truc tiep
+   - Them `sp_Inventory_ListExpiring` (30 ngay) de biet so lo sap het han
+   - Doi `SL=`/`HH=` thanh cau: *'con 355 san pham, het han sau 1 ngay'*
+   - Them dong tong hop: tong so lo, so lo sap het han, so canh bao chua xu ly, tong so don
+   - So tien dinh dang `355.000 d`, ngay `dd/mm/yyyy`
+3. **Fallback khong co API key** khong con do raw context ra ngoai, chi tom tat 2-3 cau
+
+### Kiem chung that qua `POST /api/v1/chat` (HTTP 200)
+- *'Ton kho hien tai the nao?'* -> 'Hien tai, he thong FreshChain dang quan ly tong cong 1.330 lo hang ton kho...'
+- *'Co canh bao nao chua xu ly khong?'* -> '...tong cong 492 canh bao chua duoc xu ly... nuoc dua 250ml, si-rap dau... tai Cua hang tien loi Da Nang...'
+- *'San pham Rau muong con bao nhieu trong kho?'* -> '...Rau muong toi tai Cua hang tien loi Q.3 hien con 3 lo voi tong so luong 741 san pham. Dang chu y, co 1 lo da het han 63 ngay...'
+- Ca 3 cau tra loi: dung dau tieng Viet, 3-5 cau, khong danh sach tho, khong viet tat, co ten san pham that

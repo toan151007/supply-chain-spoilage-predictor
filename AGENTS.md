@@ -413,6 +413,7 @@ Chương 2 là cơ sở lý thuyết, trình bày cả 5 mô hình, chỉ **kỳ
 - [x] DOCS: Viết lại toàn bộ `README.md` theo đúng tech stack SQL Server + Gemini + WebSocket (27/10/2026)
 - [x] FIX: Đổi `GEMINI_MODEL=gemini-3.5-flash-lite` tránh lỗi 503 quá tải + sửa `start_all.bat` dùng `cd backend &&` (27/10/2026)
 - [x] FIX: Tạo lại `start_all.bat` bằng script Python — CRLF, ASCII, không BOM, có `cd /d "%~dp0"` để chạy đúng khi đường dẫn có dấu cách; đã test thật cả 2 cổng lên (27/10/2026)
+- [x] FIX: Chatbot trả lời tự nhiên — viết lại System Prompt (3-5 câu, không danh sách thô, xưng "Tôi"/"Bạn") + context dùng tên sản phẩm/cửa hàng thay vì `SP#`/`CH#`, đổi `SL`/`HH` thành câu tiếng Việt (27/10/2026)
 - [ ] T2: README con cho từng thư mục
 - [ ] Tích hợp AI Model
 
