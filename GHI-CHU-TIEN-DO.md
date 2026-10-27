@@ -2617,3 +2617,11 @@ avigate(-1)`n- Áp d?ng cho: S?n ph?m, Kho hàng, Ðon hàng, C?nh báo, D? báo, Nhóm
 - File start_all.bat o thu muc goc: tu dong kill process tren cong 8000 va 3000, khoi dong Backend va Frontend trong 2 cua so moi
 - Cach dung: chi can click dup chuot de chay ca 2 server
 - Tranh loi WinError 10013 do cong bi chiem dung\
+\
+## 8z. DOCS — VIET LAI README.md (27/10/2026)
+
+- Thay ban nhap PostgreSQL cu bang README phan anh dung hien trang
+- Tech stack: React 19 + Vite 8 + Tailwind 3.4 / FastAPI / SQL Server 2025 Express (74 SP) / Prophet + Gemini / WebSocket
+- 7 muc: gioi thieu, tech stack, tinh nang, cau truc thu muc, huong dan cai dat, tai khoan test, tac gia + giay phep MIT
+- Huong dan chay nhanh bang start_all.bat
+- Bang ket qua model: Prophet RMSE 9,97 thang 97/100 cap\

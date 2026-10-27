@@ -410,6 +410,7 @@ Chương 2 là cơ sở lý thuyết, trình bày cả 5 mô hình, chỉ **kỳ
 - [x] I1: Tích hợp AI Chatbot (Google Gemini) + WebSocket realtime cảnh báo (24/10/2026)
 - [x] FIX: Thêm nút "Quay lại" cho tất cả trang con (24/10/2026)
 - [x] SCRIPT: Thêm `start_all.bat` tự động dọn cổng 8000/3000 và khởi động cả 2 server (27/10/2026)
+- [x] DOCS: Viết lại toàn bộ `README.md` theo đúng tech stack SQL Server + Gemini + WebSocket (27/10/2026)
 - [ ] T2: README con cho từng thư mục
 - [ ] Tích hợp AI Model
 
