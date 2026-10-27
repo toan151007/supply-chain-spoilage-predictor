@@ -409,6 +409,7 @@ Chương 2 là cơ sở lý thuyết, trình bày cả 5 mô hình, chỉ **kỳ
 - [x] F2: Hoàn thiện các trang giao diện còn lại — Kho hàng (tabs hết hạn), Đơn hàng (xem chi tiết), Cảnh báo (đánh dấu đã đọc), Dự báo (bảng + biểu đồ), Nhóm hàng/Cửa hàng, cập nhật menu/routes (24/10/2026)
 - [x] I1: Tích hợp AI Chatbot (Google Gemini) + WebSocket realtime cảnh báo (24/10/2026)
 - [x] FIX: Thêm nút "Quay lại" cho tất cả trang con (24/10/2026)
+- [x] SCRIPT: Thêm `start_all.bat` tự động dọn cổng 8000/3000 và khởi động cả 2 server (27/10/2026)
 - [ ] T2: README con cho từng thư mục
 - [ ] Tích hợp AI Model
 

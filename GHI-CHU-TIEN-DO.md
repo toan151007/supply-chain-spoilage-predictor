@@ -2611,3 +2611,9 @@ pm run build (frontend) | Thành công (675 modules transformed) |
 avigate(-1)`n- Áp d?ng cho: S?n ph?m, Kho hàng, Ðon hàng, C?nh báo, D? báo, Nhóm hàng, C?a hàng
 - H? tr? Dark Mode và Responsive
 - Build frontend thành công\
+\
+## 8y. SCRIPT — start_all.bat (27/10/2026)
+
+- File start_all.bat o thu muc goc: tu dong kill process tren cong 8000 va 3000, khoi dong Backend va Frontend trong 2 cua so moi
+- Cach dung: chi can click dup chuot de chay ca 2 server
+- Tranh loi WinError 10013 do cong bi chiem dung\
