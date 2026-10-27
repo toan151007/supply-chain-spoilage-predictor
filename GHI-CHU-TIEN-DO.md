@@ -2636,3 +2636,22 @@ avigate(-1)`n- Áp d?ng cho: S?n ph?m, Kho hàng, Ðon hàng, C?nh báo, D? báo, Nhóm
 - Ghi de bang phien ban gon: chi kill cong 8000/3000, mo 2 cua so cmd /k rieng
 - Dung cd backend && ... va cd frontend && ... (chay tu thu muc goc khi click dup)
 - Ket thuc bang 	imeout /t 3 de cua so tu dong dong\
+\
+## 9b. FIX — TAO LAI start_all.bat BANG SCRIPT PYTHON (27/10/2026)
+
+### Nguyen nhan click dup khong chay
+- File .bat cu duoc ghi bang LF (khong phai CRLF) va co the dinh BOM -> cmd.exe doc sai
+- Thieu cd /d \%~dp0\ nen khi thu muc du an co dau cach / dau tieng Viet thi cd backend that bai
+
+### Cach sua
+- Xoa file cu, viet script Python tam _make_start_all.py de sinh file moi:
+  - encoding=\ascii\, 
+ewline=\\\r\\n\ -> CRLF chuan, khong BOM
+  - Dong dau cd /d \%~dp0\ -> luon chay dung thu muc chua file .bat
+- Da xoa script Python tam sau khi sinh xong
+
+### Kiem chung that
+- Chay cmd /c start_all.bat: cong **8000** LISTENING (PID backend), cong **3000** LISTENING (Vite)
+- GET http://127.0.0.1:8000/health -> **200**
+- GET http://localhost:3000/ -> **200** (tra ve HTML cua Vite)
+- Kiem tra byte: khong BOM, 11 CRLF, 0 lone-LF, 100% ASCII\
