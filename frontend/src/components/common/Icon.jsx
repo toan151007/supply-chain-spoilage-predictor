@@ -107,6 +107,14 @@ const ICONS = {
   ),
   arrowUp: <path d="M12 19V5M5 12l7-7 7 7" />,
   arrowDown: <path d="M12 5v14M19 12l-7 7-7-7" />,
+  transfer: (
+    <>
+      <path d="M3 8h14" />
+      <path d="m14 5 3 3-3 3" />
+      <path d="M21 16H7" />
+      <path d="m10 13-3 3 3 3" />
+    </>
+  ),
   clock: (
     <>
       <circle cx="12" cy="12" r="9" />

@@ -5,6 +5,10 @@
 Nền tảng Quản trị Chuỗi cung ứng Chống lãng phí cho chuỗi cửa hàng bán lẻ/F&B.
 Mục tiêu: Dự báo nhu cầu, tối ưu nhập hàng, giảm lãng phí thực phẩm.
 
+Từ 31/10/2026 hệ thống được nâng thành **nền tảng điều phối chuỗi cung ứng thông minh**:
+ngoài dự báo nhu cầu còn có **điều chuyển hàng giữa cửa hàng** (5 bước có duyệt),
+**dự báo theo mùa vụ** (tự động làm mới 5 phút) và **chatbot tối ưu tốc độ**.
+
 ## Tech Stack
 
 - Frontend: React.js + Vite + Tailwind CSS
@@ -24,7 +28,8 @@ Mục tiêu: Dự báo nhu cầu, tối ưu nhập hàng, giảm lãng phí th�
 - Chạy frontend: `npm run dev` (cổng 3000)
 - Kết nối database (SSMS): server `LAPTOP-I39E3UT2\SQLEXPRESS`, login `sa`, database `spoilage_predictor`
 - Chạy SQL bằng dòng lệnh: `sqlcmd -S "LAPTOP-I39E3UT2\SQLEXPRESS" -U sa -P <mat_khau> -C -d spoilage_predictor -i <file.sql>`
-- Tạo schema + Stored Procedure: xem `database/HUONG-DAN-CHAY-SSMS.md` (copy/paste trên SSMS)
+- Tạo schema + Stored Procedure: xem `database/HUONG-DAN-CHAY-SSMS.md` (copy/paste trên SSMS), sau đó chạy `database/03-migrations/010-sqlserver-analytics-procedures.sql` và `database/03-migrations/011-transfers-seasonal.sql`
+- Chạy migration 011 bằng dòng lệnh: `sqlcmd -S "<host>" -U sa -P <mat_khau> -C -d spoilage_predictor -I -b -i database\03-migrations\011-transfers-seasonal.sql`
 - Chạy AI model: `cd ai-model && jupyter notebook`
 
 > ⚠️ **Dữ liệu PostgreSQL cũ KHÔNG tự chuyển sang SQL Server.** File T-SQL trong
@@ -68,8 +73,18 @@ Mục tiêu: Dự báo nhu cầu, tối ưu nhập hàng, giảm lãng phí th�
    - Modal Sửa điền sẵn dữ liệu cũ; lỗi validate hiển thị **chữ đỏ ngay trong modal**.
    - Xoá luôn hỏi xác nhận; lỗi 409 (trùng mã / đang được tham chiếu) hiện toast đỏ.
    - Nút thêm/sửa/xoá chỉ render khi `isAdmin` (owner/manager); `staff` chỉ xem.
-7. **Việc còn lại:** nối Dashboard với API thật, tạo đơn hàng mới, trang Đề xuất nhập hàng
-   và Báo cáo (CSV/XLSX/PDF).
+8. **Điều chuyển hàng (31/10/2026):** trang `/transfers` (`TransfersPage.jsx`) — thanh 5
+   bước bấm được để lọc (Đề xuất → Chờ duyệt → Đã duyệt → Đang chuyển → Đã nhận),
+   3 thẻ tổng hợp, bảng có tìm kiếm + lọc + phân trang, modal tạo yêu cầu, modal xác
+   nhận thao tác (có ghi chú) và modal chi tiết hiển thị tiến trình theo mốc thời gian.
+   Nút thao tác đổi theo trạng thái **và** theo vai trò: `staff` chỉ thấy Gửi duyệt /
+   Huỷ / Xác nhận giao / Xác nhận nhận; Duyệt và Từ chối chỉ hiện với owner/manager.
+9. **Dự báo theo mùa vụ:** `ForecastsPage` có 2 tab — "Dự báo mới nhất" (giữ nguyên) và
+   "Dự báo theo mùa" (`components/forecasts/SeasonalPanel.jsx`). Tab mùa vụ **tự động
+   gọi lại API mỗi 5 phút** (`REFRESH_MS = 5 * 60 * 1000`) và hiện đồng hồ đếm ngược,
+   giờ cập nhật, nút "Làm mới ngay". Không cần F5.
+10. **Việc còn lại:** nối Dashboard với API thật, tạo đơn hàng mới, trang Đề xuất nhập hàng
+    và Báo cáo (CSV/XLSX/PDF).
 
 ## Rules (BẮT BUỘC TUÂN THỦ)
 
@@ -248,7 +263,8 @@ Vì vậy **không dùng được** tiêu chí "hệ số biến động mùa v�
 
 - **Bước 3 dùng `DbSession` bọc `pyodbc` raw connection, KHÔNG dùng SQLAlchemy Session.** `Session` không có `nextset()`, và procedure tự `COMMIT` transaction ngầm của pyodbc gây lỗi `266 Transaction count after EXECUTE...`. Engine tạo với `autocommit=True`, lấy connection bằng `engine.raw_connection()`. Router gọi `db.call("sp_Ten", {TenThamSo: value})` → `list[list[dict]]` (mỗi result set là list dict theo TÊN cột).
 - **Chuỗi kết nối phải dựng qua `mssql+pyodbc:///?odbc_connect=<quote_plus(...)>`** vì host chứa dấu `\` bị URL-encode sai nếu viết dạng `user:pass@host`.
-- **Có 74 Stored Procedure**: 49 trong `database/HUONG-DAN-CHAY-SSMS.md` + 25 trong `database/03-migrations/010-sqlserver-analytics-procedures.sql` (dashboard, dashboard nâng cao, đề xuất nhập hàng, báo cáo, import dùng `OPENJSON`). Chạy migration 010 sau file hướng dẫn.
+- **Có 85 Stored Procedure**: 49 trong `database/HUONG-DAN-CHAY-SSMS.md` + 25 trong `database/03-migrations/010-sqlserver-analytics-procedures.sql` (dashboard, dashboard nâng cao, đề xuất nhập hàng, báo cáo, import dùng `OPENJSON`) + **10 điều chuyển + 1 dự báo mùa vụ** trong `database/03-migrations/011-transfers-seasonal.sql`. Chạy migration 010 rồi 011 sau file hướng dẫn.
+- **Có 11 bảng** (10 bảng gốc + `transfer_requests`) và **4 view**.
 - **Nạp dữ liệu dev**: `python scripts/convert_seed_to_sqlserver.py` (sinh `database/02-seed/seed-sqlserver.sql`) rồi `python scripts/load_sqlserver_data.py`. Script nạp **bỏ các dòng `sales = 0`** để không vi phạm `CHECK (quantity > 0)` — đúng bài học cũ.
 - **`sp_Orders_Delete` xoá dòng hàng trước rồi xoá đơn** trong cùng transaction (khôi phục `ON DELETE CASCADE` của PostgreSQL). Xoá đơn `completed` vẫn bị chặn ở tầng trạng thái.
 - **Dữ liệu nạp lại hiện có 2.820 `forecasts`** (94 cặp prophet × 30 ngày), không phải 3.000/2.910 — file `ai-model/outputs/forecast_summary_30d.csv` chỉ có 94 cặp. Báo cáo phải dùng đúng số trong DB.
@@ -267,6 +283,55 @@ Vì vậy **không dùng được** tiêu chí "hệ số biến động mùa v�
 - **`@@ROWCOUNT` phải đọc ngay sau câu lệnh vừa chạy**, trước mọi `IF`/`SELECT` khác.
 - **Mã lỗi nghiệp vụ** 50001–50005 (xem mục SQL Rules) — router phải map sang HTTP, không trả 500.
 - **Script tạo schema có `DROP`** — chạy trên DB đang có dữ liệu sẽ mất sạch. Chỉ chạy khi DB trống hoặc đã backup.
+
+### Điều chuyển hàng · dự báo mùa vụ · chatbot (31/10/2026)
+
+- **`transfer_requests` có 5 khoá ngoại trỏ tới `users` đều phải `NO ACTION`.** Đặt
+  `CASCADE` cho cả 5 → SQL Server báo lỗi **1785** (*may cause cycles or multiple
+  cascade paths*). Cùng loại lỗi đã gặp với `categories.parent_category_id`.
+- **`uq_transactions_reference` phải gồm `store_id`.** Một lần điều chuyển sinh **2**
+  dòng `inventory_transactions` (xuất ở kho gửi, nhập ở kho nhận) cùng
+  `reference_type='transfer'` và cùng `reference_id`. Thiếu `store_id` trong khoá là
+  hai dòng đụng nhau ngay lần hoàn tất đầu tiên.
+- **`chk_inv_tx_reference_type` phải mở rộng thêm `'transfer'`**, nếu không không ghi
+  được giao dịch nào của điều chuyển.
+- **`sp_Transfer_Complete` trừ kho theo FEFO:** chọn `expiry_date` thì trừ đúng lô đó,
+  để trống thì lặp qua các lô **hết hạn trước**. Cộng kho đích thì gộp vào lô cùng hạn
+  nếu đã có, chưa có mới tạo lô mới. Toàn bộ nằm trong **một** transaction.
+- **`INSERT ... EXEC` KHÔNG dùng được với Stored Procedure có `BEGIN TRY/CATCH` +
+  `ROLLBACK`.** SQL Server báo `Msg 3915 Cannot use the ROLLBACK statement within an
+  INSERT-EXEC statement` **ngay cả khi procedure chạy thành công**. Muốn lấy kết quả
+  thì gọi trực tiếp `EXEC` (hoặc `sqlcmd -o file`), đừng bọc trong `INSERT ... EXEC`.
+- **Chỉ số mùa vụ phải là chỉ số TƯƠNG ĐỐI + XẾP HẠNG, không dùng ngưỡng tuyệt đối.**
+  Chỉ số tuyệt đối (doanh số mùa/ngày ÷ doanh số năm/ngày) cho **mọi** sản phẩm cùng
+  một giá trị (≈0,91 Xuân · ≈1,06 Thu) vì mùa vụ Walmart tác động đều lên 50 sản phẩm.
+  Chỉ số tương đối (tỷ trọng sản phẩm trong mùa ÷ tỷ trọng toàn hệ thống) chỉ có biên độ
+  **0,992–1,009** → ngưỡng 1,05/0,95 cho ra **200/200 `neutral`**. Cách đang dùng:
+  **top 20% → `import`, bottom 20% → `avoid`** (10 + 30 + 10 mỗi mùa). Khi viết Chương 4
+  phải nói rõ đây là so sánh **giữa các sản phẩm trong cùng mùa**, không phải mức tăng
+  tuyệt đối.
+- **`sp_Forecasts_Seasonal` chỉ trả `season_code` (ASCII: spring/summer/autumn/winter).**
+  Nhãn tiếng Việt (`Xuân/Hạ/Thu/Đông`) và danh sách tháng nằm ở
+  `backend/app/services/seasonal.py`, không nhét vào SQL.
+- **Stored Procedure mùa vụ dùng bảng tạm, không dùng CTE** — vì `WITH` không đứng ngay
+  sau `IF` (bài học cũ), mà procedure cần `IF` để chặn tham số.
+- **`sp_Forecasts_Seasonal` nặng (~3 giây) nên phải cache.** `services/seasonal.py` cache
+  **300 giây** trong RAM, đúng bằng chu kỳ auto-refresh 5 phút của frontend. Cache mất
+  khi restart backend. Đo thật: lần đầu **3.086 ms**, các lần sau **45 ms**.
+- **Route `/transfers/summary` phải khai báo TRƯỚC `/transfers/{transfer_id}`** — nếu
+  không FastAPI cố parse chuỗi `"summary"` thành `int` và trả 422.
+- **Chatbot có "đường nhanh": câu hỏi không có từ khoá nghiệp vụ thì trả lời ngay**,
+  không chạm database và không gọi Gemini (10–144 ms thay vì ~4.500 ms). Từ khoá được
+  chia theo khối (`inventory`/`alerts`/`orders`/`forecasts`/`transfers`/`seasonal`) và
+  router **chỉ nạp khối liên quan**. Thêm khối mới thì phải thêm từ khoá vào
+  `SECTION_KEYWORDS`, nếu không câu hỏi về khối đó sẽ rơi vào đường nhanh và trả lời sai.
+- **`TYPO_MAP` phải sắp xếp cụm DÀI trước cụm NGẮN** và dùng ranh giới từ
+  `(?<!\w)…(?!\w)`; nếu không `kho` sẽ khớp vào giữa `tồn kho` và `hạ` khớp vào `hạch toán`.
+- **Vite dev server trên Windows giữ cache module cũ khi đường dẫn dự án có dấu tiếng Việt.**
+  Đã gặp: sửa `Sidebar.jsx` thêm mục menu nhưng giao diện vẫn không đổi, dù file trên đĩa
+  đúng và request `?probe=…` trả nội dung mới — vì watcher không nhận thay đổi nên module
+  graph vẫn phục vụ bản cũ cho URL **không có query**. → **Khởi động lại `npm run dev`**
+  rồi tải lại trang. Đừng mất thời gian tìm lỗi React.
 
 ### Giai đoạn PostgreSQL (lịch sử)
 
@@ -422,6 +487,10 @@ Chương 2 là cơ sở lý thuyết, trình bày cả 5 mô hình, chỉ **kỳ
 - [x] FIX: Tạo lại `start_all.bat` bằng script Python — CRLF, ASCII, không BOM, có `cd /d "%~dp0"` để chạy đúng khi đường dẫn có dấu cách; đã test thật cả 2 cổng lên (27/10/2026)
 - [x] FIX: Chatbot trả lời tự nhiên — viết lại System Prompt (3-5 câu, không danh sách thô, xưng "Tôi"/"Bạn") + context dùng tên sản phẩm/cửa hàng thay vì `SP#`/`CH#`, đổi `SL`/`HH` thành câu tiếng Việt (27/10/2026)
 - [x] F3: Hoàn thiện CRUD thật cho Sản phẩm · Nhóm hàng · Cửa hàng · Kho hàng — Modal thêm/sửa, ConfirmDialog xoá, Toast thông báo, phân quyền owner/manager; sửa `_extract_detail` để lỗi 409 không còn trả tuple pyodbc thô (27/10/2026)
+- [x] **ĐIỀU CHUYỂN HÀNG (31/10/2026)**: migration `011-transfers-seasonal.sql` — bảng `transfer_requests` (11 bảng), mở rộng `chk_inv_tx_reference_type` + `uq_transactions_reference`, **10 Stored Procedure** (Create/Submit/Approve/Reject/Cancel/Ship/Complete/Get/List/Summary); `transfer_router.py` (9 endpoint) + `transfer_schema.py`; trang `/transfers` với thanh 5 bước, modal tạo yêu cầu, modal xác nhận, modal chi tiết tiến trình. Test: sqlcmd đủ 5 bước (kho 489→484 / 1.179→1.184) + **HTTP 30/30 PASS**
+- [x] **DỰ BÁO THEO MÙA VỤ (31/10/2026)**: `sp_Forecasts_Seasonal` (200 dòng = 50 SP × 4 mùa, dữ liệu 2013-01-01→2017-12-31); `services/seasonal.py` (cache 300 giây, nhãn tiếng Việt); `GET /api/v1/forecasts/seasonal` (lần đầu 3.086 ms → cache 45 ms); tab "Dự báo theo mùa" + **tự động làm mới 5 phút** (đã kiểm chứng bằng cách hạ tạm xuống 10 giây)
+- [x] **TỐI ƯU CHATBOT (31/10/2026)**: đường nhanh cho câu ngoài nghiệp vụ (4.500 ms → 10–144 ms), `TYPO_MAP` ~45 mục (sửa cả gõ sai dấu và gõ không dấu), chỉ nạp khối dữ liệu liên quan, thêm khối mùa vụ + điều chuyển, System Prompt 10 quy tắc. Test 8 câu thật, không câu nào lộ `SP#`/`CH#`/`SL`
+- [x] Kiểm chứng sau nâng cấp (31/10/2026): smoke test **48/48** đọc + **29/29** ghi; `npm run build` PASS (681 module); `npm run lint` 0 error; DB **11 bảng · 4 view · 85 Stored Procedure**
 - [ ] T2: README con cho từng thư mục
 - [ ] Tích hợp AI Model
 

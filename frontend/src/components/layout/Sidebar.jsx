@@ -16,6 +16,7 @@ const NAV_GROUPS = [
     items: [
       { to: '/inventory', label: 'Kho hàng', icon: 'inventory' },
       { to: '/orders', label: 'Bán hàng', icon: 'orders' },
+      { to: '/transfers', label: 'Điều chuyển hàng', icon: 'transfer' },
       { to: '/alerts', label: 'Cảnh báo', icon: 'alerts' },
       { to: '/forecasts', label: 'Dự báo nhu cầu', icon: 'forecast' },
     ],

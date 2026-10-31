@@ -2732,3 +2732,223 @@ ewline=\\\r\\n\ -> CRLF chuan, khong BOM
   - Bấm bút chì → modal điền sẵn dữ liệu, sửa tên → toast "Đã cập nhật sản phẩm."
   - Bấm thùng rác → hộp xác nhận → "Đã xoá sản phẩm ...", dòng biến mất, tổng về 50.
   - Modal Nhóm hàng / Cửa hàng / Kho hàng đều mở đúng field (Kho hàng nạp 10 cửa hàng + 50 sản phẩm).
+
+
+---
+
+## 9. Nâng cấp 31/10/2026 — điều phối hàng, dự báo mùa vụ, tối ưu chatbot
+
+Theo góp ý mới của GVHD, hệ thống được nâng từ "website kho có AI dự báo" thành
+"nền tảng điều phối chuỗi cung ứng thông minh". Ba việc lớn: quy trình điều chuyển
+hàng giữa cửa hàng, dự báo theo mùa vụ có tự động làm mới, và tối ưu tốc độ chatbot.
+
+### 9.1. Điều chuyển hàng giữa cửa hàng
+
+**Bảng mới `dbo.transfer_requests`** — mỗi yêu cầu quản lý **một sản phẩm** cho
+**một cặp cửa hàng**, nên không cần bảng dòng chi tiết như `order_items`.
+
+**10 Stored Procedure mới** (`database/03-migrations/011-transfers-seasonal.sql`):
+
+| Stored Procedure | Việc |
+|------------------|------|
+| `sp_Transfer_Create` | Tạo yêu cầu ở trạng thái `proposed`, sinh mã `TR000001` |
+| `sp_Transfer_Submit` | `proposed` → `pending` (nhân viên gửi duyệt) |
+| `sp_Transfer_Approve` | `pending` → `approved` (chỉ owner/manager) |
+| `sp_Transfer_Reject` | → `rejected`, ghi lý do |
+| `sp_Transfer_Cancel` | `proposed`/`pending` → `cancelled` |
+| `sp_Transfer_Ship` | `approved` → `in_transit` (kho gửi xác nhận xuất hàng) |
+| `sp_Transfer_Complete` | `in_transit` → `received`: trừ kho gửi, cộng kho nhận, ghi 2 dòng `inventory_transactions` |
+| `sp_Transfer_Get` | Chi tiết một yêu cầu (join 2 cửa hàng + sản phẩm + 5 người thực hiện) |
+| `sp_Transfer_List` | Danh sách có lọc trạng thái / cửa hàng / sản phẩm / tìm kiếm + phân trang |
+| `sp_Transfer_Summary` | Đếm số yêu cầu theo trạng thái, tổng số lượng, số lượng đang trên đường |
+
+Quy trình 5 bước cộng 2 trạng thái kết thúc:
+
+```
+proposed -> pending -> approved -> in_transit -> received
+proposed | pending -> rejected | cancelled
+```
+
+**Bốn quyết định kỹ thuật phải ghi lại:**
+
+1. **Cả 5 khoá ngoại trỏ tới `users` đều dùng `NO ACTION`, không dùng `CASCADE`.**
+   SQL Server báo lỗi **1785** (*multiple cascade paths*) vì `transfer_requests` có
+   5 đường cascade cùng trỏ về `users`. Đây là cùng loại lỗi đã gặp với
+   `categories.parent_category_id`.
+2. **`uq_transactions_reference` phải thêm `store_id` vào khoá.** Một lần điều
+   chuyển sinh **2** dòng `inventory_transactions` (xuất ở kho gửi, nhập ở kho nhận)
+   cùng `reference_type = 'transfer'` và cùng `reference_id`. Nếu khoá chỉ gồm
+   `(reference_type, reference_id, transaction_type)` thì hai dòng này đụng nhau.
+3. **`chk_inv_tx_reference_type` mở rộng thêm giá trị `'transfer'`.** Không mở rộng
+   thì không ghi được dòng giao dịch nào.
+4. **Trừ kho theo FEFO.** Nếu người tạo yêu cầu chọn `expiry_date` thì trừ đúng lô
+   đó; nếu để trống thì Stored Procedure lặp qua các lô **hết hạn trước** cho tới khi
+   đủ số lượng. Phần cộng kho đích gộp vào lô cùng hạn nếu đã có, chưa có thì tạo lô mới.
+
+**Đã test thật:**
+
+| Bài test | Kết quả |
+|----------|---------|
+| Chạy đủ 5 bước bằng `sqlcmd` | Kho nguồn 489 → 484, kho đích 1.179 → 1.184 |
+| Duyệt lần 2 khi đã duyệt | Bị chặn, mã lỗi `50004` (→ 409) |
+| Hoàn tất lần 2 khi đã nhận | Bị chặn, mã lỗi `50004` (→ 409) |
+| Dọn dữ liệu test | Trả kho về đúng 489 / 1.179, 0 yêu cầu, 0 giao dịch điều chuyển |
+| **Test HTTP đầy đủ** | **30/30 PASS** (tạo · phân quyền · 422 · 409 · 5 bước · tồn kho · danh sách · 404 · mùa vụ · chatbot) |
+
+Trong 30 check có 3 check đáng chú ý vì bắt được lỗi thật nếu có:
+
+- `staff` gọi `POST /transfers/{id}/approve` → **403** (phân quyền ở tầng router).
+- Tạo yêu cầu cùng cửa hàng gửi/nhận → **422** (lỗi nghiệp vụ `50005`).
+- Tạo yêu cầu vượt tồn kho → **409** (lỗi nghiệp vụ `50004`), không ghi gì.
+
+**Giao diện `TransfersPage.jsx`:** thanh 5 bước bấm được để lọc (mỗi bước hiện số
+yêu cầu), 3 thẻ tổng hợp (tổng yêu cầu · đang cần xử lý · hàng đang trên đường),
+bảng có tìm kiếm + lọc trạng thái + phân trang, modal tạo yêu cầu, modal xác nhận
+thao tác có ghi chú, và modal chi tiết hiển thị **tiến trình theo mốc thời gian**
+(ai làm, lúc nào). Nút thao tác đổi theo trạng thái và theo vai trò:
+`staff` chỉ thấy Gửi duyệt / Huỷ / Xác nhận giao / Xác nhận nhận, còn Duyệt và
+Từ chối chỉ hiện với owner/manager.
+
+### 9.2. Dự báo theo mùa vụ và tự động làm mới 5 phút
+
+**Stored Procedure `sp_Forecasts_Seasonal`** gom `order_items` theo 4 mùa
+(Xuân 2–4 · Hạ 5–7 · Thu 8–10 · Đông 11–12–1) và trả **200 dòng** = 50 sản phẩm × 4 mùa,
+kèm `data_from = 2013-01-01`, `data_to = 2017-12-31`, `sample_days` 446–460 ngày mỗi mùa.
+
+**Đây là chỗ phải đổi cách tính hai lần, và lý do rất đáng ghi vào Chương 4:**
+
+| Cách tính | Kết quả đo được | Kết luận |
+|-----------|-----------------|----------|
+| Chỉ số tuyệt đối (doanh số mùa/ngày ÷ doanh số năm/ngày) | Mọi sản phẩm đều ra **0,91 vào Xuân** và **1,06 vào Thu** | ❌ Không phân biệt được sản phẩm nào |
+| Chỉ số tương đối (tỷ trọng sản phẩm trong mùa ÷ tỷ trọng toàn hệ thống trong mùa) | Biên độ **0,992 – 1,009** | ⚠️ Đã phân biệt được nhưng biên độ rất hẹp |
+| Ngưỡng cố định 1,05 / 0,95 trên chỉ số tương đối | **200/200 dòng đều `neutral`** | ❌ Bảng rỗng, vô dụng |
+| **Xếp hạng trong từng mùa: top 20% → `import`, bottom 20% → `avoid`** | **10 import + 30 neutral + 10 avoid mỗi mùa** | ✅ Dùng được |
+
+Nguyên nhân đúng như AGENTS.md đã ghi từ trước: **mùa vụ của dataset Walmart tác động
+gần như đồng đều lên cả 50 sản phẩm** (hệ số biến động theo tháng chỉ 1,85–1,95, biên
+độ 0,098). Vì vậy **không tồn tại** một sản phẩm nào "vượt trội" theo mùa ở mức tuyệt đối.
+Cách xếp hạng tương đối vẫn trung thực vì nó nói rõ: *so với 49 sản phẩm còn lại trong
+cùng mùa*, sản phẩm này mạnh hơn hay yếu hơn — chứ không tuyên bố "sản phẩm này bán
+chạy gấp đôi vào mùa Thu".
+
+**API `GET /api/v1/forecasts/seasonal`** (có `?refresh=true` để bỏ cache):
+
+| Chỉ số đo được | Giá trị |
+|----------------|---------|
+| Lần gọi đầu (cache trống) | 3.086 ms — phải quét toàn bộ 912.999 dòng `order_items` |
+| Các lần sau (cache 5 phút) | **45 ms**, payload 60.931 byte |
+| Số mùa trả về | 4, mùa hiện tại (Tháng 10) = `autumn` |
+| Mỗi mùa | 10 sản phẩm nên nhập · 30 trung tính · 10 nên hạn chế |
+
+Cache đặt trong `app/services/seasonal.py` với TTL **300 giây**, đúng bằng chu kỳ
+auto-refresh của frontend, nên frontend làm mới 5 phút một lần mà backend không phải
+quét lại bảng lớn.
+
+**Giao diện:** `ForecastsPage` nay có 2 tab — "Dự báo mới nhất" (giữ nguyên) và
+"Dự báo theo mùa" (`SeasonalPanel.jsx`). Tab mùa vụ có 4 thẻ mùa (tháng, số sản phẩm
+nên nhập/hạn chế, đánh dấu mùa hiện tại), hai danh sách "Nên nhập nhiều hơn" /
+"Nên hạn chế nhập" xếp theo mức độ (mạnh nhất trước · yếu nhất trước), và phần
+"Cách tính chỉ số mùa vụ" để người xem hiểu con số.
+
+**Tự động làm mới 5 phút — đã kiểm chứng thật, không chỉ đọc code:**
+
+Cơ chế gồm 2 phần: một `setInterval` 1 giây chỉ để vẽ đồng hồ đếm ngược, và một
+`useEffect` so sánh `now >= nextRefresh` để kích hoạt gọi lại API. Có cờ `autoRefreshRef`
+để mỗi chu kỳ chỉ gọi **một lần** (nếu không, mỗi giây `now` đổi sẽ gọi lại liên tục).
+
+Cách test: **hạ tạm `REFRESH_MS` xuống 10 giây**, tải lại trang và quan sát dòng
+"Cập nhật lúc":
+
+| Thời điểm | Dòng trạng thái |
+|-----------|-----------------|
+| Lần đầu | `Cập nhật lúc 15:55:43 · tự động làm mới sau 00:09` |
+| Sau 13 giây, **không bấm gì** | `Cập nhật lúc 15:56:04 · tự động làm mới sau 00:10` |
+
+Đồng hồ tự chạy lại và giờ cập nhật tự nhảy — chứng minh vòng auto-refresh hoạt động.
+Sau đó **đã trả `REFRESH_MS` về `5 * 60 * 1000`** và kiểm tra lại: `tự động làm mới sau 04:58`.
+
+### 9.3. Tối ưu chatbot
+
+Ba thay đổi trong `app/routers/chat_router.py`:
+
+**1. Đường nhanh cho câu hỏi ngoài nghiệp vụ.** Trước đây câu "xin chào" cũng phải
+chạy 5 Stored Procedure rồi mới gọi Gemini. Nay router nhận diện từ khoá nghiệp vụ
+trước; nếu không có thì trả lời ngay bằng một trong ba câu có sẵn (chào / cảm ơn /
+giới thiệu khả năng), **không chạm database, không gọi Gemini**.
+
+| Loại câu hỏi | Trước | Sau |
+|--------------|-------|-----|
+| "xin chào bạn" | ~4.500 ms (chạy 5 SP + Gemini) | **144 ms** (chỉ là độ trễ HTTP lần đầu) |
+| "hôm nay trời đẹp nhỉ" | ~4.500 ms | **10 ms** |
+
+**2. Bản đồ sửa lỗi chính tả** (`TYPO_MAP`, ~45 mục) chạy **trước** khi nhận diện
+từ khoá và trước khi gửi Gemini. Sửa cả hai kiểu gõ sai phổ biến:
+
+- Gõ sai dấu: `tồn khô` → `tồn kho`, `sản phảm` → `sản phẩm`, `cảnh bào` → `cảnh báo`,
+  `đơn hàn` → `đơn hàng`, `cửa hàn` → `cửa hàng`, `hết hàn` → `hết hạn`…
+- Gõ không dấu (rất phổ biến trên điện thoại): `ton kho` → `tồn kho`,
+  `san pham` → `sản phẩm`, `canh bao` → `cảnh báo`, `du bao` → `dự báo`,
+  `dieu chuyen` → `điều chuyển`, `cua hang` → `cửa hàng`, `nhap hang` → `nhập hàng`…
+
+Cụm từ được sắp xếp **dài trước ngắn sau** để `ton kho` khớp trước `kho`, và mọi
+mẫu đều dùng ranh giới từ `(?<!\w)…(?!\w)` để `hạ` không khớp vào giữa `hạch toán`.
+
+**3. Chỉ nạp khoá dữ liệu liên quan.** Trước đây mỗi câu hỏi đều nạp cả 6 khối
+(tồn kho, hàng sắp hết hạn, cảnh báo, đơn hàng, dự báo, mùa vụ). Nay router chọn khối
+theo từ khoá: hỏi về cảnh báo thì không nạp đơn hàng, hỏi về mùa vụ thì nạp thêm
+dự báo. Thêm **hai khối mới**: `DỰ BÁO THEO MÙA VỤ` (dùng cache 5 phút ở mục 9.2) và
+`ĐIỀU CHUYỂN HÀNG` (đếm theo trạng thái từ `sp_Transfer_Summary`).
+
+**System Prompt** được viết lại thành 10 quy tắc, bổ sung 3 quy tắc mới: nói rõ chỉ số
+mùa vụ khi khuyên nhập hàng, nhắc quy trình 5 bước khi hỏi điều chuyển, và **chủ động
+gợi ý chuyển bớt hàng** khi thấy một sản phẩm vừa cận hạn vừa dư so với nhu cầu.
+
+**Kết quả test 8 câu hỏi thật (số liệu lấy từ database, không phải mock):**
+
+| Câu hỏi | Nhánh xử lý | Thời gian | Nhận xét |
+|---------|-------------|-----------|----------|
+| "xin chào bạn" | đường nhanh | 144 ms | Chào + giới thiệu khả năng, 3 câu |
+| "hôm nay trời đẹp nhỉ" | đường nhanh | 10 ms | Không gọi DB/Gemini |
+| "Tồn kho hiện tại thế nào?" | tồn kho | 4.545 ms | 1.331 lô, nêu tên sản phẩm + cửa hàng thật |
+| "Có lô hàng nào sắp hết hạn…" | cảnh báo + tồn kho | 3.088 ms | 492 cảnh báo, nêu số ngày quá hạn |
+| "Mùa thu này nên nhập thêm mặt hàng nào?" | dự báo + mùa vụ | 3.538 ms | Nêu 3 nên nhập + 3 nên hạn chế, giải thích chỉ số |
+| "Có bao nhiêu yêu cầu điều chuyển đang chờ duyệt?" | điều chuyển | 3.854 ms | Trả đúng 1 yêu cầu, 0 chờ duyệt |
+| "tồn khô còn bao nhiêu lô hàng?" | sửa lỗi → tồn kho | 1.400 ms | **Sửa đúng `tồn khô` → `tồn kho`** |
+| "canh bao nao chua xu ly vay" | sửa lỗi → cảnh báo | 1.891 ms | **Hiểu câu không dấu** |
+
+Không câu trả lời nào chứa `SP#`, `CH#`, `SL=`, `HH=` hay danh sách gạch đầu dòng thô.
+
+### 9.4. Kiểm chứng tổng hợp sau nâng cấp
+
+| Bài kiểm tra | Kết quả |
+|--------------|---------|
+| `scripts/smoke_test_api.py` (đọc) | **48/48 PASS** |
+| `scripts/smoke_test_writes.py` (ghi) | **29/29 PASS** |
+| Test HTTP điều chuyển + mùa vụ + chatbot | **30/30 PASS** |
+| `npm run build` | PASS — 681 module |
+| `npm run lint` | 0 error (chỉ còn warning có sẵn của dự án) |
+| Test UI trên trình duyệt | Tạo TR000003 → Duyệt → Xác nhận giao → Xác nhận nhận, toast xanh từng bước, thanh quy trình nhảy 0 → 1 ở bước 5 |
+| Dọn dữ liệu test | 0 yêu cầu điều chuyển, 0 giao dịch `transfer`, kho về đúng 489 / 1.179, 1.330 lô |
+
+Cơ sở dữ liệu sau nâng cấp: **11 bảng · 4 view · 85 Stored Procedure**
+(74 cũ + 10 điều chuyển + 1 mùa vụ).
+
+### 9.5. Bài học mới
+
+1. **`INSERT ... EXEC` không dùng được với Stored Procedure có `BEGIN TRY/CATCH` +
+   `ROLLBACK`.** SQL Server báo `Msg 3915: Cannot use the ROLLBACK statement within an
+   INSERT-EXEC statement` ngay cả khi procedure chạy thành công. Muốn lấy kết quả thì
+   gọi trực tiếp `EXEC` rồi đọc theo tên cột, hoặc `SELECT @Id = MAX(...)` sau khi tạo.
+2. **Vite dev server trên Windows giữ cache module cũ khi đường dẫn có dấu tiếng Việt.**
+   Đã gặp: sửa `Sidebar.jsx` thêm mục "Điều chuyển hàng" nhưng giao diện vẫn không có,
+   dù file trên đĩa và request `?probe=…` đều trả nội dung mới. Nguyên nhân: watcher
+   không nhận thay đổi nên module graph vẫn phục vụ bản cũ cho URL **không có query**.
+   → **Khởi động lại `npm run dev`** rồi tải lại trang. Đừng đoán là lỗi React.
+3. **Đừng đặt ngưỡng tuyệt đối cho một chỉ số chưa đo biên độ.** Ngưỡng 1,05/0,95
+   nghe hợp lý nhưng cho ra 200/200 `neutral` vì biên độ thật chỉ 0,017. Phải đo phân
+   bố trước, rồi mới chọn cách phân loại (ở đây là xếp hạng top/bottom 20%).
+4. **Cache phải trùng chu kỳ auto-refresh.** Frontend gọi lại 5 phút/lần, backend cache
+   300 giây → mỗi lần làm mới đều có số mới, mà không lần nào phải quét lại 912.999 dòng.
+5. **Tách "đồng hồ" khỏi "kích hoạt gọi API".** Nếu để `setInterval` 1 giây tự gọi API
+   thì mỗi giây một request. Dùng mốc `nextRefresh` + cờ `autoRefreshRef` để bảo đảm
+   mỗi chu kỳ chỉ một lần gọi.

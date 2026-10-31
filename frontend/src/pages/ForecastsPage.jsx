@@ -4,6 +4,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 
 import Icon from '../components/common/Icon.jsx'
 import Spinner from '../components/common/Spinner.jsx'
+import SeasonalPanel from '../components/forecasts/SeasonalPanel.jsx'
 import api from '../services/api.js'
 import { formatDate, formatNumber, getErrorMessage } from '../utils/format.js'
 
@@ -37,6 +38,7 @@ function ChartTooltip({ active, payload, label }) {
 
 export default function ForecastsPage() {
   const navigate = useNavigate()
+  const [tab, setTab] = useState('latest')
   const [page, setPage] = useState(1)
   const [reloadKey, setReloadKey] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -93,15 +95,46 @@ export default function ForecastsPage() {
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-2xl">Dự báo nhu cầu</h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Dự báo mới nhất theo từng cặp sản phẩm × cửa hàng (mô hình tốt nhất mỗi cặp).
+            {tab === 'latest'
+              ? 'Dự báo mới nhất theo từng cặp sản phẩm × cửa hàng (mô hình tốt nhất mỗi cặp).'
+              : 'Sản phẩm nên nhập nhiều hơn hoặc hạn chế nhập theo từng mùa, tự động làm mới mỗi 5 phút.'}
           </p>
         </div>
-        <button type="button" onClick={() => setReloadKey((k) => k + 1)} className="btn-secondary w-fit">
-          <Icon name="refresh" className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          Tải lại
-        </button>
+        {tab === 'latest' && (
+          <button type="button" onClick={() => setReloadKey((k) => k + 1)} className="btn-secondary w-fit">
+            <Icon name="refresh" className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Tải lại
+          </button>
+        )}
       </div>
 
+      <div className="card flex flex-wrap gap-1.5 p-1.5">
+        {[
+          { key: 'latest', label: 'Dự báo mới nhất', icon: 'forecast' },
+          { key: 'seasonal', label: 'Dự báo theo mùa', icon: 'leaf' },
+        ].map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            onClick={() => setTab(item.key)}
+            className={[
+              'btn flex-1 justify-center sm:flex-none',
+              tab === item.key
+                ? 'bg-brand-600 text-white hover:bg-brand-700'
+                : 'bg-transparent text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800',
+            ].join(' ')}
+            aria-pressed={tab === item.key}
+          >
+            <Icon name={item.icon} className="h-4 w-4" />
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'seasonal' ? (
+        <SeasonalPanel />
+      ) : (
+        <>
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div className="card p-5 xl:col-span-2">
           <div className="mb-4">
@@ -243,6 +276,8 @@ export default function ForecastsPage() {
           </>
         )}
       </div>
+        </>
+      )}
     </div>
   )
 }

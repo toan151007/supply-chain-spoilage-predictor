@@ -20,6 +20,8 @@ from app.database import DbSession, get_db, map_sqlserver_error
 from app.dependencies import require_role
 from app.schemas.common import Page
 from app.schemas.forecast_schema import ForecastRead, LatestForecastList
+from app.schemas.seasonal_schema import SeasonalForecast
+from app.services import seasonal
 from app.sp_helpers import attach_product, attach_store
 
 router = APIRouter(prefix="/forecasts", tags=["forecasts"])
@@ -70,6 +72,34 @@ def latest_forecasts(
     return LatestForecastList(
         total=total, page=page, page_size=page_size, pages=pages, items=items
     )
+
+
+@router.get(
+    "/seasonal",
+    response_model=SeasonalForecast,
+    summary="Du bao theo mua vu: san pham nen nhap / nen han che",
+)
+def seasonal_forecast(
+    db: DbSession = Depends(get_db),
+    refresh: bool = Query(
+        False,
+        description="Bo qua cache 5 phut va tinh lai tu du lieu lich su",
+    ),
+) -> SeasonalForecast:
+    """
+    Chia du lieu ban hang lich su theo 4 mua (spring/summer/autumn/winter) va
+    tinh chi so mua vu TUONG DOI cho tung san pham.
+
+    Ket qua duoc cache 5 phut trong tien trinh backend vi Stored Procedure
+    phai quet toan bo `order_items`. Frontend tu dong goi lai moi 5 phut, nen
+    cache va chu ky refresh trung nhau. Dung `?refresh=true` khi can so moi
+    ngay lap tuc.
+    """
+    try:
+        payload = seasonal.get_seasonal(db, force=refresh)
+    except PyodbcError as exc:
+        raise map_sqlserver_error(exc) from exc
+    return SeasonalForecast(**payload)
 
 
 @router.get("", response_model=Page[ForecastRead], summary="List forecasts")
