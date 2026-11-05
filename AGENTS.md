@@ -54,7 +54,7 @@ ngoài dự báo nhu cầu còn có **điều chuyển hàng giữa cửa hàng*
 
 1. **Công nghệ:** Vite 8 + React 19 + Tailwind CSS 3.4 (`darkMode: 'class'`) +
    React Router 7 + Axios + Recharts. Dev server cổng **3000**, proxy `/api` →
-   `http://localhost:8000` (không cần CORS khi dev).
+   `http://localhost:8000` (không cần CORS khi dev). Màu chủ đạo được thiết kế theo tông Trắng - Xanh dương LHU (`#2a5aaa`, `#3b7bdb`, `#f8fafc`), thay đổi tại redesign LoginPage (31/10/2026).
 2. **Phân quyền Admin và User thường**
    - `owner` / `manager` → quyền quản trị (master data, import, dự báo, xoá cảnh báo)
    - `staff` → chỉ thao tác tồn kho, đơn hàng, trạng thái cảnh báo

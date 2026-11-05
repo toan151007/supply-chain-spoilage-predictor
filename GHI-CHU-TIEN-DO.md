@@ -2503,7 +2503,7 @@ Dark Mode, Responsive).*
 | Đường dẫn | Nội dung |
 |-----------|----------|
 | `frontend/vite.config.js` | Proxy `/api` → `http://localhost:8000`, cổng 3000 |
-| `frontend/tailwind.config.js` | `darkMode: 'class'`, bảng màu `brand` (emerald), animation |
+| `frontend/tailwind.config.js` | `darkMode: 'class'`, bảng màu `brand` (LHU Blue: `#2a5aaa`, `#3b7bdb`, `#f8fafc`), animation |
 | `frontend/src/services/api.js` | Axios `baseURL: /api/v1`; tự gắn Bearer; refresh token một lần cho cả loạt 401 |
 | `frontend/src/contexts/AuthContext.jsx` | Lưu phiên (`scsp_access_token`, `scsp_refresh_token`, `scsp_user`); `isAdmin` = owner/manager |
 | `frontend/src/contexts/ThemeContext.jsx` | Sáng/Tối, lưu `scsp_theme`; mặc định theo `prefers-color-scheme` |
