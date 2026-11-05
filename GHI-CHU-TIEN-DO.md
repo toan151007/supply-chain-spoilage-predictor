@@ -2444,7 +2444,7 @@ Chạy trên database tạm `spoilage_tsql_test` (đã drop sau khi test):
 | 18 router | Gọi `db.call("sp_...", {...})` — **không còn ORM, không còn raw SQL** trong router |
 | Migration `010` | Thêm **25 Stored Procedure** cho dashboard, dashboard nâng cao, đề xuất nhập hàng, báo cáo, import (dùng `OPENJSON`) + sửa `sp_Orders_Delete` xoá kèm dòng hàng |
 | Tổng Stored Procedure | **74** (49 CRUD/nghiệp vụ + 25 phân tích/báo cáo/import) |
-| Dữ liệu nạp lại | 8 nhóm · 10 cửa hàng · 50 sản phẩm · 3 user · **18.260 đơn / 912.999 dòng hàng** · 1.330 lô tồn kho · 1.596 giao dịch kho · 2.820 dự báo · 492 cảnh báo |
+| Dữ liệu nạp lại | 8 nhóm · 10 cửa hàng · 50 sản phẩm · 3 user · **18.260 đơn / 912.999 dòng hàng** · 1.330 lô tồn kho · 1.596 giao dịch kho · 3.000 dự báo · 492 cảnh báo |
 | Công cụ nạp | `scripts/convert_seed_to_sqlserver.py` + `database/02-seed/seed-sqlserver.sql` + `scripts/load_sqlserver_data.py` |
 
 ### Vì sao KHÔNG dùng SQLAlchemy Session cho Stored Procedure
@@ -2470,8 +2470,10 @@ engine đặt `autocommit=True` để procedure tự quản lý transaction củ
 
 ### Ghi chú còn lại cho Chương 4 / phiên sau
 
-1. `forecasts` nạp **2.820** dòng (94 cặp × 30 ngày) vì file `forecast_summary_30d.csv`
-   hiện có 94 cặp prophet, không phải 100. Khi viết báo cáo dùng đúng số trong DB.
+1. `forecasts` nạp **3.000** dòng (100 cặp × 30 ngày: 97 cặp Prophet + 3 cặp XGBoost).
+   Bản cũ chỉ có 2.820 dòng vì loader lọc `model == 'prophet'` rồi bỏ thêm 3 cặp, đồng
+   thời chia đều `total_predicted / 30` cho cả 30 ngày — đã sửa ngày 05/11/2026, xem
+   `ai-model/scripts/forecast_next_month_sqlserver.py` và mục "Kiểm thu AI" bên dưới.
 2. `sp_Orders_Delete` đã đổi sang **xoá dòng hàng trước rồi xoá đơn** trong cùng
    transaction (khôi phục hành vi `ON DELETE CASCADE` của PostgreSQL). File
    `HUONG-DAN-CHAY-SSMS.md` cũng đã cập nhật theo.
@@ -2952,3 +2954,43 @@ Cơ sở dữ liệu sau nâng cấp: **11 bảng · 4 view · 85 Stored Procedu
 5. **Tách "đồng hồ" khỏi "kích hoạt gọi API".** Nếu để `setInterval` 1 giây tự gọi API
    thì mỗi giây một request. Dùng mốc `nextRefresh` + cờ `autoRefreshRef` để bảo đảm
    mỗi chu kỳ chỉ một lần gọi.
+
+---
+
+## 11. Kiểm thu AI theo yêu cầu GVHD (05/11/2026)
+
+GVHD yêu cầu kiểm tra thực tế từng AI xem số liệu dự báo có đúng không. Đã làm và ghi
+lại thành báo cáo `docs/02-bao-cao/KiemThu_AI_Cho_GVHD.md` + script chạy lại được
+`scripts/verify_ai_models.py`.
+
+### Kết quả đo được
+
+| Hạng mục | Kết quả |
+|----------|---------|
+| Backtest Prophet cặp 45/1 | RMSE 9,5753 · MAE 7,5992 · MAPE 10,85% — khớp `model_metrics_all.csv` **0,000000** |
+| Backtest XGBoost cặp 45/2 | RMSE 12,3558 · MAE 9,8840 · MAPE 9,50% — XGBoost thắng đúng cặp này |
+| Tổng hợp 100 cặp | Prophet 9,97 / 7,94 / 10,43% (thắng 97/100) |
+| Mùa vụ | 200/200 dòng khớp phép tính độc lập, lệch 0,000051, **0 lỗi logic** |
+| Chatbot | 41 ms (đường nhanh) · 1.846–5.929 ms (gọi Gemini) · không lộ `SP#`/`CH#`/`SL`/`HH` |
+
+### 5 lỗi phát hiện và đã sửa
+
+1. **Bảng `forecasts` lưu trung bình tháng chia đều 30 ngày** (`daily = total_predicted / 30`),
+   biên độ bịa ±10%, `rmse/mae/mape` ghi cứng 9,97/7,94/10,43 cho mọi dòng, 3 cặp XGBoost
+   bị dán nhãn `prophet`. → Viết `ai-model/scripts/forecast_next_month_sqlserver.py`, ghi
+   dự báo **từng ngày**; bảng hiện có **3.000 dòng / 100 cặp**, 30/30 giá trị khác nhau.
+2. **Chatbot báo 1.330 lô (toàn hệ thống) cho riêng cửa hàng Q.3** (thật là 150 lô).
+   → Thêm `_detect_store()` nhận diện cửa hàng, truyền `StoreId` vào procedure.
+3. **Chatbot không hiểu câu hỏi không dấu** → thêm `_strip_diacritics()` so khớp không dấu.
+4. **Gemini 503 làm `/chat` trả HTTP 500** → thử lại 1 lần rồi trả bản tóm tắt từ dữ liệu thật.
+5. **Rác `SMOKE-ORDER-1` (năm 2026) còn sót** làm `v_daily_sales` lòi 2 dòng → đã xoá,
+   trở lại đúng 912.999 dòng, 2013-01-01 → 2017-12-31.
+
+### Bài học
+
+- **Kiểm tra "số liệu có đúng không" phải dùng backtest trên quá khứ**, không so bảng dự
+  báo tương lai với dữ liệu chưa có. `forecast-vs-actual` trả `matched_rows = 0` là đúng.
+- **Một bảng dự báo mà 30 ngày giống hệt nhau là dấu hiệu loader chia trung bình**, không
+  phải mô hình dở. Kiểm tra bằng `COUNT(DISTINCT predicted_quantity)`.
+- **Số liệu đúng nhưng sai phạm vi cũng là sai** (1.330 lô của 10 cửa hàng gán cho 1 cửa
+  hàng). Context đưa cho LLM phải ghi rõ phạm vi hoặc phải lọc đúng phạm vi trước.

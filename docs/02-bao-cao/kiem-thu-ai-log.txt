@@ -1,0 +1,254 @@
+==============================================================================
+KIEM THU AI - SUPPLY CHAIN SPOILAGE PREDICTOR
+Thoi diem chay: 05/11/2026
+==============================================================================
+
+==============================================================================
+PHAN 0 - MOI TRUONG VA DU LIEU DANG CO
+==============================================================================
+Python          : 3.14.7 (Windows)
+pandas          : 3.0.6
+numpy           : 2.5.3
+prophet         : 1.4.0
+xgboost         : 3.4.1
+statsmodels     : 0.15.0
+SQL Server      : LAPTOP-I39E3UT2\SQLEXPRESS / spoilage_predictor
+v_daily_sales   : 912,999 dong | 2013-01-01 -> 2017-12-31 | 10 cua hang x 50 san pham
+forecasts       : 3,000 dong | 100 cap | 2018-01-01 -> 2018-01-30
+model_metrics   : 100 cap (train/test 2017-10-01)
+
+Ket luan: doanh so thuc te ket thuc 2017-12-31, du bao bat dau 2018-01-01.
+          -> HAI KHOANG KHONG GIAO NHAU. Khong the do sai so cua bang
+             forecasts bang cach so voi doanh so that (xem PHAN 2).
+
+==============================================================================
+PHAN 1 - DO CHINH XAC THAT CUA MO HINH (BACKTEST TREN DU LIEU QUA KHU)
+==============================================================================
+Phuong phap (dung chinh code cua do an, khong viet lai):
+  - Du lieu   : 2013-01-01 -> 2017-12-31, reindex du 1.826 ngay, ngay thieu = 0
+  - Tap train : 2013-01-01 -> 2017-09-30 (1.734 ngay)
+  - Tap test  : 2017-10-01 -> 2017-12-31 (92 ngay, quy 4 - mua cao diem)
+  - Moc chia theo NGAY, khong dung 80/20 (xem AGENTS.md)
+  - Sai so    : MAE / RMSE / MAPE tinh tren 92 ngay test
+
+[1/3] Cap san pham 45 - cua hang 1
+    chuoi  : 1826 ngay | thieu 0 ngay | ban = 0 o 0 ngay
+  chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+  split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+  ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+  prophet : RMSE=    9.58  MAE=    7.60  MAPE= 10.85%  (2.0s)
+  xgboost : RMSE=   10.55  MAE=    8.49  MAPE= 12.04%  (2.6s)
+  arima   : RMSE=   18.45  MAE=   14.47  MAPE= 22.74%  (4.7s)
+  -> MO HINH TOT NHAT: PROPHET (RMSE=9.58)
+    ket qua: Prophet RMSE 9.58 | MAE 7.60 | MAPE 10.85%
+             XGBoost RMSE 10.55 | MAE 8.49 | MAPE 12.04%
+             ARIMA   RMSE 18.45 | MAE 14.47 | MAPE 22.74%
+             -> tot nhat: PROPHET (RMSE 9.58) | 9.4 giay
+
+[2/3] Cap san pham 45 - cua hang 2
+    chuoi  : 1826 ngay | thieu 0 ngay | ban = 0 o 0 ngay
+  chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+  split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+  ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+  prophet : RMSE=   12.63  MAE=   10.21  MAPE=  9.92%  (1.0s)
+  xgboost : RMSE=   12.36  MAE=    9.88  MAPE=  9.50%  (0.7s)
+  arima   : RMSE=   27.41  MAE=   22.04  MAPE= 23.71%  (3.3s)
+  -> MO HINH TOT NHAT: XGBOOST (RMSE=12.36)
+    ket qua: Prophet RMSE 12.63 | MAE 10.21 | MAPE 9.92%
+             XGBoost RMSE 12.36 | MAE 9.88 | MAPE 9.50%
+             ARIMA   RMSE 27.41 | MAE 22.04 | MAPE 23.71%
+             -> tot nhat: XGBOOST (RMSE 12.36) | 5.1 giay
+
+[3/3] Cap san pham 8 - cua hang 1
+    chuoi  : 1826 ngay | thieu 0 ngay | ban = 0 o 0 ngay
+  chuoi   : 1826 ngay (2013-01-01 -> 2017-12-31)
+  split   : train 1734 ngay (-> 2017-09-30), test 92 ngay (2017-10-01 -> 2017-12-31)
+  ngay 0  : 0 ngay (trong do 0 ngay thieu du lieu, duoc dien 0)
+  prophet : RMSE=    9.57  MAE=    7.80  MAPE= 11.52%  (0.8s)
+  xgboost : RMSE=   10.80  MAE=    8.72  MAPE= 12.99%  (0.6s)
+  arima   : RMSE=   16.73  MAE=   13.92  MAPE= 22.13%  (3.5s)
+  -> MO HINH TOT NHAT: PROPHET (RMSE=9.57)
+    ket qua: Prophet RMSE 9.57 | MAE 7.80 | MAPE 11.52%
+             XGBoost RMSE 10.80 | MAE 8.72 | MAPE 12.99%
+             ARIMA   RMSE 16.73 | MAE 13.92 | MAPE 22.13%
+             -> tot nhat: PROPHET (RMSE 9.57) | 5.0 giay
+
+Doi chieu voi ai-model/outputs/model_metrics_all.csv:
+       cap |  RMSE moi   RMSE cu      lech |  MAPE moi   MAPE cu      lech
+  ----------------------------------------------------------------------
+   45/1    |    9.5753    9.5753  0.000000 |   10.8473   10.8473  0.000000
+   45/2    |   12.6294   12.6294  0.000000 |    9.9234    9.9234  0.000000
+    8/1    |    9.5737    9.5737  0.000000 |   11.5221   11.5221  0.000000
+
+  Lech RMSE lon nhat: 0.000000 -> KHOP (mo hinh tai lap duoc)
+
+Tong hop 100 cap (doc tu model_metrics_all.csv, do la ket qua M1 da chay):
+  PROPHET : RMSE TB    9.97 | MAE TB    7.94 | MAPE TB  10.43% | thang  97/100 cap
+  XGBOOST : RMSE TB   10.98 | MAE TB    8.77 | MAPE TB  11.69% | thang   3/100 cap
+  ARIMA   : RMSE TB   20.20 | MAE TB   16.44 | MAPE TB  23.77% | thang   0/100 cap
+
+Da luu bang sai so: kiem-thu-ai-backtest.csv
+
+==============================================================================
+PHAN 2 - SO SANH BANG forecasts VOI DOANH SO THUC TE
+==============================================================================
+Khoang du bao   : 2018-01-01 -> 2018-01-30
+Khoang ban that : 2013-01-01 -> 2017-12-31
+Goi API GET /api/v1/dashboard/forecast-vs-actual (san pham 45, cua hang 1) trong 431 ms
+  matched_rows = 0
+  mape         = None
+  rmse         = None
+  mae          = None
+  message      = No forecast for model 'prophet' could be matched to an actual in open start..open end. The table holds 30 forecast row(s) and 0 actual row(s) within the forecast window, but they cover different periods. Stored forecasts run from 2018-01-01 to 2018-01-30 while sales data ends 2017-12-31, so accuracy cannot be measured until actual sales exist for the forecast horizon.
+
+Ket luan: hai khoang khong giao nhau nen KHONG the do MAPE cua bang
+          forecasts bang doanh so that. API tra mape = null kem giai
+          thich, khong bia ra mot con so. Sai so that duoc do bang
+          backtest o PHAN 1 (92 ngay quy 4/2017).
+
+==============================================================================
+PHAN 3 - KIEM TRA TINH TOAN VEN CUA BANG forecasts
+==============================================================================
+So cap co du bao: 100
+  - Cap co dung 30 ngay      : 100/100
+  - Cap co gia tri LAP LAI   : 0/100 (0 la tot - moi ngay phai khac nhau)
+  - horizon_days = 1..30     : DUNG
+  - lower <= predicted <= upper: DUNG
+  - Mo hinh theo cap:
+      prophet   2910 dong / 97 cap
+      xgboost     90 dong / 3 cap
+  - Tong 30 ngay khop forecast_summary_30d.csv: lech lon nhat 0.052 (thieu 0 cap)
+  - rmse/mae/mape dung cua tung cap (khop model_metrics_all.csv): 100/100
+
+Vi du 7 ngay dau cua cap san pham 45 - cua hang 1:
+  ngay           h     du bao       duoi       tren
+  2018-01-01     1     40.374     22.894     57.136
+  2018-01-02     2     53.817     37.410     69.965
+  2018-01-03     3     54.375     37.567     70.677
+  2018-01-04     4     58.810     40.833     77.913
+  2018-01-05     5     65.536     48.938     82.368
+  2018-01-06     6     70.467     53.148     87.252
+  2018-01-07     7     78.283     62.034     94.655
+  -> 30/30 gia tri khac nhau, min 40.0 / max 78.3 (co mua vu tuan, khong con la mot so lap lai)
+
+==============================================================================
+PHAN 4 - AI DIEU PHOI / DU BAO THEO MUA VU
+==============================================================================
+Goi API GET /api/v1/forecasts/seasonal trong 1575 ms
+  du lieu   : 2013-01-01 -> 2017-12-31
+  mua hien tai: winter
+  so mua    : 4
+
+--- XUAN (thang 2, 3, 4)
+    50 san pham | nen nhap 10 | trung tinh 30 | nen hanh che 10
+    5 san pham NEN NHAP nhieu nhat:
+       1. Banh trung cuon              chi so 1.0045  (Snacks)
+       2. Dieu hoa khong moi           chi so 1.0033  (Household)
+       3. Ca phe den                   chi so 1.0032  (Beverages)
+       4. Pho mai vi t                 chi so 1.0029  (Snacks)
+       5. Tra xanh chai                chi so 1.0027  (Beverages)
+    5 san pham NEN HANH CHE nhat:
+      50. Banh snack                   chi so 0.9940  (Snacks)
+      49. Khoai lang                   chi so 0.9960  (Fresh Food)
+      48. Bong bien sang               chi so 0.9963  (Household)
+      47. Thuc pham an dam             chi so 0.9964  (Baby Care)
+      46. Xa phong                     chi so 0.9968  (Household)
+
+--- HA (thang 5, 6, 7)
+    50 san pham | nen nhap 10 | trung tinh 30 | nen hanh che 10
+    5 san pham NEN NHAP nhieu nhat:
+       1. Rau muong toi                chi so 1.0049  (Snacks)
+       2. Banh snack                   chi so 1.0036  (Snacks)
+       3. Buoi Long An                 chi so 1.0034  (Fresh Food)
+       4. Xa phong                     chi so 1.0032  (Household)
+       5. Nuoc loc 500ml               chi so 1.0028  (Beverages)
+    5 san pham NEN HANH CHE nhat:
+      50. Pho mai vi t                 chi so 0.9954  (Snacks)
+      48. Sua tuoi tu 1 lit            chi so 0.9971  (Dairy)
+      49. Trung ga                     chi so 0.9971  (Fresh Food)
+      47. Ban cuon mat                 chi so 0.9972  (Dairy)
+      46. Tra dau khong                chi so 0.9975  (Beverages)
+
+--- THU (thang 8, 9, 10)
+    50 san pham | nen nhap 10 | trung tinh 30 | nen hanh che 10
+    5 san pham NEN NHAP nhieu nhat:
+       1. Sua tuoi tu 1 lit            chi so 1.0087  (Dairy)
+       2. Banh snack                   chi so 1.0036  (Snacks)
+       3. Ban cuon mat                 chi so 1.0035  (Dairy)
+       4. Tra dau khong                chi so 1.0031  (Beverages)
+       5. Xa phong                     chi so 1.0030  (Household)
+    5 san pham NEN HANH CHE nhat:
+      50. Buoi Long An                 chi so 0.9922  (Fresh Food)
+      49. Kem chong nang               chi so 0.9963  (Personal Care)
+      48. Nuoc loc 500ml               chi so 0.9966  (Beverages)
+      47. Ban quy                      chi so 0.9969  (Snacks)
+      46. Nuoc khoang 500ml            chi so 0.9973  (Beverages)
+
+--- DONG (thang 11, 12, 1)  <== mua hien tai
+    50 san pham | nen nhap 10 | trung tinh 30 | nen hanh che 10
+    5 san pham NEN NHAP nhieu nhat:
+       1. Kem chong nang               chi so 1.0054  (Personal Care)
+       2. Bong bien sang               chi so 1.0043  (Household)
+       3. Khoai lang                   chi so 1.0043  (Fresh Food)
+       4. Pho mai vi t                 chi so 1.0040  (Snacks)
+       5. Buoi Long An                 chi so 1.0038  (Fresh Food)
+    5 san pham NEN HANH CHE nhat:
+      50. Ca phe den                   chi so 0.9945  (Beverages)
+      49. Xa phong                     chi so 0.9949  (Household)
+      48. Sua tuoi tu 1 lit            chi so 0.9953  (Dairy)
+      47. Thit ga ta moi               chi so 0.9962  (Fresh Food)
+      46. Banh snack                   chi so 0.9966  (Snacks)
+
+Kiem tra doc lap (tinh lai tu SQL Server, khong dung API):
+  spring : chi so 1.0045 -> 0.9940 (bien do 0.0105) | ranh gioi hang 10/11 chenh 0.00010
+  summer : chi so 1.0049 -> 0.9954 (bien do 0.0095) | ranh gioi hang 10/11 chenh 0.00000
+  autumn : chi so 1.0087 -> 0.9922 (bien do 0.0165) | ranh gioi hang 10/11 chenh 0.00000
+  winter : chi so 1.0054 -> 0.9945 (bien do 0.0109) | ranh gioi hang 10/11 chenh 0.00030
+  - So dong doi chieu        : 200 (200 dong = 50 san pham x 4 mua)
+  - Lech chi so mua vu lon nhat: 0.000051 (API lam tron 4 chu so thap phan)
+  - Cap hang ke nhau trung chi so: 112 (tie-break theo ten san pham)
+  - So loi logic             : 0
+
+Ket luan: chi so, xep hang va khuyen nghi khop hoan toan voi phep tinh doc lap.
+
+==============================================================================
+PHAN 5 - CHATBOT AI (Gemini)
+==============================================================================
+[Chao hoi] Hoi: Xin chào, bạn là ai và bạn giúp được gì cho tôi?
+   Tra loi (41 ms, model: (duong nhanh, khong goi Gemini)):
+     Chào bạn, tôi là trợ lý của FreshChain. Tôi có thể giúp bạn kiểm tra tồn kho, hàng sắp hết hạn, cảnh báo cần xử lý, đơn hàng gần đây và gợi ý nhập hàng theo mùa. Bạn cần xem thông tin gì trước?
+   Kiem tra chat luong cau tra loi:
+     - do dai            : 193 ky tu
+     - so cau           : 3
+     - ky hieu viet tat  : KHONG co (dat)
+
+[Ton kho] Hoi: Tồn kho của cửa hàng Q.3 hiện tại thế nào?
+   Tra loi (5929 ms, model: gemini-3.5-flash-lite):
+     Chào bạn, hiện tại tổng số lô hàng còn tồn tại Cửa hàng tiện lợi Q.3 là 150 lô với đa dạng các mặt hàng khác nhau. Đáng chú ý, sản phẩm Khoai lang đang vừa sắp hết hạn sau 2 đến 3 ngày tới lại vừa dư thừa số lượng lớn so với nhu cầu, vì vậy tôi gợi ý bạn nên chủ động chuyển bớt sang cửa hàng khác thay vì tiếp tục nhập thêm. Bạn có muốn xem chi tiết hơn về các sản phẩm này không?
+   Kiem tra chat luong cau tra loi:
+     - do dai            : 381 ky tu
+     - so cau           : 4
+     - ky hieu viet tat  : KHONG co (dat)
+     - so lieu dung      : KHOP (150)
+
+[Mua vu] Hoi: Mùa này nên nhập nhiều mặt hàng nào?
+   Tra loi (3859 ms, model: gemini-3.5-flash-lite):
+     Chào bạn, trong mùa đông hiện tại, tôi đề xuất bạn nên chú ý nhập nhiều hơn các mặt hàng như Kem chống nắng, Bông biển sáng và Khoai lang vì các sản phẩm này có chỉ số mùa vụ cao hơn mức chung. Ngược lại, bạn nên hạn chế nhập Cà phê đen, Xà phòng và Sữa tươi từ 1 lít do chỉ số mùa vụ của chúng thấp hơn mức chung. Những điều chỉnh này sẽ giúp bạn tối ưu hóa lượng hàng hóa và tránh lãng phí thực phẩm. Bạn có muốn xem thêm chi tiết về kế hoạch nhập hàng không?
+   Kiem tra chat luong cau tra loi:
+     - do dai            : 461 ky tu
+     - so cau           : 4
+     - ky hieu viet tat  : KHONG co (dat)
+     - so lieu dung      : KHOP (Kem chống nắng)
+
+[Khong dau] Hoi: mua nay nen nhap nhieu mat hang nao
+   Tra loi (1846 ms, model: gemini-3.5-flash-lite):
+     Chào bạn, hiện tại đang là mùa Đông nên tôi xin gợi ý một số mặt hàng bạn nên chú ý cân đối. Bạn nên ưu tiên nhập nhiều hơn các sản phẩm như Kem chống nắng, Bông biển sáng và Khoai lang vì chỉ số mùa vụ của chúng cao hơn mức chung. Ngược lại, bạn nên hạn chế nhập Cà phê đen, Xà phòng và Sữa tươi từ 1 lít do các mặt hàng này có chỉ số mùa vụ thấp hơn mức chung. Bạn có muốn xem thêm chi tiết về kế hoạch nhập hàng này không?
+   Kiem tra chat luong cau tra loi:
+     - do dai            : 425 ky tu
+     - so cau           : 4
+     - ky hieu viet tat  : KHONG co (dat)
+     - so lieu dung      : KHOP (Kem chống nắng)
+
+==============================================================================
+HOAN THANH trong 43.0 giay
+==============================================================================

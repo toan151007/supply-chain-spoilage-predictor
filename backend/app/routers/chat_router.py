@@ -18,12 +18,15 @@ sentences (product names, store names, relative expiry days) so the model
 never has to echo raw rows or abbreviations such as SP# / CH# / SL / HH.
 """
 
+import logging
 import os
 import re
+import time
+import unicodedata
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from pyodbc import Error as PyodbcError
 
@@ -32,6 +35,8 @@ from app.database import DbSession, get_db, map_sqlserver_error
 from app.services import seasonal
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+
+logger = logging.getLogger(__name__)
 
 
 class ChatRequest(BaseModel):
@@ -223,10 +228,29 @@ THANKS_ANSWER = (
 )
 
 
+def _strip_diacritics(text: str) -> str:
+    """
+    Bo dau tieng Viet de so khop khong phan biet dau.
+
+    Nguoi dung hay go khong dau ("mua nay nen nhap gi", "ton kho the nao").
+    Neu chi so khop nguyen van thi cac cau do roi vao duong nhanh va tra loi
+    sai. Ham nay dua ca hai ve cung mot dang truoc khi so sanh.
+    """
+    text = text.replace("đ", "d").replace("Đ", "D")
+    return "".join(
+        char for char in unicodedata.normalize("NFD", text)
+        if unicodedata.category(char) != "Mn"
+    )
+
+
 def _match(text: str, keywords: tuple[str, ...]) -> bool:
-    """Khop theo ranh gioi tu de 'hạ' khong khop vao giua 'hạch toán'."""
+    """Khop theo ranh gioi tu, khong phan biet hoa/thuong va dau tieng Viet."""
+    haystack = _strip_diacritics(text).lower()
     return any(
-        re.search(rf"(?<!\w){re.escape(word)}(?!\w)", text, re.IGNORECASE | re.UNICODE)
+        re.search(
+            rf"(?<!\w){re.escape(_strip_diacritics(word).lower())}(?!\w)",
+            haystack,
+        )
         for word in keywords
     )
 
@@ -300,23 +324,77 @@ TRANSFER_STATUS_LABELS = {
 }
 
 
+def _detect_store(db: DbSession, text: str) -> tuple[int, str] | None:
+    """
+    Tim cua hang duoc nhac trong cau hoi.
+
+    Vi sao can: cau hoi "ton kho cua cua hang Q.3 the nao" ma context chi co
+    con so TONG TOAN HE THONG thi model se gan con so do cho Q.3 - dung so
+    nhung sai pham vi, va nguoi doc khong the biet. Ham nay khop theo ma
+    (CH01) hoac phan ten rieng (Q.3 / Binh Thanh / Da Nang...), khong dau.
+    """
+    haystack = _strip_diacritics(text).lower()
+
+    try:
+        sets = db.call("sp_Stores_List", {"Page": 1, "PageSize": 200})
+    except Exception:
+        return None
+
+    rows = sets[1] if len(sets) > 1 else []
+    prefixes = ("cua hang tien loi ", "nha hang mon an ", "kho phan phoi ")
+
+    best: tuple[int, str] | None = None
+    best_length = 0
+
+    for row in rows:
+        store_id = int(row.get("store_id"))
+        store_name = str(row.get("store_name") or "")
+        code = _strip_diacritics(str(row.get("store_code") or "")).lower()
+        name = _strip_diacritics(store_name).lower()
+
+        candidates = [code]
+        for prefix in prefixes:
+            if name.startswith(prefix):
+                candidates.append(name[len(prefix):])
+
+        for candidate in candidates:
+            if not candidate:
+                continue
+            if re.search(rf"(?<!\w){re.escape(candidate)}(?!\w)", haystack):
+                if len(candidate) > best_length:
+                    best = (store_id, store_name)
+                    best_length = len(candidate)
+
+    return best
+
+
 def _build_context(
-    db: DbSession, sections: set[str]
+    db: DbSession, sections: set[str], message: str = ""
 ) -> tuple[str, dict[str, Any]]:
     """Build a readable briefing plus the headline facts used as fallback."""
     blocks: list[str] = []
     facts: dict[str, Any] = {}
 
+    store = _detect_store(db, message) if message else None
+    store_id = store[0] if store else None
+    store_name = store[1] if store else None
+    scope = f"tại {store_name}" if store_name else "trong toàn hệ thống"
+
     # --- Inventory -----------------------------------------------------
     if "inventory" in sections:
         try:
-            sets = db.call(
-                "sp_Inventory_List", {"InStockOnly": 1, "Page": 1, "PageSize": 15}
-            )
+            params: dict[str, Any] = {
+                "InStockOnly": 1, "Page": 1, "PageSize": 15
+            }
+            if store_id is not None:
+                params["StoreId"] = store_id
+
+            sets = db.call("sp_Inventory_List", params)
             total_lots = int(sets[0][0]["total"]) if sets and sets[0] else 0
             rows = sets[1] if len(sets) > 1 else []
             facts["total_lots"] = total_lots
-            lines = [f"Tổng số lô hàng còn tồn trong kho: {_num(total_lots)} lô."]
+            facts["scope"] = scope
+            lines = [f"Tổng số lô hàng còn tồn {scope}: {_num(total_lots)} lô."]
             for row in rows[:10]:
                 lines.append(
                     f"- Sản phẩm {_text(row.get('product_name'))} tại "
@@ -330,11 +408,13 @@ def _build_context(
     # --- Expiring batches ----------------------------------------------
     if "inventory" in sections or "alerts" in sections:
         try:
-            rows = db.call(
-                "sp_Inventory_ListExpiring", {"Days": 30, "IncludeExpired": 0}
-            ) or []
+            params = {"Days": 30, "IncludeExpired": 0}
+            if store_id is not None:
+                params["StoreId"] = store_id
+
+            rows = db.call("sp_Inventory_ListExpiring", params) or []
             facts["expiring_lots"] = len(rows)
-            lines = [f"Số lô hàng sắp hết hạn trong 30 ngày tới: {_num(len(rows))} lô."]
+            lines = [f"Số lô hàng sắp hết hạn trong 30 ngày tới {scope}: {_num(len(rows))} lô."]
             for row in rows[:8]:
                 lines.append(
                     f"- {_text(row.get('product_name'))} tại {_text(row.get('store_name'))}: "
@@ -449,14 +529,27 @@ def _build_context(
     return "\n\n".join(blocks), facts
 
 
-def _fallback_answer(facts: dict[str, Any]) -> str:
-    """Short natural summary used when no Gemini API key is configured."""
-    parts = [
-        "Hệ thống chưa được cấu hình khóa API cho trợ lý AI, nên tôi chỉ tóm tắt "
-        "được số liệu có sẵn."
-    ]
+def _fallback_answer(facts: dict[str, Any], offline: bool = True) -> str:
+    """
+    Cau tra loi tom tat dung du lieu that, khi khong goi duoc Gemini.
+
+    Dung o hai tinh huong: chua cau hinh API key, hoac API loi tam thoi
+    (503 qua tai, het quota, mat mang). Truoc day truong hop thu hai tra
+    thang HTTP 500 va nguoi dung khong nhan duoc gi.
+    """
+    if offline:
+        parts = [
+            "Hệ thống chưa được cấu hình khóa API cho trợ lý AI, nên tôi chỉ tóm "
+            "tắt được số liệu có sẵn."
+        ]
+    else:
+        parts = [
+            "Dịch vụ AI đang tạm thời không phản hồi, nên tôi xin tóm tắt nhanh "
+            "số liệu lấy trực tiếp từ hệ thống."
+        ]
     if "total_lots" in facts:
-        parts.append(f"Hiện tại kho còn {_num(facts['total_lots'])} lô hàng.")
+        scope = facts.get("scope") or "trong hệ thống"
+        parts.append(f"Hiện tại kho còn {_num(facts['total_lots'])} lô hàng {scope}.")
     if facts.get("expiring_lots"):
         parts.append(
             f"Có {_num(facts['expiring_lots'])} lô sắp hết hạn trong 30 ngày tới cần ưu tiên xử lý."
@@ -502,7 +595,7 @@ def chat(payload: ChatRequest, db: DbSession = Depends(get_db)) -> ChatResponse:
         )
 
     try:
-        context, facts = _build_context(db, sections)
+        context, facts = _build_context(db, sections, message)
     except PyodbcError as exc:
         raise map_sqlserver_error(exc) from exc
 
@@ -527,7 +620,25 @@ def chat(payload: ChatRequest, db: DbSession = Depends(get_db)) -> ChatResponse:
             + "\n\nCÂU TRẢ LỜI (3-5 câu, văn nói, không danh sách thô):"
         )
         model_name = settings.GEMINI_MODEL or "gemini-3.5-flash-lite"
-        response = client.models.generate_content(model=model_name, contents=prompt)
+
+        # Gemini hay tra 503 khi qua tai. Thu lai mot lan truoc khi bo cuoc,
+        # vi mot lan loi tam thoi khong nen bien cau tra loi thanh HTTP 500.
+        last_error: Exception | None = None
+        for attempt in range(2):
+            try:
+                response = client.models.generate_content(
+                    model=model_name, contents=prompt
+                )
+                last_error = None
+                break
+            except Exception as exc:  # noqa: BLE001 - thu lai roi moi bao
+                last_error = exc
+                if attempt == 0:
+                    time.sleep(1.5)
+
+        if last_error is not None:
+            raise last_error
+
         text = getattr(response, "text", None)
         if not text and hasattr(response, "candidates") and response.candidates:
             try:
@@ -548,7 +659,18 @@ def chat(payload: ChatRequest, db: DbSession = Depends(get_db)) -> ChatResponse:
             model=model_name,
         )
     except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Loi goi Gemini API: {exc}",
+        # Khong tra 500: nguoi dung van can thong tin. Tra ban tom tat tu
+        # du lieu that va ghi ro ly do de nguoi van hanh biet ma kiem tra.
+        logger.warning("Gemini call failed: %s", exc)
+        return ChatResponse(
+            answer=_fallback_answer(facts, offline=False),
+            sources=[
+                {
+                    "type": "context",
+                    "sections": sorted(sections),
+                    "count": len(context.splitlines()),
+                },
+                {"type": "fallback", "reason": type(exc).__name__},
+            ],
+            model="fallback",
         )

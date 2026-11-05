@@ -73,7 +73,7 @@ Mọi thao tác đọc/ghi dữ liệu đều đi qua `EXEC dbo.sp_...` — khô
 
 | Tính năng | Mô tả |
 |-----------|-------|
-| **Dự báo nhu cầu** | Dự báo 30 ngày tới cho từng cặp sản phẩm × cửa hàng (2.820 dòng dự báo) |
+| **Dự báo nhu cầu** | Dự báo 30 ngày tới cho từng cặp sản phẩm × cửa hàng (3.000 dòng dự báo, 100 cặp) |
 | **Đề xuất nhập hàng** | Gợi ý số lượng nhập tối ưu dựa trên dự báo + hạn sử dụng + `max_stock` |
 | **Chatbot AI** | Hỏi đáp về tồn kho, đơn hàng, cảnh báo, dự báo — dựa trên dữ liệu thật qua Stored Procedure |
 | **Cảnh báo thời gian thực** | WebSocket `/ws/alerts` push thông báo khi cảnh báo được cập nhật/xóa |

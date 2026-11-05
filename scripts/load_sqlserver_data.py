@@ -274,43 +274,44 @@ def load_transactions(conn: pyodbc.Connection, batches: list[tuple]) -> None:
 
 
 def load_forecasts(conn: pyodbc.Connection) -> None:
-    summary_path = ROOT / "ai-model" / "outputs" / "forecast_summary_30d.csv"
-    frame = pd.read_csv(summary_path)
-    frame = frame[frame["model"] == "prophet"]
+    """
+    Nap bang `forecasts` tu `forecasts_30d.csv` (du bao TUNG NGAY).
 
-    selected = [45, 8, 15, 13, 25, 11, 28, 48, 38, 18]
-    # Faithful to the original run: products 13/28/45 have no forecast for
-    # store 10, which is why the table holds 2,910 rows and not 3,000.
-    missing = {(13, 10), (28, 10), (45, 10)}
+    Truoc day ham nay chia deu `total_predicted / 30` cho ca 30 ngay, tu bịa
+    bien do +/-10% va ghi cung rmse/mae/mape cua toan he thong (9,97 / 7,94 /
+    10,43) cho moi dong. Hau qua: bang khong con la du bao tung ngay, khong
+    the doi chieu voi doanh so that theo ngay, va con so sai so khong phai cua
+    cap san pham x cua hang do.
 
-    start = date(2018, 1, 1)
-    rows = []
-    for row in frame.itertuples(index=False):
-        product_id = int(getattr(row, "product_id"))
-        store_id = int(getattr(row, "store_id"))
-        if product_id not in selected or (product_id, store_id) in missing:
-            continue
-        total_predicted = float(getattr(row, "total_predicted"))
-        recommended = float(getattr(row, "recommended_import"))
-        daily = total_predicted / 30.0
-        for day in range(30):
-            forecast_date = start + timedelta(days=day)
-            rows.append(
-                (
-                    store_id,
-                    product_id,
-                    "prophet",
-                    forecast_date,
-                    30,
-                    round(daily, 3),
-                    round(daily * 0.9, 3),
-                    round(daily * 1.1, 3),
-                    round(recommended, 3),
-                    9.97,
-                    7.94,
-                    10.43,
-                )
-            )
+    `forecasts_30d.csv` do `ai-model/scripts/forecast_next_month_sqlserver.py`
+    sinh ra, chua gia tri that cua tung ngay, khoang tin cay that, ten mo hinh
+    da thang cuoc va sai so cua chinh cap do.
+    """
+    daily_path = ROOT / "ai-model" / "outputs" / "forecasts_30d.csv"
+    if not daily_path.exists():
+        raise FileNotFoundError(
+            f"Thieu {daily_path}. Chay truoc:\n"
+            "    python ai-model/scripts/forecast_next_month_sqlserver.py"
+        )
+
+    frame = pd.read_csv(daily_path)
+    rows = [
+        (
+            int(row.store_id),
+            int(row.product_id),
+            str(row.model_name),
+            date.fromisoformat(str(row.forecast_date)),
+            int(row.horizon_days),
+            float(row.predicted_quantity),
+            float(row.lower_bound),
+            float(row.upper_bound),
+            float(row.recommended_import_qty),
+            float(row.rmse),
+            float(row.mae),
+            float(row.mape),
+        )
+        for row in frame.itertuples(index=False)
+    ]
 
     cur = conn.cursor()
     cur.fast_executemany = True
