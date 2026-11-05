@@ -96,8 +96,8 @@ export default function Sidebar({ open, onClose }) {
         aria-label="Điều hướng chính"
       >
         <div className="flex h-16 items-center gap-3 border-b border-slate-200 px-5 dark:border-slate-800">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-600 text-white shadow-sm">
-            <Icon name="leaf" className="h-6 w-6" />
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm">
+            <img src="/favicon.png" alt="Logo LHU" className="h-6 w-6 object-contain" />
           </span>
           <div className="min-w-0">
             <p className="truncate text-base font-bold tracking-tight text-slate-900 dark:text-white">
