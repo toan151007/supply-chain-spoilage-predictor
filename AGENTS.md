@@ -96,6 +96,20 @@ ngoài dự báo nhu cầu còn có **điều chuyển hàng giữa cửa hàng*
       hết hạn / còn ≤ 7 ngày mới có màu + chấm. Bỏ `title` tooltip ở các nút icon
       (đã có `aria-label`) ở Sản phẩm, Kho hàng, Nhóm hàng, Cửa hàng, Điều chuyển.
     - Biểu đồ (Dashboard, Dự báo) đổi màu chuỗi từ xanh lá sang dải LHU Blue.
+12. **Chuẩn hoá định dạng tiền tệ (10/11/2026):**
+    - `utils/format.js`: `formatCurrency(1420000000)` → **`1.420.000.000 đ`** (dấu chấm
+      phân cách hàng nghìn, đơn vị `đ` ở cuối thay cho ký hiệu `₫`).
+    - `formatCompactCurrency` **không dùng `Intl notation:'compact'`** nữa (bản `vi-VN`
+      trả `1,42 T` / `842 Tr`, không phải tiếng Việt) mà tự chia đơn vị
+      `nghìn tỷ → tỷ → triệu → nghìn`, giữ **2 chữ số thập phân**: `1,42 tỷ đ`,
+      `842 triệu đ`, `1,85 triệu đ`.
+    - `DashboardPage`: mảng `KPIS` lưu **số thật** (`1420000000`, `842000000`),
+      `KpiCard` render qua `formatCurrency` cho `typeof value === 'number'`;
+      thêm `tabular-nums` + `whitespace-nowrap` để số dài không ngắt dòng.
+    - Đo thật: `1.420.000.000 đ` rộng **170 px** ở 24 px bold, thẻ hẹp nhất còn **191 px**
+      nội dung → không tràn ở breakpoint 4 cột (1280 px).
+    - **Hệ quả toàn cục:** mọi bảng dùng `formatCurrency` (Đơn hàng…) cũng đổi từ `₫`
+      sang `đ` — cố ý, để cả hệ thống cùng một kiểu.
 
 ## Rules (BẮT BUỘC TUÂN THỦ)
 

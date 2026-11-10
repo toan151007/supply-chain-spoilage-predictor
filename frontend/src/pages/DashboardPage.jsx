@@ -13,7 +13,7 @@ import {
 
 import Icon from '../components/common/Icon.jsx'
 import { useAuth } from '../contexts/AuthContext.jsx'
-import { formatCompactCurrency } from '../utils/format.js'
+import { formatCurrency, formatCompactCurrency } from '../utils/format.js'
 
 /* ------------------------------------------------------------------ */
 /* Static mockup data. The dashboard is wired to the real API in a     */
@@ -46,7 +46,7 @@ const TOP_PRODUCTS = [
 const KPIS = [
   {
     label: 'Doanh thu 30 ngày',
-    value: '1,42 tỷ đ',
+    value: 1420000000,
     change: '+12,4%',
     positive: true,
     hint: 'so với 30 ngày trước',
@@ -55,7 +55,7 @@ const KPIS = [
   },
   {
     label: 'Giá trị tồn kho',
-    value: '842 triệu đ',
+    value: 842000000,
     change: '+3,1%',
     positive: true,
     hint: '1.330 lô hàng đang theo dõi',
@@ -176,7 +176,9 @@ function KpiCard({ kpi }) {
           {kpi.change}
         </span>
       </div>
-      <p className="mt-4 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{kpi.value}</p>
+      <p className="mt-4 whitespace-nowrap text-2xl font-bold tracking-tight tabular-nums text-slate-900 dark:text-white">
+        {typeof kpi.value === 'number' ? formatCurrency(kpi.value) : kpi.value}
+      </p>
       <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-300">{kpi.label}</p>
       <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">{kpi.hint}</p>
     </div>

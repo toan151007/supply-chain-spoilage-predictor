@@ -1,29 +1,52 @@
 /** Shared formatting helpers. */
 
 const currencyFormatter = new Intl.NumberFormat('vi-VN', {
-  style: 'currency',
-  currency: 'VND',
   maximumFractionDigits: 0,
 })
 
-const compactFormatter = new Intl.NumberFormat('vi-VN', {
-  notation: 'compact',
-  maximumFractionDigits: 1,
+const compactNumberFormatter = new Intl.NumberFormat('vi-VN', {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
 })
+
+/* Custom compact units: Intl `notation: 'compact'` for vi-VN returns
+   "1,42 T" / "842 Tr", which is not Vietnamese prose. Spell the units out. */
+const COMPACT_UNITS = [
+  { threshold: 1e12, divisor: 1e12, suffix: 'nghìn tỷ' },
+  { threshold: 1e9, divisor: 1e9, suffix: 'tỷ' },
+  { threshold: 1e6, divisor: 1e6, suffix: 'triệu' },
+  { threshold: 1e3, divisor: 1e3, suffix: 'nghìn' },
+]
 
 const numberFormatter = new Intl.NumberFormat('vi-VN', {
   maximumFractionDigits: 1,
 })
 
+/**
+ * Full Vietnamese dong amount, e.g. 1420000000 -> "1.420.000.000 đ".
+ * Thousands are separated with a dot, the unit stays at the end.
+ */
 export function formatCurrency(value) {
   const number = Number(value)
-  return Number.isFinite(number) ? currencyFormatter.format(number) : '—'
+  return Number.isFinite(number) ? `${currencyFormatter.format(number)} đ` : '—'
 }
 
+/**
+ * Short but accurate amount for tight spaces, e.g.
+ *   1420000000 -> "1,42 tỷ đ"
+ *   842000000  -> "842 triệu đ"
+ * Keeps up to two decimals instead of rounding to "1,4 tỷ".
+ */
 export function formatCompactCurrency(value) {
   const number = Number(value)
   if (!Number.isFinite(number)) return '—'
-  return `${compactFormatter.format(number)} đ`
+
+  const absolute = Math.abs(number)
+  const unit = COMPACT_UNITS.find((item) => absolute >= item.threshold)
+  if (!unit) return `${compactNumberFormatter.format(number)} đ`
+
+  const scaled = number / unit.divisor
+  return `${compactNumberFormatter.format(scaled)} ${unit.suffix} đ`
 }
 
 export function formatNumber(value) {

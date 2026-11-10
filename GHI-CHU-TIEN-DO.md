@@ -3069,3 +3069,52 @@ GET /api/v1/alerts?alert_type=low_stock     → total = 8
 5. **`over_stock` không dùng được với seed hiện tại** vì `max_stock` 40–100 không cùng
    thang đo nhu cầu Kaggle. Nếu cứ chạy `sp_Alerts_Generate` sẽ có ~492 cảnh báo rác.
 
+---
+
+## 13. Chuẩn hoá định dạng tiền tệ trên Dashboard (10/11/2026)
+
+### 13.1. Vấn đề
+
+| # | Hiện tượng | Nguyên nhân |
+|---|-----------|-------------|
+| 1 | Thẻ KPI hiện `1,42 tỷ đ` và `842 triệu đ`, trông không chuyên nghiệp | `formatCompactCurrency` dùng `Intl.NumberFormat` `notation: 'compact'`, tối đa **1** chữ số thập phân → làm tròn mất chính xác |
+| 2 | Thẻ KPI là **chuỗi viết cứng** (`value: '1,42 tỷ đ'`), không đi qua hàm định dạng nào | Dashboard còn ở dạng mockup, số liệu nhập tay vào mảng `KPIS` |
+| 3 | Đơn vị tiền tệ không thống nhất: `₫` (Intl currency) ở bảng Đơn hàng, `đ` ở chỗ khác | `formatCurrency` dùng `style: 'currency'` |
+
+Riêng `Intl.NumberFormat('vi-VN', { notation: 'compact' })` trả về **`1,42 T`** / **`842 Tr`**
+— cách viết tắt tiếng Anh, **không dùng được** trong câu tiếng Việt.
+
+### 13.2. Đã sửa
+
+**`frontend/src/utils/format.js`**
+
+- `formatCurrency(1420000000)` → **`1.420.000.000 đ`**
+  (dấu chấm phân cách hàng nghìn, đơn vị `đ` ở cuối, không còn ký hiệu `₫`).
+- `formatCompactCurrency` viết lại **thủ công** thay cho `Intl` compact:
+  - `1420000000` → `1,42 tỷ đ` (2 chữ số thập phân, không làm tròn thành `1,4 tỷ`)
+  - `842000000` → `842 triệu đ`
+  - `1850000` → `1,85 triệu đ`
+  - Bảng đơn vị: `nghìn tỷ` → `tỷ` → `triệu` → `nghìn`.
+
+**`frontend/src/pages/DashboardPage.jsx`**
+
+- Mảng `KPIS` đổi `value` từ chuỗi sang **số thật** (`1420000000`, `842000000`).
+- `KpiCard` render: `typeof kpi.value === 'number' ? formatCurrency(kpi.value) : kpi.value`
+  → thẻ "Doanh thu 30 ngày" và "Giá trị tồn kho" hiện số đầy đủ.
+- Thêm `tabular-nums` (chữ số đều bề rộng) + `whitespace-nowrap` để số không bị ngắt dòng.
+- Đo thật trên trình duyệt: chuỗi `1.420.000.000 đ` rộng **170 px** ở cỡ chữ 24 px bold,
+  trong khi thẻ hẹp nhất (4 cột ở màn 1280 px) còn **191 px** phần nội dung → **không tràn**.
+
+### 13.3. Bài học
+
+1. **`Intl` compact của `vi-VN` không dùng được** — trả `T`/`Tr`/`N` thay vì `tỷ`/`triệu`/`nghìn`.
+   Muốn nhãn tiếng Việt thì phải tự chia đơn vị và tự ghép hậu tố.
+2. **Làm tròn 1 chữ số thập phân đủ để sai số hiển thị** — `1.422.000.000 đ` thành `1,4 tỷ`
+   (lệch 22 triệu). Dùng **2 chữ số** và để `Intl` tự bỏ số 0 thừa (`842 triệu`, không phải `842,00 triệu`).
+3. **Số liệu mockup cũng phải đi qua hàm định dạng.** Viết cứng `'1,42 tỷ đ'` thì khi nối API
+   thật sẽ phải sửa từng chuỗi; để `value` là số ngay từ đầu thì chỉ đổi nguồn dữ liệu.
+4. **Đổi ký hiệu tiền tệ là thay đổi toàn cục.** `formatCurrency` còn dùng ở bảng Đơn hàng,
+   nên bảng đó cũng chuyển từ `₫` sang `đ` — cố ý, để cả hệ thống cùng một kiểu.
+5. **Kiểm tra tràn chữ bằng số đo, không bằng mắt.** Dùng `Range.getBoundingClientRect()`
+   để đo bề rộng chuỗi ở đúng cỡ chữ, so với bề rộng thẻ ở breakpoint hẹp nhất.
+
