@@ -30,6 +30,7 @@ ngoài dự báo nhu cầu còn có **điều chuyển hàng giữa cửa hàng*
 - Chạy SQL bằng dòng lệnh: `sqlcmd -S "LAPTOP-I39E3UT2\SQLEXPRESS" -U sa -P <mat_khau> -C -d spoilage_predictor -i <file.sql>`
 - Tạo schema + Stored Procedure: xem `database/HUONG-DAN-CHAY-SSMS.md` (copy/paste trên SSMS), sau đó chạy `database/03-migrations/010-sqlserver-analytics-procedures.sql` và `database/03-migrations/011-transfers-seasonal.sql`
 - Chạy migration 011 bằng dòng lệnh: `sqlcmd -S "<host>" -U sa -P <mat_khau> -C -d spoilage_predictor -I -b -i database\03-migrations\011-transfers-seasonal.sql`
+- Chạy migration 012 (làm mới dữ liệu cảnh báo) rồi nạp lại: `sqlcmd ... -i database\03-migrations\012-refresh-alert-demo-data.sql` sau đó `python scripts\refresh_alert_demo_data.py`
 - Chạy AI model: `cd ai-model && jupyter notebook`
 
 > ⚠️ **Dữ liệu PostgreSQL cũ KHÔNG tự chuyển sang SQL Server.** File T-SQL trong
@@ -85,6 +86,16 @@ ngoài dự báo nhu cầu còn có **điều chuyển hàng giữa cửa hàng*
    giờ cập nhật, nút "Làm mới ngay". Không cần F5.
 10. **Việc còn lại:** nối Dashboard với API thật, tạo đơn hàng mới, trang Đề xuất nhập hàng
     và Báo cáo (CSV/XLSX/PDF).
+11. **Tinh giản giao diện + Lọc nhanh cảnh báo (10/11/2026):**
+    - `AlertsPage` có 4 nút lọc nhanh dạng pill: **Tất cả · Đã hết hạn · Sắp hết hạn ·
+      Tồn kho thấp** — bấm là gọi API ngay (`?alert_type=...`), không cần nút "Áp dụng".
+    - Bảng cảnh báo rút từ 7 cột xuống 4 (Cảnh báo · Mức độ · Ngày tạo · Thao tác):
+      bỏ cột "Loại" trùng với pill, bỏ badge "Đã đọc/Chưa đọc" (thay bằng chấm xanh
+      nhỏ), mức độ hiển thị bằng **chấm màu + chữ** thay vì pill nền đặc.
+    - `InventoryPage`: tình trạng hạn dùng của lô còn mới là **chữ xám thường**, chỉ lô
+      hết hạn / còn ≤ 7 ngày mới có màu + chấm. Bỏ `title` tooltip ở các nút icon
+      (đã có `aria-label`) ở Sản phẩm, Kho hàng, Nhóm hàng, Cửa hàng, Điều chuyển.
+    - Biểu đồ (Dashboard, Dự báo) đổi màu chuỗi từ xanh lá sang dải LHU Blue.
 
 ## Rules (BẮT BUỘC TUÂN THỦ)
 
@@ -285,6 +296,31 @@ Vì vậy **không dùng được** tiêu chí "hệ số biến động mùa v�
 - **`@@ROWCOUNT` phải đọc ngay sau câu lệnh vừa chạy**, trước mọi `IF`/`SELECT` khác.
 - **Mã lỗi nghiệp vụ** 50001–50005 (xem mục SQL Rules) — router phải map sang HTTP, không trả 500.
 - **Script tạo schema có `DROP`** — chạy trên DB đang có dữ liệu sẽ mất sạch. Chỉ chạy khi DB trống hoặc đã backup.
+
+#### Làm mới dữ liệu cảnh báo (10/11/2026)
+
+- **Seed cũ sinh ngày 24/10/2026 và không bao giờ tự cập nhật** → cảnh báo hiện
+  "hết hạn 33 ngày" nhưng `created_at` vẫn 24/10. Đã thêm migration
+  `database/03-migrations/012-refresh-alert-demo-data.sql` với **2 procedure bảo trì**:
+  `sp_Maintenance_RefreshInventoryDates` (ghi lại `expiry_date`/`received_date` theo
+  hôm nay, xoá sạch `alerts`) và `sp_Maintenance_FinalizeAlerts` (xoá cảnh báo
+  `over_stock`, dàn `created_at` trong 3 ngày gần nhất).
+- **Script `scripts/refresh_alert_demo_data.py` gọi tuần tự 3 procedure** (không ghi
+  trực tiếp bảng): RefreshInventoryDates → `sp_Alerts_Generate @WarningDays = 7` →
+  FinalizeAlerts. Chạy lại nhiều lần vẫn **không tích luỹ** cặp tồn kho thấp
+  (procedure tự nâng các cặp còn dưới `min_stock` mà lần này không chọn lên trước).
+- **`created_at` phải dàn theo hai chiều:** cảnh báo `expired` tạo **sau** ngày hết hạn,
+  cảnh báo `expiring_soon` tạo **trước** ngày hết hạn. Nếu chỉ dàn ngẫu nhiên 0–3 ngày
+  sẽ có dòng "hết hạn 1 ngày" nhưng "tạo 3 ngày trước" — vẫn vô lý.
+- **Phải xoá cảnh báo `over_stock` sau khi generate.** `max_stock` trong seed (40–100)
+  không cùng thang đo với nhu cầu Kaggle (hàng trăm/ngày) nên **mỗi cặp** đều vượt
+  ngưỡng → 492 cảnh báo rác. Đây đúng là hạn chế đã ghi ở mục "KHÔNG sửa `max_stock`".
+- **`sp_Alerts_Generate` không tạo được `low_stock` với seed gốc** vì mỗi cặp tồn
+  400–1.000 đơn vị trong khi `min_stock` chỉ 8–30. Procedure bảo trì chọn **8 cặp**
+  (theo `group_no % 63 = 1`) rồi hạ số lượng xuống dưới `min_stock` để có dữ liệu demo
+  cho pill "Tồn kho thấp". Tổng tồn kho giảm ~2,6% — chấp nhận được với dữ liệu mẫu.
+- **Không để `quantity = 0`** sau khi hạ tồn kho: các lô còn lại được đặt **1 đơn vị**
+  (không phải 0) để bảng Kho hàng không hiện dòng "0" vô nghĩa.
 
 ### Điều chuyển hàng · dự báo mùa vụ · chatbot (31/10/2026)
 

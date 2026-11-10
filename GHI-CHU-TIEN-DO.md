@@ -2994,3 +2994,78 @@ lại thành báo cáo `docs/02-bao-cao/KiemThu_AI_Cho_GVHD.md` + script chạy 
   phải mô hình dở. Kiểm tra bằng `COUNT(DISTINCT predicted_quantity)`.
 - **Số liệu đúng nhưng sai phạm vi cũng là sai** (1.330 lô của 10 cửa hàng gán cho 1 cửa
   hàng). Context đưa cho LLM phải ghi rõ phạm vi hoặc phải lọc đúng phạm vi trước.
+
+---
+
+## 12. Tinh giản giao diện cảnh báo + làm mới dữ liệu mẫu (10/11/2026)
+
+### 12.1. Vấn đề
+
+| # | Hiện tượng | Nguyên nhân |
+|---|-----------|-------------|
+| 1 | Bảng Cảnh báo dày đặc badge: pill "Nghiêm trọng/Cao/Trung bình" + cột Loại + cột Trạng thái + tiêu đề lặp lại | Trang hiển thị **7 cột**, mỗi dòng 2–3 viên màu |
+| 2 | "Nước dừa 250ml đã hết hạn 33 ngày" nhưng cột Ngày tạo = 24/10/2026 | Seed sinh ngày 24/10, `expiry_date` và `alerts.created_at` đóng băng từ đó |
+| 3 | Muốn lọc "Đã hết hạn" phải mở dropdown, chọn, chờ | Chỉ có một ô `select` mức độ |
+
+### 12.2. Đã sửa
+
+**Giao diện:**
+
+- `AlertsPage` thêm **4 pill lọc nhanh**: `Tất cả · Đã hết hạn · Sắp hết hạn · Tồn kho thấp`.
+  Bấm là gọi `GET /api/v1/alerts?alert_type=...` ngay, không cần nút "Áp dụng".
+- Bảng rút còn **4 cột** (Cảnh báo · Mức độ · Ngày tạo · Thao tác):
+  bỏ cột "Loại" (đã có pill), bỏ chữ "Đã đọc/Chưa đọc" (thay bằng chấm xanh 6 px),
+  mức độ đổi từ pill nền đặc sang **chấm màu + chữ**.
+- Dòng phụ của mỗi cảnh báo ghi **sản phẩm · cửa hàng** và **HSD** để đối chiếu ngày.
+- `InventoryPage`: lô còn xa hạn hiển thị **chữ xám thường**, chỉ lô hết hạn / ≤ 7 ngày
+  mới có màu + chấm → bảng bớt "chữ nhỏ nổi".
+- Bỏ `title` tooltip trùng `aria-label` ở các nút icon (Sản phẩm, Kho hàng, Nhóm hàng,
+  Cửa hàng, Điều chuyển). Giữ `title` của Modal vì đó là tiêu đề hộp thoại.
+- Biểu đồ Dashboard + Dự báo đổi chuỗi xanh lá → LHU Blue (`#2a5aaa`, `#3b7bdb`).
+
+**Dữ liệu:**
+
+- Migration mới `database/03-migrations/012-refresh-alert-demo-data.sql`:
+  - `sp_Maintenance_RefreshInventoryDates` — ghi lại `expiry_date`/`received_date` theo
+    hôm nay (nhóm 3–6 ngày trước, nhóm 2–5 ngày tới, còn lại 8–102 ngày), hạ 8 cặp
+    (store, product) xuống dưới `min_stock`, xoá sạch `alerts`.
+  - `sp_Maintenance_FinalizeAlerts` — xoá cảnh báo `over_stock` rác và dàn `created_at`:
+    **expired tạo sau ngày hết hạn**, **expiring_soon tạo trước ngày hết hạn**.
+- Script `scripts/refresh_alert_demo_data.py` gọi tuần tự 3 procedure (không ghi bảng trực tiếp).
+
+### 12.3. Kết quả đo được
+
+| Hạng mục | Trước | Sau |
+|----------|-------|-----|
+| Tổng cảnh báo | 492 | **275** |
+| `expired` | 253 | 133 (hết hạn 3–6 ngày) |
+| `expiring_soon` | 239 | 134 (còn 2–5 ngày) |
+| `low_stock` | 0 | **8** |
+| `over_stock` | 0 (nhưng sẽ sinh 492 nếu chạy SP) | 0 (đã xoá có chủ đích) |
+| `created_at` | toàn bộ 24/10/2026 | 04/11 → 10/11/2026 |
+| Dòng "tạo trước khi hết hạn" ở nhóm expired | 19 | **0** |
+| `inventory.quantity = 0` | 13 (rác từ lần chạy thử) | **0** |
+
+Kiểm tra qua API thật:
+
+```
+GET /api/v1/alerts?alert_type=expired      → total = 133
+GET /api/v1/alerts?alert_type=expiring_soon → total = 134
+GET /api/v1/alerts?alert_type=low_stock     → total = 8
+```
+
+### 12.4. Bài học
+
+1. **Dữ liệu mẫu có hạn dùng.** Seed đóng băng ngày thì sau 2 tuần mọi cảnh báo đều
+   vô lý. Phải có script làm mới tương đối theo `SYSDATETIME()`, không ghi cứng ngày.
+2. **`created_at` phải nhất quán với `expiry_date` theo cả hai chiều.** Dàn ngẫu nhiên
+   0–3 ngày vẫn sinh dòng "hết hạn 1 ngày nhưng tạo 3 ngày trước". Phải ràng buộc:
+   expired → tạo sau expiry; expiring_soon → tạo trước expiry.
+3. **Chạy lại script bảo trì phải idempotent.** Lần đầu chọn 9 cặp, lần sau chọn 8 cặp
+   → 16 cặp tồn kho thấp. Sửa bằng cách nâng các cặp "không được chọn lần này" lên
+   trước khi hạ cặp mới.
+4. **Đừng để `quantity = 0`** khi hạ tồn kho — người xem tưởng lô hàng rỗng. Đặt lô
+   phụ về **1** đơn vị là đủ để tổng vẫn dưới `min_stock`.
+5. **`over_stock` không dùng được với seed hiện tại** vì `max_stock` 40–100 không cùng
+   thang đo nhu cầu Kaggle. Nếu cứ chạy `sp_Alerts_Generate` sẽ có ~492 cảnh báo rác.
+

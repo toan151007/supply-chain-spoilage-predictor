@@ -401,7 +401,6 @@ export default function ProductsPage() {
               type="button"
               onClick={() => setReloadKey((key) => key + 1)}
               className="btn-secondary px-3"
-              title="Tải lại"
               aria-label="Tải lại danh sách"
             >
               <Icon name="refresh" className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
@@ -495,7 +494,6 @@ export default function ProductsPage() {
                                 onClick={() => openEdit(product)}
                                 className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-sky-50 hover:text-sky-600 dark:text-slate-400 dark:hover:bg-sky-950/50 dark:hover:text-sky-400"
                                 aria-label={`Sửa ${product.product_name}`}
-                                title="Sửa sản phẩm"
                               >
                                 <Icon name="pencil" className="h-4 w-4" />
                               </button>
@@ -504,7 +502,6 @@ export default function ProductsPage() {
                                 onClick={() => setDeleteTarget(product)}
                                 className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-950/50 dark:hover:text-red-400"
                                 aria-label={`Xoá ${product.product_name}`}
-                                title="Xoá sản phẩm"
                               >
                                 <Icon name="trash" className="h-4 w-4" />
                               </button>

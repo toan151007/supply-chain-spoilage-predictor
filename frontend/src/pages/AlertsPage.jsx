@@ -3,20 +3,30 @@ import { useNavigate } from 'react-router-dom'
 
 import Icon from '../components/common/Icon.jsx'
 import Spinner from '../components/common/Spinner.jsx'
-import { useAuth } from '../contexts/AuthContext.jsx'
 import api from '../services/api.js'
 import { formatDate, getErrorMessage } from '../utils/format.js'
 
+/* Quick filter pills. The API already supports `alert_type`, so each pill is
+   a single request - no "Apply" button needed. */
+const QUICK_FILTERS = [
+  { value: '', label: 'Tất cả' },
+  { value: 'expired', label: 'Đã hết hạn' },
+  { value: 'expiring_soon', label: 'Sắp hết hạn' },
+  { value: 'low_stock', label: 'Tồn kho thấp' },
+]
+
+/* Severity is rendered as a small dot plus a label instead of a filled badge,
+   so a long table no longer looks like a wall of coloured chips. */
 const SEVERITY_MAP = {
-  critical: { label: 'Nghiêm trọng', cls: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300' },
-  high: { label: 'Cao', cls: 'bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300' },
-  medium: { label: 'Trung bình', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300' },
-  low: { label: 'Thấp', cls: 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300' },
+  critical: { label: 'Nghiêm trọng', dot: 'bg-red-500', text: 'text-red-600 dark:text-red-400' },
+  high: { label: 'Cao', dot: 'bg-orange-500', text: 'text-orange-600 dark:text-orange-400' },
+  medium: { label: 'Trung bình', dot: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400' },
+  low: { label: 'Thấp', dot: 'bg-sky-500', text: 'text-sky-600 dark:text-sky-400' },
 }
 
-const TYPE_MAP = {
-  expiring_soon: 'Sắp hết hạn',
-  expired: 'Đã hết hạn',
+const TITLE_MAP = {
+  expired: 'Lô hàng đã hết hạn',
+  expiring_soon: 'Lô hàng sắp hết hạn',
   low_stock: 'Tồn kho thấp',
   over_stock: 'Tồn kho dư',
   forecast_anomaly: 'Bất thường dự báo',
@@ -40,8 +50,8 @@ function TableSkeleton({ cols }) {
 
 export default function AlertsPage() {
   const navigate = useNavigate()
-  const { isAdmin } = useAuth()
   const [page, setPage] = useState(1)
+  const [alertType, setAlertType] = useState('')
   const [severity, setSeverity] = useState('')
   const [unreadOnly, setUnreadOnly] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
@@ -52,7 +62,7 @@ export default function AlertsPage() {
 
   useEffect(() => {
     setPage(1)
-  }, [severity, unreadOnly])
+  }, [alertType, severity, unreadOnly])
 
   useEffect(() => {
     let cancelled = false
@@ -64,6 +74,7 @@ export default function AlertsPage() {
           page,
           page_size: 20,
           severity: severity || undefined,
+          alert_type: alertType || undefined,
         },
       })
       .then((res) => {
@@ -78,7 +89,7 @@ export default function AlertsPage() {
     return () => {
       cancelled = true
     }
-  }, [page, severity, unreadOnly, reloadKey])
+  }, [page, alertType, severity, unreadOnly, reloadKey])
 
   const markRead = async (alertId) => {
     setActioning(alertId)
@@ -96,6 +107,8 @@ export default function AlertsPage() {
     if (next < 1 || next > data.pages || next === page) return
     setPage(next)
   }
+
+  const activeFilter = QUICK_FILTERS.find((item) => item.value === alertType)
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -118,6 +131,29 @@ export default function AlertsPage() {
           <Icon name="refresh" className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           Tải lại
         </button>
+      </div>
+
+      {/* Quick filters: one click filters the table, no apply step. */}
+      <div className="flex flex-wrap gap-2">
+        {QUICK_FILTERS.map((filter) => {
+          const active = alertType === filter.value
+          return (
+            <button
+              key={filter.value || 'all'}
+              type="button"
+              onClick={() => setAlertType(filter.value)}
+              aria-pressed={active}
+              className={[
+                'rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors',
+                active
+                  ? 'bg-brand-600 text-white shadow-sm'
+                  : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700',
+              ].join(' ')}
+            >
+              {filter.label}
+            </button>
+          )
+        })}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -153,56 +189,84 @@ export default function AlertsPage() {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[880px] text-left text-sm">
+              <table className="w-full min-w-[720px] text-left text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50/70 text-xs uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
                     <th className="px-4 py-3 font-semibold">Cảnh báo</th>
-                    <th className="px-4 py-3 font-semibold">Loại</th>
                     <th className="px-4 py-3 font-semibold">Mức độ</th>
-                    <th className="px-4 py-3 font-semibold">Sản phẩm</th>
                     <th className="px-4 py-3 font-semibold">Ngày tạo</th>
-                    <th className="px-4 py-3 font-semibold">Trạng thái</th>
                     <th className="px-4 py-3 text-right font-semibold">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {loading ? (
-                    <TableSkeleton cols={7} />
+                    <TableSkeleton cols={4} />
                   ) : data.items.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-16 text-center">
+                      <td colSpan={4} className="px-6 py-16 text-center">
                         <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500">
                           <Icon name="alerts" className="h-6 w-6" />
                         </span>
-                        <p className="mt-3 font-semibold text-slate-700 dark:text-slate-200">Không có cảnh báo</p>
+                        <p className="mt-3 font-semibold text-slate-700 dark:text-slate-200">
+                          {alertType ? `Không có cảnh báo ${activeFilter?.label.toLowerCase()}` : 'Không có cảnh báo'}
+                        </p>
                       </td>
                     </tr>
                   ) : (
-                    data.items.map((alert) => (
-                      <tr key={alert.alert_id} className="transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40">
-                        <td className="px-4 py-3.5">
-                          <p className="font-medium text-slate-900 dark:text-white">{alert.title.replace('alert.title.', '').replace(/_/g, ' ')}</p>
-                          <p className="mt-0.5 max-w-md truncate text-xs text-slate-500 dark:text-slate-400">{alert.message || ''}</p>
-                        </td>
-                        <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">{TYPE_MAP[alert.alert_type] || alert.alert_type}</td>
-                        <td className="px-4 py-3.5"><span className={['badge', SEVERITY_MAP[alert.severity]?.cls || 'bg-slate-100 text-slate-600'].join(' ')}>{SEVERITY_MAP[alert.severity]?.label || alert.severity}</span></td>
-                        <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">{alert.product?.product_name || (alert.product_id ? `#${alert.product_id}` : '—')}</td>
-                        <td className="px-4 py-3.5 text-slate-500 dark:text-slate-400">{formatDate(alert.created_at)}</td>
-                        <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">{alert.is_read ? 'Đã đọc' : 'Chưa đọc'}</td>
-                        <td className="px-4 py-3.5 text-right">
-                          {!alert.is_read && (isAdmin || true) && (
-                            <button
-                              type="button"
-                              onClick={() => markRead(alert.alert_id)}
-                              disabled={actioning === alert.alert_id}
-                              className="btn-secondary px-3 py-1.5"
-                            >
-                              {actioning === alert.alert_id ? <Spinner label="" /> : <><Icon name="check" className="h-4 w-4" />Đánh dấu đã đọc</>}
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))
+                    data.items.map((alert) => {
+                      const severityMeta = SEVERITY_MAP[alert.severity] || SEVERITY_MAP.low
+                      const productName = alert.product?.product_name || (alert.product_id ? `#${alert.product_id}` : '')
+                      const storeName = alert.store?.store_name || ''
+                      const context = [productName, storeName].filter(Boolean).join(' · ')
+                      return (
+                        <tr key={alert.alert_id} className="transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40">
+                          <td className="px-4 py-3.5">
+                            <div className="flex items-start gap-2">
+                              <span
+                                className={[
+                                  'mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full',
+                                  alert.is_read ? 'bg-transparent' : 'bg-brand-500',
+                                ].join(' ')}
+                                aria-hidden="true"
+                              />
+                              <div className="min-w-0">
+                                <p className="font-medium text-slate-900 dark:text-white">
+                                  {TITLE_MAP[alert.alert_type] || alert.alert_type}
+                                </p>
+                                {context && (
+                                  <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">{context}</p>
+                                )}
+                                {alert.expiry_date && (
+                                  <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
+                                    HSD {formatDate(alert.expiry_date)}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <span className={['inline-flex items-center gap-1.5 text-xs font-medium', severityMeta.text].join(' ')}>
+                              <span className={['h-1.5 w-1.5 rounded-full', severityMeta.dot].join(' ')} />
+                              {severityMeta.label}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3.5 text-slate-500 dark:text-slate-400">{formatDate(alert.created_at)}</td>
+                          <td className="px-4 py-3.5 text-right">
+                            {!alert.is_read && (
+                              <button
+                                type="button"
+                                onClick={() => markRead(alert.alert_id)}
+                                disabled={actioning === alert.alert_id}
+                                className="btn-secondary px-3 py-1.5"
+                                aria-label="Đánh dấu đã đọc"
+                              >
+                                {actioning === alert.alert_id ? <Spinner label="" /> : <><Icon name="check" className="h-4 w-4" />Đã đọc</>}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })
                   )}
                 </tbody>
               </table>

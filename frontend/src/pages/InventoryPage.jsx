@@ -21,12 +21,20 @@ const EMPTY_FORM = {
   batch_code: '',
 }
 
+/* Fresh batches are plain text; only expired / near-expiry rows get a colour
+   and a dot. This keeps the inventory table calm instead of a wall of chips. */
 function daysBadge(daysLeft) {
-  if (daysLeft == null) return { text: 'Không rõ', cls: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' }
-  if (daysLeft <= 0) return { text: `Hết hạn ${Math.abs(daysLeft)} ngày`, cls: 'bg-red-50 text-red-700 dark:bg-red-900/40 dark:text-red-300' }
-  if (daysLeft <= 3) return { text: `Còn ${daysLeft} ngày`, cls: 'bg-red-50 text-red-700 dark:bg-red-900/40 dark:text-red-300' }
-  if (daysLeft <= 7) return { text: `Còn ${daysLeft} ngày`, cls: 'bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' }
-  return { text: `Còn ${daysLeft} ngày`, cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' }
+  if (daysLeft == null) return { text: 'Không rõ', tone: 'normal' }
+  if (daysLeft <= 0) return { text: `Hết hạn ${Math.abs(daysLeft)} ngày`, tone: 'danger' }
+  if (daysLeft <= 3) return { text: `Còn ${daysLeft} ngày`, tone: 'danger' }
+  if (daysLeft <= 7) return { text: `Còn ${daysLeft} ngày`, tone: 'warning' }
+  return { text: `Còn ${daysLeft} ngày`, tone: 'normal' }
+}
+
+const DAYS_TONE = {
+  danger: { text: 'text-red-600 dark:text-red-400', dot: 'bg-red-500' },
+  warning: { text: 'text-amber-600 dark:text-amber-400', dot: 'bg-amber-500' },
+  normal: { text: 'text-slate-500 dark:text-slate-400', dot: null },
 }
 
 function TableSkeleton({ cols }) {
@@ -405,7 +413,14 @@ export default function InventoryPage() {
                           <td className="px-4 py-3.5 text-right tabular-nums font-medium text-slate-800 dark:text-slate-100">{formatNumber(item.quantity)}</td>
                           <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">{formatDate(item.received_date)}</td>
                           <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">{formatDate(item.expiry_date)}</td>
-                          <td className="px-4 py-3.5"><span className={['badge', badge.cls].join(' ')}>{badge.text}</span></td>
+                          <td className="px-4 py-3.5">
+                            <span className={['inline-flex items-center gap-1.5 text-xs font-medium', DAYS_TONE[badge.tone].text].join(' ')}>
+                              {DAYS_TONE[badge.tone].dot && (
+                                <span className={['h-1.5 w-1.5 rounded-full', DAYS_TONE[badge.tone].dot].join(' ')} />
+                              )}
+                              {badge.text}
+                            </span>
+                          </td>
                           {isAdmin && (
                             <td className="px-4 py-3.5">
                               <div className="flex items-center justify-end gap-1">
@@ -414,7 +429,6 @@ export default function InventoryPage() {
                                   onClick={() => openEdit(item)}
                                   className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-sky-50 hover:text-sky-600 dark:text-slate-400 dark:hover:bg-sky-950/50 dark:hover:text-sky-400"
                                   aria-label={`Sửa lô hàng ${item.batch_code || item.inventory_id}`}
-                                  title="Sửa lô hàng"
                                 >
                                   <Icon name="pencil" className="h-4 w-4" />
                                 </button>
@@ -423,7 +437,6 @@ export default function InventoryPage() {
                                   onClick={() => setDeleteTarget(item)}
                                   className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-950/50 dark:hover:text-red-400"
                                   aria-label={`Xoá lô hàng ${item.batch_code || item.inventory_id}`}
-                                  title="Xoá lô hàng"
                                 >
                                   <Icon name="trash" className="h-4 w-4" />
                                 </button>

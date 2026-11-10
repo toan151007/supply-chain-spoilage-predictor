@@ -453,7 +453,6 @@ export default function TransfersPage() {
               type="button"
               onClick={() => setReloadKey((key) => key + 1)}
               className="btn-secondary px-3"
-              title="Tải lại"
               aria-label="Tải lại danh sách"
             >
               <Icon name="refresh" className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />

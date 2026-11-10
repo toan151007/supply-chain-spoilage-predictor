@@ -138,7 +138,7 @@ const ALERT_STYLES = {
   low: 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300',
 }
 
-const BAR_COLORS = ['#059669', '#10b981', '#34d399', '#6ee7b7', '#a7f3d0']
+const BAR_COLORS = ['#2a5aaa', '#3b7bdb', '#5b95e3', '#8ab4ee', '#c3d8f7']
 
 function ChartTooltip({ active, payload, label, unit = '' }) {
   if (!active || !payload?.length) return null
@@ -230,18 +230,18 @@ export default function DashboardPage() {
               <AreaChart data={REVENUE_BY_MONTH} margin={{ top: 5, right: 8, left: -18, bottom: 0 }}>
                 <defs>
                   <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#10b981" stopOpacity={0.35} />
-                    <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
+                    <stop offset="0%" stopColor="#3b7bdb" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="#3b7bdb" stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.22)" vertical={false} />
                 <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 12, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                <Tooltip content={<ChartTooltip unit=" triệu đ" />} cursor={{ stroke: '#10b981', strokeDasharray: '4 4' }} />
+                <Tooltip content={<ChartTooltip unit=" triệu đ" />} cursor={{ stroke: '#3b7bdb', strokeDasharray: '4 4' }} />
                 <Area
                   type="monotone"
                   dataKey="revenue"
-                  stroke="#059669"
+                  stroke="#2a5aaa"
                   strokeWidth={2.5}
                   fill="url(#revenueGradient)"
                   activeDot={{ r: 4, strokeWidth: 2, stroke: '#fff' }}
@@ -368,7 +368,7 @@ export default function DashboardPage() {
               Prophet đạt RMSE 9,97 trên 100 cặp sản phẩm × cửa hàng trong tập kiểm thử nội bộ.
             </p>
             <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-              <div className="h-full w-[90%] rounded-full bg-gradient-to-r from-brand-500 to-emerald-400" />
+              <div className="h-full w-[90%] rounded-full bg-gradient-to-r from-brand-500 to-brand-400" />
             </div>
             <p className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">MAPE 10,43% · mục tiêu dưới 15%</p>
           </div>

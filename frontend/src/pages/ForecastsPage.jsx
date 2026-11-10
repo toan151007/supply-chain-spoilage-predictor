@@ -153,7 +153,7 @@ export default function ForecastsPage() {
                   <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                   <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(16,185,129,0.08)' }} />
-                  <Bar dataKey="value" fill="#10b981" radius={[6, 6, 0, 0]} barSize={28} />
+                  <Bar dataKey="value" fill="#3b7bdb" radius={[6, 6, 0, 0]} barSize={28} />
                 </BarChart>
               </ResponsiveContainer>
             )}
