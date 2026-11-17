@@ -5,10 +5,10 @@ import { useAuth } from '../../contexts/AuthContext.jsx'
 import api from '../../services/api.js'
 
 const QUICK_QUESTIONS = [
-  'Hang nao sap het han trong 7 ngay toi?',
-  'Co nhung canh bao nao chua xu ly?',
-  'Top 5 san pham co doanh so cao nhat?',
-  'Cua hang nao co ton kho thap nhat?',
+  'Hàng nào sắp hết hạn trong 7 ngày tới?',
+  'Có những cảnh báo nào chưa xử lý?',
+  'Top 5 sản phẩm có doanh số cao nhất?',
+  'Cửa hàng nào có tồn kho thấp nhất?',
 ]
 
 export default function Chatbot() {
@@ -17,7 +17,7 @@ export default function Chatbot() {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      content: 'Xin chao! Toi la tro ly AI cua FreshChain. Ban can toi giup gi ve ton kho, don hang, canh bao hay du bao nhu cau?',
+      content: 'Xin chào! Tôi là trợ lý AI của FreshChain. Bạn cần tôi giúp gì về tồn kho, đơn hàng, cảnh báo hay dự báo nhu cầu?',
     },
   ])
   const [input, setInput] = useState('')
@@ -44,13 +44,13 @@ export default function Chatbot() {
       const res = await api.post('/chat', { message })
       setMessages((prev) => [...prev, { role: 'assistant', content: res.data.answer }])
     } catch (err) {
-      const detail = err?.response?.data?.detail || err?.message || 'Khong the ket noi voi tro ly AI.'
-      setError(typeof detail === 'string' ? detail : 'Loi khi goi chatbot.')
+      const detail = err?.response?.data?.detail || err?.message || 'Không thể kết nối với trợ lý AI.'
+      setError(typeof detail === 'string' ? detail : 'Lỗi khi gọi chatbot.')
       setMessages((prev) => [
         ...prev,
         {
           role: 'assistant',
-          content: 'Xin loi, hien tai khong the tra loi. Vui long thu lai sau.',
+          content: 'Xin lỗi, hiện tại tôi không thể trả lời. Vui lòng thử lại sau.',
         },
       ])
     } finally {
@@ -69,7 +69,7 @@ export default function Chatbot() {
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="fixed bottom-5 right-5 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg shadow-brand-600/30 transition hover:bg-brand-700 dark:shadow-brand-900/40"
-        aria-label={open ? 'Dong chatbot' : 'Mo chatbot'}
+        aria-label={open ? 'Đóng chatbot' : 'Mở chatbot'}
       >
         <Icon name={open ? 'close' : 'sparkles'} className="h-6 w-6" />
       </button>
@@ -82,7 +82,7 @@ export default function Chatbot() {
             </span>
             <div>
               <p className="text-sm font-semibold text-slate-900 dark:text-white">FreshChain AI Agent</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Hoi dap ve ton kho, don hang, canh bao</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Hỏi đáp về tồn kho, đơn hàng, cảnh báo</p>
             </div>
             <button type="button" onClick={() => setOpen(false)} className="ml-auto rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800">
               <Icon name="close" />
@@ -108,7 +108,7 @@ export default function Chatbot() {
               <div className="flex justify-start">
                 <div className="flex items-center gap-2 rounded-2xl rounded-bl-md bg-slate-100 px-3.5 py-2.5 text-sm text-slate-500 dark:bg-slate-800 dark:text-slate-400">
                   <Icon name="refresh" className="h-4 w-4 animate-spin" />
-                  AI dang suy nghi...
+                  AI đang suy nghĩ...
                 </div>
               </div>
             )}
@@ -133,7 +133,7 @@ export default function Chatbot() {
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Nhap cau hoi..."
+              placeholder="Nhập câu hỏi..."
               className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
             />
             <button type="submit" disabled={loading || !input.trim()} className="rounded-xl bg-brand-600 p-2 text-white disabled:opacity-50">

@@ -25,7 +25,8 @@ const EMPTY_FORM = {
    and a dot. This keeps the inventory table calm instead of a wall of chips. */
 function daysBadge(daysLeft) {
   if (daysLeft == null) return { text: 'Không rõ', tone: 'normal' }
-  if (daysLeft <= 0) return { text: `Hết hạn ${Math.abs(daysLeft)} ngày`, tone: 'danger' }
+  if (daysLeft === 0) return { text: 'Hết hạn hôm nay', tone: 'danger' }
+  if (daysLeft < 0) return { text: `Đã hết hạn ${Math.abs(daysLeft)} ngày`, tone: 'danger' }
   if (daysLeft <= 3) return { text: `Còn ${daysLeft} ngày`, tone: 'danger' }
   if (daysLeft <= 7) return { text: `Còn ${daysLeft} ngày`, tone: 'warning' }
   return { text: `Còn ${daysLeft} ngày`, tone: 'normal' }
@@ -308,7 +309,7 @@ export default function InventoryPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-2xl">Kho hàng</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Quản lý lô hàng tồn kho theo cửa hàng và ngày hết hạn.</p>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Quản lý lô hàng tồn kho theo cửa hàng và hạn sử dụng.</p>
         </div>
         <div className="flex items-center gap-2">
           {isAdmin && (
@@ -453,7 +454,7 @@ export default function InventoryPage() {
             {tab === 'all' && data.pages > 0 && (
               <div className="flex flex-col items-center justify-between gap-3 border-t border-slate-200 px-4 py-3 dark:border-slate-800 sm:flex-row">
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Hiển thị {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, data.total)} trong {formatNumber(data.total)} lô hàng
+                  Hiển thị {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, data.total)} của {formatNumber(data.total)} lô hàng
                 </p>
                 <div className="flex items-center gap-2">
                   <button type="button" onClick={() => goToPage(page - 1)} disabled={loading || page <= 1} className="btn-secondary px-3 py-2"><Icon name="chevronLeft" className="h-4 w-4" /></button>
@@ -473,7 +474,7 @@ export default function InventoryPage() {
       {!isAdmin && (
         <p className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
           <Icon name="shield" className="h-4 w-4" />
-          Tài khoản nhân viên có thể xem tồn kho. Chức năng thêm/sửa/xoá chỉ dành cho owner/manager.
+          Tài khoản nhân viên có thể xem tồn kho. Chức năng thêm/sửa/xoá chỉ dành cho chủ sở hữu và quản lý.
         </p>
       )}
 
@@ -575,7 +576,7 @@ export default function InventoryPage() {
                 onChange={(event) => setField('batch_code', event.target.value)}
                 className="input"
                 maxLength={50}
-                placeholder="VD: LOT-2026-01"
+                placeholder="Ví dụ: LOT-2026-01"
               />
             </Field>
 
@@ -589,7 +590,7 @@ export default function InventoryPage() {
               />
             </Field>
 
-            <Field label="Hạn sử dụng" htmlFor="expiry_date" hint="Bắt buộc với hàng dễ hỏng.">
+            <Field label="Hạn sử dụng" htmlFor="expiry_date" hint="Nên nhập với hàng dễ hỏng.">
               <input
                 id="expiry_date"
                 type="date"

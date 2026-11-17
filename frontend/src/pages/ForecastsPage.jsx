@@ -138,7 +138,7 @@ export default function ForecastsPage() {
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div className="card p-5 xl:col-span-2">
           <div className="mb-4">
-            <h2 className="font-semibold text-slate-900 dark:text-white">Top 10 dự báo gần nhất</h2>
+            <h2 className="font-semibold text-slate-900 dark:text-white">10 dự báo đầu tiên</h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">Số lượng dự báo (đơn vị)</p>
           </div>
           <div className="h-64 w-full">
@@ -175,7 +175,7 @@ export default function ForecastsPage() {
               <span className="font-semibold text-slate-800 dark:text-slate-100">Prophet</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-slate-500 dark:text-slate-400">RMSE (test nội bộ)</span>
+              <span className="text-slate-500 dark:text-slate-400">RMSE (tập kiểm thử nội bộ)</span>
               <span className="font-semibold text-slate-800 dark:text-slate-100">9,97</span>
             </div>
             <div className="flex items-center justify-between">
@@ -183,12 +183,12 @@ export default function ForecastsPage() {
               <span className="font-semibold text-slate-800 dark:text-slate-100">7,94 / 10,43%</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-slate-500 dark:text-slate-400">Thắng / 100 cặp</span>
+              <span className="text-slate-500 dark:text-slate-400">Số cặp thắng</span>
               <span className="font-semibold text-emerald-600 dark:text-emerald-400">97 / 100</span>
             </div>
           </div>
           <p className="mt-4 text-xs text-slate-400 dark:text-slate-500">
-            Giá trị `predicted_quantity` là dự báo cho ngày gần nhất; `recommended_import_qty` đã bị giới hạn bởi `max_stock`.
+            Số lượng dự báo là cho ngày gần nhất; số lượng đề xuất nhập đã bị giới hạn bởi mức tồn kho tối đa của cửa hàng.
           </p>
         </div>
       </div>
@@ -261,7 +261,7 @@ export default function ForecastsPage() {
             {data.pages > 0 && (
               <div className="flex flex-col items-center justify-between gap-3 border-t border-slate-200 px-4 py-3 dark:border-slate-800 sm:flex-row">
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Trang {page} / {data.pages} · Tổng {data.total} cặp (sản phẩm × cửa hàng)
+                  Trang {page} / {data.pages} · Tổng {formatNumber(data.total)} cặp (sản phẩm × cửa hàng)
                 </p>
                 <div className="flex items-center gap-2">
                   <button type="button" onClick={() => goToPage(page - 1)} disabled={loading || page <= 1} className="btn-secondary px-3 py-2">

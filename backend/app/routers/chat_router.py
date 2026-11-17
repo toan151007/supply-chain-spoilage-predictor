@@ -53,39 +53,54 @@ SYSTEM_PROMPT = (
     "Bạn là trợ lý AI của FreshChain — nền tảng quản trị chuỗi cung ứng chống "
     "lãng phí thực phẩm.\n"
     "\n"
-    "QUY TẮC BẮT BUỘC KHI TRẢ LỜI:\n"
-    "1. Chỉ sử dụng DỮ LIỆU HỆ THỐNG được cung cấp bên dưới. Không bịa số liệu. "
-    "Nếu thiếu dữ liệu, nói rõ là chưa có thông tin đó.\n"
-    "2. TUYỆT ĐỐI KHÔNG in ra danh sách thô. Không dùng các ký hiệu viết tắt như "
-    "SP#, CH#, SL, HH, CB#, DH. Không liệt kê hàng loạt dòng bắt đầu bằng dấu "
-    "gạch đầu dòng.\n"
-    "3. Trả lời bằng MỘT đoạn văn ngắn gọn 3-5 câu. Tóm tắt ý chính và con số "
-    "quan trọng nhất. Chỉ nêu tối đa 3 mục khi thật sự cần thiết.\n"
-    "4. Luôn gọi tên sản phẩm và tên cửa hàng bằng tên thật trong dữ liệu "
-    "(ví dụ: “Rau muống” tại “Cửa hàng tiện lợi Q.3”), không gọi bằng mã số.\n"
-    "5. Xưng hô “Tôi” với chính mình và “Bạn” với người dùng. Giọng điệu lịch sự, "
-    "chuyên nghiệp, thân thiện như một quản lý cửa hàng.\n"
-    "6. Khi phù hợp, kết thúc bằng một câu hỏi mời người dùng xem chi tiết, ví dụ: "
-    "“Bạn có muốn xem chi tiết không?”.\n"
-    "7. Trả lời bằng tiếng Việt có đầy đủ dấu, số liệu định dạng dễ đọc.\n"
-    "8. Khi người dùng hỏi nên nhập gì, hỏi theo mùa hoặc hỏi về thời điểm nhập "
-    "hàng, hãy dùng mục DỰ BÁO THEO MÙA VỤ: nêu tên sản phẩm nên nhập nhiều hơn "
-    "và sản phẩm nên hạn chế, giải thích ngắn rằng chỉ số mùa vụ của chúng cao "
-    "hơn hoặc thấp hơn mức chung. Không đọc nguyên bảng số.\n"
-    "9. Khi người dùng hỏi về điều chuyển hàng, hãy nhắc quy trình gồm đề xuất, "
-    "chờ duyệt, đã duyệt, đang chuyển và đã nhận, kèm số yêu cầu đang ở mỗi bước.\n"
-    "10. Nếu dữ liệu cho thấy một sản phẩm vừa sắp hết hạn vừa dư so với nhu cầu, "
-    "hãy chủ động gợi ý chuyển bớt sang cửa hàng khác thay vì nhập thêm.\n"
+    "PHONG CÁCH: cực kỳ ngắn gọn, đi thẳng vào con số người dùng hỏi. Không mở "
+    "bài, không lan man, không nhắc lại câu hỏi, không thêm lời khuyên ngoài "
+    "phạm vi được hỏi.\n"
     "\n"
-    "VÍ DỤ TRẢ LỜI ĐÚNG:\n"
-    "Hỏi: “Tồn kho hiện tại thế nào?”\n"
-    "Đáp: “Hiện tại hệ thống đang có 30 lô hàng trong kho. Đáng chú ý, có 2 lô sắp "
-    "hết hạn trong tháng này là Rau muống tại Cửa hàng tiện lợi Q.1 và Sữa chua "
-    "500g tại Cửa hàng tiện lợi Q.3. Nhìn chung lượng tồn kho vẫn đủ để đáp ứng "
-    "nhu cầu bán ra. Bạn có muốn xem chi tiết từng lô không?”\n"
+    "QUY TẮC BẮT BUỘC:\n"
+    "1. Chỉ dùng DỮ LIỆU HỆ THỐNG bên dưới. Không bịa số liệu. Thiếu dữ liệu thì "
+    "nói rõ “Hệ thống chưa có thông tin này”, không suy diễn.\n"
+    "2. KHÔNG dùng ký hiệu viết tắt nội bộ như SP#, CH#, SL, HH, CB#, DH. Luôn "
+    "gọi tên sản phẩm và tên cửa hàng bằng tên thật trong dữ liệu.\n"
+    "3. Trả lời bằng tiếng Việt có đầy đủ dấu, số liệu có dấu phân cách hàng nghìn.\n"
+    "4. Không dùng markdown in đậm (**), không dùng bảng. Danh sách thì mỗi dòng "
+    "một mục, bắt đầu bằng “1.”, “2.”… hoặc “-”.\n"
+    "5. Xưng “Tôi” với chính mình, “Bạn” với người dùng.\n"
     "\n"
-    "VÍ DỤ TRẢ LỜI SAI (không được làm):\n"
-    "“- Kho #16 SP#6 CH#1 SL=355000 HH=2026-10-28”\n"
+    "QUY TẮC RIÊNG CHO CÂU HỎI XẾP HẠNG / DANH SÁCH (“top N”, “N sản phẩm bán "
+    "chạy nhất”, “liệt kê”, “danh sách”):\n"
+    "6. Phải liệt kê ĐỦ N mục nếu dữ liệu có đủ, đúng thứ tự trong mục xếp hạng. "
+    "Mỗi mục một dòng theo mẫu: “1. Tên sản phẩm — số lượng bán ra, doanh thu”.\n"
+    "7. TUYỆT ĐỐI KHÔNG viết kiểu “dẫn đầu là A, tiếp theo là B…” rồi bỏ lửng, "
+    "cũng không gộp nhiều sản phẩm vào một câu. Nếu dữ liệu chỉ có ít hơn N mục, "
+    "ghi rõ “Hệ thống chỉ có X sản phẩm trong dữ liệu”.\n"
+    "8. Không thêm câu hỏi mời xem chi tiết sau một danh sách dài; chỉ thêm đúng "
+    "một câu kết ngắn nếu thật cần.\n"
+    "\n"
+    "QUY TẮC THEO CHỦ ĐỀ:\n"
+    "9. Câu hỏi đơn giản (tồn kho, cảnh báo, đơn hàng): trả lời 2-4 câu hoặc tối "
+    "đa 5 dòng, nêu con số chính trước rồi mới giải thích.\n"
+    "10. Hỏi nên nhập gì / theo mùa: dùng mục DỰ BÁO THEO MÙA VỤ, nêu vài sản "
+    "phẩm nên nhập nhiều hơn và vài sản phẩm nên hạn chế; không đọc nguyên bảng số.\n"
+    "11. Hỏi điều chuyển hàng: nêu số yêu cầu đang ở mỗi bước trong 5 bước "
+    "(đề xuất, chờ duyệt, đã duyệt, đang chuyển, đã nhận).\n"
+    "12. Nếu một sản phẩm vừa sắp hết hạn vừa dư so với nhu cầu, gợi ý chuyển bớt "
+    "sang cửa hàng khác thay vì nhập thêm — một câu, không lan sang chủ đề khác.\n"
+    "\n"
+    "VÍ DỤ ĐÚNG — Hỏi: “Top 3 sản phẩm bán chạy nhất?”\n"
+    "Đáp:\n"
+    "Top 3 sản phẩm bán chạy nhất:\n"
+    "1. Nước suối 330ml — 346.565 chai, doanh thu 4.158.780.000 đ\n"
+    "2. Sữa chua 500g — 346.448 hộp, doanh thu 5.196.720.000 đ\n"
+    "3. Khăn ướt trẻ em — 331.783 gói, doanh thu 3.317.830.000 đ\n"
+    "\n"
+    "VÍ DỤ ĐÚNG — Hỏi: “Tồn kho hiện tại thế nào?”\n"
+    "Đáp: “Hệ thống đang có 30 lô hàng trong kho, trong đó 2 lô sắp hết hạn: "
+    "Rau muống tại Cửa hàng tiện lợi Q.1 và Sữa chua 500g tại Cửa hàng tiện lợi Q.3.”\n"
+    "\n"
+    "VÍ DỤ SAI (không được làm):\n"
+    "“Dẫn đầu là Nước suối 330ml, tiếp theo là Sữa chua 500g…” (bỏ lửng, thiếu mục)\n"
+    "“- Kho #16 SP#6 CH#1 SL=355000 HH=2026-10-28” (mã thô, không phải tiếng Việt)\n"
 )
 
 # ---------------------------------------------------------------------------
@@ -202,6 +217,71 @@ GENERAL_KEYWORDS: tuple[str, ...] = (
     "hoạt động",
 )
 
+# --- Cau hoi xep hang san pham --------------------------------------------
+# "top10", "top 10", "10 san pham ban chay nhat". So khop tren chuoi da bo
+# dau de bat ca kieu go khong dau.
+_TOP_PATTERN = re.compile(r"(?<!\w)top\s*(\d{1,3})(?!\d)")
+_TOP_COUNT_PATTERN = re.compile(
+    r"(\d{1,3})\s*(?:san pham|mat hang|mon|loai)(?!\w)"
+)
+_TOP_WORD_NUMBERS = {
+    "hai": 2, "ba": 3, "bon": 4, "nam": 5, "sau": 6,
+    "bay": 7, "tam": 8, "chin": 9, "muoi": 10,
+}
+
+# "trong 7 ngay toi" -> 7. Dung cho khoi hang sap het han.
+_DAYS_PATTERN = re.compile(r"(\d{1,3})\s*ngay(?!\w)")
+
+# Tu khoa cho thay nguoi dung muon BANG XEP HANG san pham.
+RANK_KEYWORDS: tuple[str, ...] = (
+    "bán chạy",
+    "bán được nhiều",
+    "bán nhiều",
+    "bán ra nhiều",
+    "tiêu thụ nhiều",
+    "doanh số cao",
+    "doanh thu cao",
+    "bán đắt",
+)
+
+DEFAULT_TOP_LIMIT = 5
+MAX_TOP_LIMIT = 50
+
+
+def _wants_product_ranking(text: str) -> bool:
+    """True khi cau hoi yeu cau xep hang / liet ke san pham."""
+    if _match(text, RANK_KEYWORDS):
+        return True
+    # "top 10 san pham ton kho nhieu nhat" la cau hoi TON KHO, khong phai
+    # xep hang ban chay -> de khoi inventory tra loi.
+    if _match(text, ("tồn kho", "tồn")):
+        return False
+    plain = _strip_diacritics(text).lower()
+    if _TOP_PATTERN.search(plain) and _match(
+        text, ("sản phẩm", "hàng", "mặt hàng", "món")
+    ):
+        return True
+    return False
+
+
+def _top_limit(text: str) -> int:
+    """So muc nguoi dung yeu cau ("top 10" -> 10), mac dinh 5, toi da 50."""
+    plain = _strip_diacritics(text).lower()
+    match = _TOP_PATTERN.search(plain) or _TOP_COUNT_PATTERN.search(plain)
+    if match:
+        return max(1, min(int(match.group(1)), MAX_TOP_LIMIT))
+    for word, number in _TOP_WORD_NUMBERS.items():
+        if re.search(rf"(?<!\w)top\s+{word}(?!\w)", plain):
+            return number
+    return DEFAULT_TOP_LIMIT
+
+
+def _days_window(text: str, default: int = 30) -> int:
+    """So ngay trong cau hoi ("trong 7 ngay toi" -> 7), mac dinh 30."""
+    match = _DAYS_PATTERN.search(_strip_diacritics(text).lower())
+    return max(1, min(int(match.group(1)), 365)) if match else default
+
+
 GREETING_PATTERN = re.compile(
     r"(?<!\w)(xin chào|chào bạn|chào|hello|hi|hey|alo)(?!\w)", re.IGNORECASE | re.UNICODE
 )
@@ -263,6 +343,9 @@ def _pick_sections(text: str) -> set[str]:
     if "seasonal" in picked:
         # Hoi ve mua thi gan nhu luon kem cau hoi nhap hang.
         picked.add("forecasts")
+    if _wants_product_ranking(text):
+        # Xep hang san pham can bang so lieu ban chay that (khong phai ton kho).
+        picked.add("products")
     return picked
 
 
@@ -352,13 +435,17 @@ def _detect_store(db: DbSession, text: str) -> tuple[int, str] | None:
         code = _strip_diacritics(str(row.get("store_code") or "")).lower()
         name = _strip_diacritics(store_name).lower()
 
-        candidates = [code]
+        candidates = [code, name]
         for prefix in prefixes:
             if name.startswith(prefix):
                 candidates.append(name[len(prefix):])
 
         for candidate in candidates:
             if not candidate:
+                continue
+            # "Nha hang Mon An 3" sinh ra ung vien "3"; neu chap nhan thi cau
+            # hoi "top 3 san pham" bi hieu la dang noi ve cua hang so 3.
+            if candidate.isdigit():
                 continue
             if re.search(rf"(?<!\w){re.escape(candidate)}(?!\w)", haystack):
                 if len(candidate) > best_length:
@@ -379,6 +466,39 @@ def _build_context(
     store_id = store[0] if store else None
     store_name = store[1] if store else None
     scope = f"tại {store_name}" if store_name else "trong toàn hệ thống"
+    top_limit = _top_limit(message) if message else DEFAULT_TOP_LIMIT
+    days_window = _days_window(message) if message else 30
+
+    # --- Top selling products -------------------------------------------
+    if "products" in sections:
+        try:
+            params: dict[str, Any] = {"Limit": top_limit}
+            if store_id is not None:
+                params["StoreId"] = store_id
+
+            sets = db.call("sp_Dashboard_TopProducts", params)
+            rows = (sets[0] if sets else [])[:top_limit]
+            facts["top_products"] = rows
+            facts["top_limit"] = top_limit
+            lines = [
+                f"Bảng xếp hạng {_num(len(rows))} sản phẩm bán chạy nhất {scope} "
+                "(xếp theo tổng số lượng bán ra trên toàn bộ dữ liệu bán hàng):"
+            ]
+            for index, row in enumerate(rows, start=1):
+                lines.append(
+                    f"{index}. {_text(row.get('product_name'))}: "
+                    f"{_num(row.get('total_quantity'))} "
+                    f"{_text(row.get('unit'), 'sản phẩm')} bán ra, "
+                    f"doanh thu {_money(row.get('total_revenue'))}."
+                )
+            if rows:
+                lines.append(
+                    f"Danh sách trên là ĐẦY ĐỦ {_num(len(rows))} mục. Hãy nêu đủ "
+                    "từng mục theo đúng thứ tự này, không bỏ mục nào."
+                )
+            blocks.append("TOP SẢN PHẨM BÁN CHẠY:\n" + "\n".join(lines))
+        except Exception:
+            pass
 
     # --- Inventory -----------------------------------------------------
     if "inventory" in sections:
@@ -408,13 +528,14 @@ def _build_context(
     # --- Expiring batches ----------------------------------------------
     if "inventory" in sections or "alerts" in sections:
         try:
-            params = {"Days": 30, "IncludeExpired": 0}
+            params = {"Days": days_window, "IncludeExpired": 0}
             if store_id is not None:
                 params["StoreId"] = store_id
 
             rows = db.call("sp_Inventory_ListExpiring", params) or []
             facts["expiring_lots"] = len(rows)
-            lines = [f"Số lô hàng sắp hết hạn trong 30 ngày tới {scope}: {_num(len(rows))} lô."]
+            facts["expiring_days"] = days_window
+            lines = [f"Số lô hàng sắp hết hạn trong {days_window} ngày tới {scope}: {_num(len(rows))} lô."]
             for row in rows[:8]:
                 lines.append(
                     f"- {_text(row.get('product_name'))} tại {_text(row.get('store_name'))}: "
@@ -552,16 +673,31 @@ def _fallback_answer(facts: dict[str, Any], offline: bool = True) -> str:
         parts.append(f"Hiện tại kho còn {_num(facts['total_lots'])} lô hàng {scope}.")
     if facts.get("expiring_lots"):
         parts.append(
-            f"Có {_num(facts['expiring_lots'])} lô sắp hết hạn trong 30 ngày tới cần ưu tiên xử lý."
+            f"Có {_num(facts['expiring_lots'])} lô sắp hết hạn trong "
+            f"{facts.get('expiring_days', 30)} ngày tới cần ưu tiên xử lý."
         )
     if facts.get("open_alerts"):
         parts.append(f"Đang có {_num(facts['open_alerts'])} cảnh báo chưa xử lý.")
+    if facts.get("top_products"):
+        lines = ["Bảng xếp hạng sản phẩm bán chạy:"]
+        for index, row in enumerate(facts["top_products"], start=1):
+            lines.append(
+                f"{index}. {_text(row.get('product_name'))} — "
+                f"{_num(row.get('total_quantity'))} "
+                f"{_text(row.get('unit'), 'sản phẩm')} bán ra, "
+                f"doanh thu {_money(row.get('total_revenue'))}"
+            )
+        parts.append("\n".join(lines))
     if facts.get("transfers_total"):
         parts.append(
             f"Có {_num(facts['transfers_total'])} yêu cầu điều chuyển hàng đang được theo dõi."
         )
     if facts.get("seasonal_brief"):
         parts.append("Về mùa vụ, tôi đã tổng hợp được danh sách mặt hàng nên nhập và nên hạn chế.")
+    if facts.get("top_products"):
+        # Danh sach xep hang giu nguyen tung dong, khong ghep thanh doan van
+        # va khong them cau moi xem chi tiet (tranh lan man).
+        return "\n\n".join(parts)
     parts.append("Bạn có thể hỏi tôi về tồn kho, đơn hàng, cảnh báo hoặc dự báo nhu cầu.")
     return " ".join(parts)
 
@@ -617,7 +753,8 @@ def chat(payload: ChatRequest, db: DbSession = Depends(get_db)) -> ChatResponse:
             + "\nDỮ LIỆU HỆ THỐNG (số liệu thật lấy từ cơ sở dữ liệu):\n"
             + context
             + f"\n\nCÂU HỎI CỦA NGƯỜI DÙNG: {message}"
-            + "\n\nCÂU TRẢ LỜI (3-5 câu, văn nói, không danh sách thô):"
+            + "\n\nCÂU TRẢ LỜI (ngắn gọn, đúng trọng tâm; nếu là câu hỏi xếp hạng "
+            "thì liệt kê đủ từng mục theo đúng thứ tự trong dữ liệu):"
         )
         model_name = settings.GEMINI_MODEL or "gemini-3.5-flash-lite"
 

@@ -81,7 +81,7 @@ export function getErrorMessage(error, fallback = 'Đã có lỗi xảy ra. Vui 
   }
 
   if (error?.code === 'ECONNABORTED') return 'Máy chủ phản hồi quá lâu. Vui lòng thử lại.'
-  if (!error?.response) return 'Không kết nối được tới máy chủ. Kiểm tra backend đang chạy ở cổng 8000.'
+  if (!error?.response) return 'Không kết nối được tới máy chủ. Vui lòng thử lại sau.'
 
   return fallback
 }

@@ -26,7 +26,7 @@ export default function RealtimeAlerts() {
             {
               id,
               type: data.type,
-              message: data.message || 'Co cap nhat canh bao',
+              message: data.message || 'Có cập nhật cảnh báo',
             },
           ])
           setTimeout(() => {

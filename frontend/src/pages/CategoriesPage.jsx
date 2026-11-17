@@ -318,7 +318,7 @@ export default function CategoriesPage() {
       {!isAdmin && (
         <p className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
           <Icon name="shield" className="h-4 w-4" />
-          Chỉ owner/manager mới có quyền thêm/sửa/xoá nhóm hàng.
+          Chỉ chủ sở hữu và quản lý mới có quyền thêm/sửa/xoá nhóm hàng.
         </p>
       )}
 
@@ -328,7 +328,7 @@ export default function CategoriesPage() {
         description={
           editing
             ? `Cập nhật thông tin cho "${editing.category_name}".`
-            : 'Tạo nhóm hàng mới. Để trống "Nhóm cha" nếu đây là nhóm gốc.'
+            : 'Tạo nhóm hàng mới. Để trống “Nhóm cha” nếu đây là nhóm gốc.'
         }
         onClose={() => {
           if (!saving) setFormOpen(false)

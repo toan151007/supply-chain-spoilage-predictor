@@ -10,7 +10,7 @@ export default function NotFoundPage() {
       </span>
       <p className="mt-6 text-4xl font-bold tracking-tight text-slate-900 dark:text-white">404</p>
       <h1 className="mt-2 text-lg font-semibold text-slate-800 dark:text-slate-100">
-        Trang bạn tìm không tồn tại
+        Không tìm thấy trang bạn yêu cầu
       </h1>
       <p className="mt-2 max-w-sm text-sm text-slate-500 dark:text-slate-400">
         Đường dẫn có thể đã thay đổi hoặc tính năng này chưa được triển khai.

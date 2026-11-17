@@ -210,7 +210,7 @@ export default function ProductsPage() {
 
     const shelfLife = Number(form.shelf_life_days)
     if (!Number.isFinite(shelfLife) || shelfLife <= 0) {
-      return { error: 'Hạn dùng phải là số nguyên lớn hơn 0.' }
+      return { error: 'Hạn dùng (số ngày) phải là số nguyên lớn hơn 0.' }
     }
 
     const unitCost = toNumberOrNull(form.unit_cost) ?? 0
@@ -330,7 +330,7 @@ export default function ProductsPage() {
             Quản lý sản phẩm
           </h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Danh mục sản phẩm dùng chung cho mọi cửa hàng trong chuỗi.
+            Danh sách sản phẩm dùng chung cho mọi cửa hàng trong chuỗi.
           </p>
         </div>
 
@@ -436,7 +436,7 @@ export default function ProductsPage() {
                     <th className="px-4 py-3 font-semibold">Đơn vị</th>
                     <th className="px-4 py-3 text-right font-semibold">Giá vốn</th>
                     <th className="px-4 py-3 text-right font-semibold">Giá bán</th>
-                    <th className="px-4 py-3 text-right font-semibold">Hạn dùng</th>
+                    <th className="px-4 py-3 text-right font-semibold">Hạn sử dụng</th>
                     <th className="px-4 py-3 font-semibold">Trạng thái</th>
                     {isAdmin && <th className="px-4 py-3 text-right font-semibold">Thao tác</th>}
                   </tr>
@@ -522,7 +522,7 @@ export default function ProductsPage() {
                   ? 'Đang tải…'
                   : data.total === 0
                     ? '0 sản phẩm'
-                    : `Hiển thị ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, data.total)} trong ${formatNumber(data.total)} sản phẩm`}
+                    : `Hiển thị ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, data.total)} của ${formatNumber(data.total)} sản phẩm`}
               </p>
               <div className="flex items-center gap-2">
                 <button
@@ -555,7 +555,7 @@ export default function ProductsPage() {
       {!isAdmin && (
         <p className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
           <Icon name="shield" className="h-4 w-4" />
-          Tài khoản nhân viên chỉ được xem danh mục. Nút thêm / sửa / xoá được ẩn theo phân quyền.
+          Tài khoản nhân viên chỉ được xem danh sách. Nút thêm/sửa/xoá được ẩn theo phân quyền.
         </p>
       )}
 
@@ -614,7 +614,7 @@ export default function ProductsPage() {
                 onChange={(event) => setField('product_code', event.target.value)}
                 className="input"
                 maxLength={50}
-                placeholder="VD: SP051"
+                placeholder="Ví dụ: SP051"
                 required
               />
             </Field>
@@ -721,7 +721,7 @@ export default function ProductsPage() {
               />
             </Field>
 
-            <Field label="Điểm đặt hàng lại" htmlFor="reorder_point" hint="Ngưỡng cảnh báo sắp hết hàng.">
+            <Field label="Ngưỡng đặt hàng lại" htmlFor="reorder_point" hint="Khi tồn kho xuống dưới ngưỡng này, hệ thống sẽ cảnh báo sắp hết hàng.">
               <input
                 id="reorder_point"
                 type="number"

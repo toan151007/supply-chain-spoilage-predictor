@@ -74,7 +74,7 @@ const KPIS = [
   {
     label: 'Tỷ lệ lãng phí',
     value: '2,8%',
-    change: '−0,6 điểm %',
+    change: '−0,6 điểm phần trăm',
     positive: true,
     hint: 'mục tiêu dưới 3,0%',
     icon: 'leaf',
@@ -86,14 +86,14 @@ const ALERTS = [
   {
     id: 1,
     level: 'high',
-    title: '18 lô sữa chua còn dưới 3 ngày',
+    title: '18 lô sữa chua hết hạn trong 3 ngày tới',
     time: '12 phút trước',
     store: 'Cửa hàng Quận 1',
   },
   {
     id: 2,
     level: 'medium',
-    title: 'Nước suối 330ml dưới điểm đặt hàng',
+    title: 'Nước suối 330ml dưới ngưỡng đặt hàng lại',
     time: '1 giờ trước',
     store: 'Cửa hàng Thủ Đức',
   },
@@ -288,7 +288,7 @@ export default function DashboardPage() {
         <div className="card p-5">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="font-semibold text-slate-900 dark:text-white">Cảnh báo gần đây</h2>
-            <span className="badge bg-red-50 text-red-700 dark:bg-red-900/40 dark:text-red-300">3 mới</span>
+            <span className="badge bg-red-50 text-red-700 dark:bg-red-900/40 dark:text-red-300">3 cảnh báo mới</span>
           </div>
           <ul className="space-y-3">
             {ALERTS.map((alert) => (
@@ -310,7 +310,7 @@ export default function DashboardPage() {
         <div className="card p-5 xl:col-span-2">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <div>
-              <h2 className="font-semibold text-slate-900 dark:text-white">Lô hàng cận hạn</h2>
+              <h2 className="font-semibold text-slate-900 dark:text-white">Lô hàng sắp hết hạn</h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">Cần ưu tiên xử lý hoặc giảm giá</p>
             </div>
             <span className="badge bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
@@ -326,7 +326,7 @@ export default function DashboardPage() {
                   <th className="px-1 pb-2 font-semibold">Lô</th>
                   <th className="px-1 pb-2 font-semibold">Cửa hàng</th>
                   <th className="px-1 pb-2 text-right font-semibold">Số lượng</th>
-                  <th className="px-1 pb-2 text-right font-semibold">Còn lại</th>
+                  <th className="px-1 pb-2 text-right font-semibold">Còn lại (ngày)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -376,7 +376,7 @@ export default function DashboardPage() {
           </div>
           <div className="rounded-2xl bg-slate-50 p-4 text-center dark:bg-slate-800/60">
             <p className="text-3xl font-bold tracking-tight text-brand-600 dark:text-brand-400">97/100</p>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">cặp sản phẩm Prophet thắng XGBoost</p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">cặp sản phẩm × cửa hàng Prophet thắng XGBoost</p>
             <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
               {formatCompactCurrency(1420000000)} doanh thu minh hoạ 30 ngày
             </p>

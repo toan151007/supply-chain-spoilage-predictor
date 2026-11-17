@@ -169,10 +169,10 @@ export default function OrdersPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-2xl">Đơn hàng</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Theo dõi đơn bán và đơn nhập trên toàn chuỗi cửa hàng.</p>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Theo dõi đơn bán hàng và đơn nhập hàng trên toàn chuỗi cửa hàng.</p>
         </div>
         {(isAdmin) && (
-          <button type="button" onClick={() => setError('Tạo đơn mới sẽ được nối với API ở bước tiếp theo.')} className="btn-primary w-fit">
+          <button type="button" onClick={() => setError('Tính năng tạo đơn hàng đang được phát triển.')} className="btn-primary w-fit">
             <Icon name="plus" className="h-4 w-4" />
             Tạo đơn mới
           </button>
@@ -181,7 +181,7 @@ export default function OrdersPage() {
 
       <div className="flex flex-wrap items-center gap-2">
         <select value={type} onChange={(e) => setType(e.target.value)} className="input w-auto min-w-[140px]">
-          <option value="">Tất cả loại</option>
+          <option value="">Tất cả loại đơn</option>
           <option value="sale">Bán hàng</option>
           <option value="purchase">Nhập hàng</option>
         </select>
@@ -203,7 +203,7 @@ export default function OrdersPage() {
               <Icon name="warning" className="h-6 w-6" />
             </span>
             <div>
-              <p className="font-semibold text-slate-900 dark:text-white">Thông báo</p>
+              <p className="font-semibold text-slate-900 dark:text-white">Không tải được dữ liệu</p>
               <p className="mt-1 max-w-md text-sm text-slate-500 dark:text-slate-400">{error}</p>
             </div>
             <button type="button" onClick={() => setError('')} className="btn-secondary mt-1">Đóng</button>
@@ -240,7 +240,7 @@ export default function OrdersPage() {
                       <tr key={order.order_id} className="transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40">
                         <td className="px-4 py-3.5">
                           <p className="font-medium text-slate-900 dark:text-white">{order.order_code}</p>
-                          <p className="text-xs text-slate-400 dark:text-slate-500"># {order.order_id}</p>
+                          <p className="text-xs text-slate-400 dark:text-slate-500">#{order.order_id}</p>
                         </td>
                         <td className="px-4 py-3.5"><span className={['badge', TYPE_MAP[order.order_type]?.cls || 'bg-slate-100 text-slate-600'].join(' ')}>{TYPE_MAP[order.order_type]?.label || order.order_type}</span></td>
                         <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">{formatDate(order.order_date)}</td>
@@ -262,7 +262,7 @@ export default function OrdersPage() {
             {data.pages > 0 && (
               <div className="flex flex-col items-center justify-between gap-3 border-t border-slate-200 px-4 py-3 dark:border-slate-800 sm:flex-row">
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Hiển thị {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, data.total)} trong {formatNumber(data.total)} đơn hàng
+                  Hiển thị {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, data.total)} của {formatNumber(data.total)} đơn hàng
                 </p>
                 <div className="flex items-center gap-2">
                   <button type="button" onClick={() => goToPage(page - 1)} disabled={loading || page <= 1} className="btn-secondary px-3 py-2"><Icon name="chevronLeft" className="h-4 w-4" /></button>
@@ -278,7 +278,7 @@ export default function OrdersPage() {
       {!isAdmin && (
         <p className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
           <Icon name="shield" className="h-4 w-4" />
-          Nút tạo đơn mới chỉ dành cho owner/manager.
+          Nút tạo đơn mới chỉ dành cho chủ sở hữu và quản lý.
         </p>
       )}
     </div>

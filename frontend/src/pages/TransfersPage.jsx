@@ -72,11 +72,11 @@ const ACTION_LABELS = {
 }
 
 const ACTION_HINTS = {
-  submit: 'Yêu cầu sẽ chuyển sang trạng thái "Chờ duyệt" để quản lý xem xét.',
+  submit: 'Yêu cầu sẽ chuyển sang trạng thái “Chờ duyệt” để quản lý xem xét.',
   approve: 'Sau khi duyệt, cửa hàng gửi có thể xác nhận giao hàng.',
   reject: 'Yêu cầu sẽ dừng lại và không thể tiếp tục xử lý.',
   ship: 'Kho gửi xác nhận đã xuất hàng; hàng đang trên đường tới cửa hàng nhận.',
-  complete: 'Kho nhận xác nhận đã nhận đủ hàng. Hệ thống sẽ trừ kho gửi và cộng kho nhận trong cùng một transaction.',
+  complete: 'Kho nhận xác nhận đã nhận đủ hàng. Hệ thống sẽ trừ ở kho gửi và cộng vào kho nhận trong cùng một giao dịch.',
   cancel: 'Yêu cầu sẽ bị huỷ và không thể khôi phục.',
 }
 
@@ -307,7 +307,7 @@ export default function TransfersPage() {
       await api.post(`/transfers/${transfer.transfer_id}/${action}`, body)
       setToast({
         type: 'success',
-        message: `${ACTION_LABELS[action]} thành công cho ${transfer.transfer_code}.`,
+        message: `${ACTION_LABELS[action]} yêu cầu ${transfer.transfer_code} thành công.`,
       })
       setPendingAction(null)
       setActionNote('')
@@ -533,22 +533,22 @@ export default function TransfersPage() {
                           <td className="px-4 py-3.5">
                             <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
                               <span className="font-medium text-slate-800 dark:text-slate-100">
-                                {item.from_store?.store_name || `CH #${item.from_store_id}`}
+                                {item.from_store?.store_name || `Cửa hàng #${item.from_store_id}`}
                               </span>
                               <Icon name="chevronRight" className="h-3.5 w-3.5 text-slate-400" />
                               <span className="font-medium text-slate-800 dark:text-slate-100">
-                                {item.to_store?.store_name || `CH #${item.to_store_id}`}
+                                {item.to_store?.store_name || `Cửa hàng #${item.to_store_id}`}
                               </span>
                             </div>
                             {item.expiry_date && (
                               <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
-                                Lô hết hạn {formatDate(item.expiry_date)}
+                                Hạn sử dụng: {formatDate(item.expiry_date)}
                               </p>
                             )}
                           </td>
                           <td className="px-4 py-3.5">
                             <p className="font-medium text-slate-900 dark:text-white">
-                              {item.product?.product_name || `SP #${item.product_id}`}
+                              {item.product?.product_name || `Sản phẩm #${item.product_id}`}
                             </p>
                             <p className="font-mono text-xs text-slate-400 dark:text-slate-500">
                               {item.product?.product_code || ''}
@@ -635,7 +635,7 @@ export default function TransfersPage() {
       <Modal
         open={formOpen}
         title="Tạo yêu cầu điều chuyển"
-        description="Hàng sẽ được trừ ở cửa hàng gửi và cộng ở cửa hàng nhận khi yêu cầu hoàn tất."
+        description="Hàng sẽ được trừ tại kho cửa hàng gửi và cộng vào kho cửa hàng nhận khi yêu cầu hoàn tất."
         onClose={saving ? undefined : () => setFormOpen(false)}
         size="lg"
         footer={
@@ -733,7 +733,7 @@ export default function TransfersPage() {
             <Field
               label="Lô hết hạn (tuỳ chọn)"
               htmlFor="expiry_date"
-              hint="Để trống: hệ thống tự trừ theo lô hết hạn trước (FEFO)."
+              hint="Để trống: hệ thống tự trừ theo lô có hạn sử dụng gần nhất (FEFO)."
             >
               <input
                 id="expiry_date"
@@ -759,7 +759,7 @@ export default function TransfersPage() {
             </Field>
           </div>
 
-          <Field label="Lý do" htmlFor="reason" hint="Ví dụ: cửa hàng nhận sắp thiếu hàng, hàng cận hạn cần chuyển gấp.">
+          <Field label="Lý do" htmlFor="reason" hint="Ví dụ: cửa hàng nhận sắp thiếu hàng, hàng sắp hết hạn cần chuyển gấp.">
             <textarea
               id="reason"
               rows={2}

@@ -253,10 +253,10 @@ export default function StoresPage() {
                 <tr className="border-b border-slate-200 bg-slate-50/70 text-xs uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
                   <th className="px-4 py-3 font-semibold">Cửa hàng</th>
                   <th className="px-4 py-3 font-semibold">Mã</th>
-                  <th className="px-4 py-3 font-semibold">Loại</th>
+                  <th className="px-4 py-3 font-semibold">Loại hình</th>
                   <th className="px-4 py-3 font-semibold">Địa chỉ</th>
                   <th className="px-4 py-3 font-semibold">Điện thoại</th>
-                  <th className="px-4 py-3 font-semibold">Ngày mở</th>
+                  <th className="px-4 py-3 font-semibold">Ngày khai trương</th>
                   <th className="px-4 py-3 font-semibold">Trạng thái</th>
                   {isAdmin && <th className="px-4 py-3 text-right font-semibold">Thao tác</th>}
                 </tr>
@@ -316,7 +316,7 @@ export default function StoresPage() {
       {!isAdmin && (
         <p className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
           <Icon name="shield" className="h-4 w-4" />
-          Chỉ owner/manager mới có quyền thêm/sửa/xoá cửa hàng.
+          Chỉ chủ sở hữu và quản lý mới có quyền thêm/sửa/xoá cửa hàng.
         </p>
       )}
 

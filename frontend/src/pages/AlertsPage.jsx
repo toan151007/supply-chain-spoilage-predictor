@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import Icon from '../components/common/Icon.jsx'
 import Spinner from '../components/common/Spinner.jsx'
 import api from '../services/api.js'
-import { formatDate, getErrorMessage } from '../utils/format.js'
+import { formatDate, formatNumber, getErrorMessage } from '../utils/format.js'
 
 /* Quick filter pills. The API already supports `alert_type`, so each pill is
    a single request - no "Apply" button needed. */
@@ -170,7 +170,7 @@ export default function AlertsPage() {
           className={['btn-secondary px-3', unreadOnly ? 'border-brand-500 text-brand-700 dark:text-brand-300' : ''].join(' ')}
         >
           <Icon name="alerts" className="h-4 w-4" />
-          {unreadOnly ? 'Hiện tất cả' : 'Chỉ chưa đọc'}
+          {unreadOnly ? 'Hiện tất cả' : 'Chỉ hiện chưa đọc'}
         </button>
       </div>
 
@@ -208,7 +208,7 @@ export default function AlertsPage() {
                           <Icon name="alerts" className="h-6 w-6" />
                         </span>
                         <p className="mt-3 font-semibold text-slate-700 dark:text-slate-200">
-                          {alertType ? `Không có cảnh báo ${activeFilter?.label.toLowerCase()}` : 'Không có cảnh báo'}
+                          {alertType ? `Không có cảnh báo "${activeFilter?.label}"` : 'Không có cảnh báo'}
                         </p>
                       </td>
                     </tr>
@@ -238,7 +238,7 @@ export default function AlertsPage() {
                                 )}
                                 {alert.expiry_date && (
                                   <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
-                                    HSD {formatDate(alert.expiry_date)}
+                                    HSD: {formatDate(alert.expiry_date)}
                                   </p>
                                 )}
                               </div>
@@ -274,7 +274,7 @@ export default function AlertsPage() {
             {data.pages > 0 && (
               <div className="flex flex-col items-center justify-between gap-3 border-t border-slate-200 px-4 py-3 dark:border-slate-800 sm:flex-row">
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Trang {page} / {data.pages} · Tổng {data.total} cảnh báo
+                  Trang {page} / {data.pages} · Tổng {formatNumber(data.total)} cảnh báo
                 </p>
                 <div className="flex items-center gap-2">
                   <button type="button" onClick={() => goToPage(page - 1)} disabled={loading || page <= 1} className="btn-secondary px-3 py-2"><Icon name="chevronLeft" className="h-4 w-4" /></button>

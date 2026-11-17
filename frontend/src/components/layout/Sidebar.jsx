@@ -15,7 +15,7 @@ const NAV_GROUPS = [
     title: 'Vận hành',
     items: [
       { to: '/inventory', label: 'Kho hàng', icon: 'inventory' },
-      { to: '/orders', label: 'Bán hàng', icon: 'orders' },
+      { to: '/orders', label: 'Đơn hàng', icon: 'orders' },
       { to: '/transfers', label: 'Điều chuyển hàng', icon: 'transfer' },
       { to: '/alerts', label: 'Cảnh báo', icon: 'alerts' },
       { to: '/forecasts', label: 'Dự báo nhu cầu', icon: 'forecast' },
@@ -43,12 +43,12 @@ function NavigationItem({ item }) {
     return (
       <div
         className="flex cursor-not-allowed items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 dark:text-slate-500"
-        title="Sẽ triển khai ở bước tiếp theo"
+        title="Tính năng sắp ra mắt"
       >
         <Icon name={item.icon} className="h-5 w-5 shrink-0" />
         <span className="flex-1 truncate">{item.label}</span>
         <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:bg-slate-800 dark:text-slate-500">
-          Sắp
+          Sắp ra mắt
         </span>
       </div>
     )
@@ -138,7 +138,7 @@ export default function Sidebar({ open, onClose }) {
             <p className="mt-1 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
               {isAdmin
                 ? 'Bạn có toàn quyền quản trị dữ liệu và báo cáo.'
-                : 'Bạn thao tác tồn kho, đơn hàng và trạng thái cảnh báo.'}
+                : 'Bạn có thể thao tác tồn kho, đơn hàng và trạng thái cảnh báo.'}
             </p>
           </div>
           <p className="mt-3 text-center text-[11px] text-slate-400 dark:text-slate-500">

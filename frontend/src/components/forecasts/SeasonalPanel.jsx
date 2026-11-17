@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import Icon from '../common/Icon.jsx'
 import api from '../../services/api.js'
-import { formatNumber, getErrorMessage } from '../../utils/format.js'
+import { formatDate, formatNumber, getErrorMessage } from '../../utils/format.js'
 
 /** Chu ky tu dong goi lai API du bao mua vu (yeu cau nghiep vu: 5 phut). */
 const REFRESH_MS = 5 * 60 * 1000
@@ -179,7 +179,9 @@ export default function SeasonalPanel() {
           <div>
             <p className="text-sm font-semibold text-slate-900 dark:text-white">
               Dự báo theo mùa vụ
-              {data?.data_from && data?.data_to ? ` · dữ liệu ${data.data_from} → ${data.data_to}` : ''}
+              {data?.data_from && data?.data_to
+                ? ` · dữ liệu ${formatDate(data.data_from)} → ${formatDate(data.data_to)}`
+                : ''}
             </p>
             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
               Cập nhật lúc {formatClock(lastUpdated)} · tự động làm mới sau{' '}
@@ -203,7 +205,7 @@ export default function SeasonalPanel() {
 
       {error && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/50 dark:text-amber-200">
-          Lần làm mới gần nhất thất bại: {error} Đang hiển thị dữ liệu của lần trước.
+          Lần làm mới gần nhất thất bại: {error}. Đang hiển thị dữ liệu của lần trước.
         </div>
       )}
 
@@ -238,7 +240,7 @@ export default function SeasonalPanel() {
               <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">
                 <span className="font-semibold text-emerald-600 dark:text-emerald-400">{season.import_count}</span>{' '}
                 nên nhập ·{' '}
-                <span className="font-semibold text-red-600 dark:text-red-400">{season.avoid_count}</span> hạn chế
+                <span className="font-semibold text-red-600 dark:text-red-400">{season.avoid_count}</span> nên hạn chế
               </p>
             </button>
           )
@@ -288,7 +290,7 @@ export default function SeasonalPanel() {
                   Nên hạn chế nhập vào mùa {selected.season_name.toLowerCase()}
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Chỉ số mùa vụ thấp nhất — dễ tồn kho và lãng phí nếu nhập nhiều
+                  Chỉ số mùa vụ thấp nhất — dễ bị tồn kho và lãng phí nếu nhập nhiều
                 </p>
               </div>
             </div>
