@@ -3212,3 +3212,53 @@ Riêng `Intl.NumberFormat('vi-VN', { notation: 'compact' })` trả về **`1,42 
    giả — `fastapi-mail` dựng message nhưng bỏ qua kết nối SMTP, đủ để kiểm tra toàn bộ luồng
    `email_sent=true`.
 
+---
+
+## 15. Tên hiển thị của "Tài khoản dùng thử" ở trang Đăng nhập (19/11/2026)
+
+### 15.1. Vấn đề
+
+Khối "Tài khoản dùng thử" in ra đúng giá trị dùng để đăng nhập (`owner`, `manager`, `staff`)
+nên giao diện lộ chuỗi kỹ thuật bằng tiếng Anh, không thể hiện chức danh.
+
+### 15.2. Đã sửa — `frontend/src/pages/LoginPage.jsx`
+
+Tách **dữ liệu hiển thị** khỏi **dữ liệu đăng nhập** trong `DEMO_ACCOUNTS`:
+
+| `label` (chữ hiển thị) | `note` (mô tả quyền) | `username` | `password` |
+|---|---|---|---|
+| Toàn (Admin) | Toàn quyền hệ thống | `owner` | `Owner@2026` |
+| Quản lý | Quản trị dữ liệu vận hành | `manager` | `Manager@2026` |
+| Nhân viên | Tồn kho · đơn hàng | `staff` | `Staff@2026` |
+
+- `fillDemo()` vẫn dùng `account.username` / `account.password` → bấm nút là điền đúng,
+  logic đăng nhập không đổi.
+- Mỗi nút có `aria-label="Điền tài khoản …"` và `title="Đăng nhập bằng tài khoản owner"`
+  để vẫn tra được tên tài khoản thật khi cần kiểm tra.
+- Bố cục đổi từ (vai trò nhỏ + username đậm) sang (**tên hiển thị đậm** + mô tả quyền nhỏ),
+  hết trùng lặp giữa hai dòng.
+
+### 15.3. Backend
+
+Không cần sửa. `users.full_name` của `owner` đã là **"Toàn"** từ migration
+`013-users-permissions.sql`, nên sau khi đăng nhập Header hiện "Toàn" + "Chủ sở hữu" + avatar.
+
+### 15.4. Kiểm chứng
+
+| Test | Kết quả |
+|---|---|
+| Tải `/login` | 3 nút: Toàn (Admin) · Quản lý · Nhân viên, không còn `owner`/`manager`/`staff` |
+| Bấm từng nút rồi đọc giá trị form | `owner/Owner@2026`, `manager/Manager@2026`, `staff/Staff@2026` |
+| Đăng nhập bằng nút "Toàn (Admin)" | Vào được hệ thống, Header hiện "Toàn" + ảnh đại diện |
+| SQL `SELECT full_name FROM users WHERE username='owner'` | `Toàn` |
+| `npm run lint` / `npm run build` | 0 error / PASS |
+
+### 15.5. Bài học
+
+1. **Đừng dùng chính khóa đăng nhập làm nhãn giao diện.** `username` là dữ liệu kỹ thuật;
+   đổi nhãn hiển thị không được kéo theo đổi tham số đăng nhập — tách `label` khỏi `username`
+   là cách rẻ nhất để vừa đẹp vừa không phá logic.
+2. **Giữ `title`/`aria-label` mang tên tài khoản thật** để vẫn kiểm tra được nút nào điền
+   tài khoản nào, tránh trường hợp đổi nhãn xong không ai biết nút "Quản lý" là `manager`.
+
+

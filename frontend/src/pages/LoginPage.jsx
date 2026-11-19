@@ -7,10 +7,29 @@ import { useTheme } from '../contexts/ThemeContext.jsx'
 import { getErrorMessage } from '../utils/format.js'
 import lhuLogo from '../assets/lhu-logo.png'
 
+/* Demo shortcuts shown under the login form.
+   `username`/`password` are what the button fills in, so they must stay in
+   sync with scripts/reset_user_passwords.py. `label` is what a human reads -
+   the raw account name ("owner") stays out of the UI on purpose. */
 const DEMO_ACCOUNTS = [
-  { role: 'Chủ sở hữu', username: 'owner', password: 'Owner@2026' },
-  { role: 'Quản lý', username: 'manager', password: 'Manager@2026' },
-  { role: 'Nhân viên', username: 'staff', password: 'Staff@2026' },
+  {
+    label: 'Toàn (Admin)',
+    note: 'Toàn quyền hệ thống',
+    username: 'owner',
+    password: 'Owner@2026',
+  },
+  {
+    label: 'Quản lý',
+    note: 'Quản trị dữ liệu vận hành',
+    username: 'manager',
+    password: 'Manager@2026',
+  },
+  {
+    label: 'Nhân viên',
+    note: 'Tồn kho · đơn hàng',
+    username: 'staff',
+    password: 'Staff@2026',
+  },
 ]
 
 export default function LoginPage() {
@@ -174,11 +193,15 @@ export default function LoginPage() {
                 key={account.username}
                 type="button"
                 onClick={() => fillDemo(account)}
+                aria-label={`Điền tài khoản ${account.label}`}
+                title={`Đăng nhập bằng tài khoản ${account.username}`}
                 className="rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-left transition-colors hover:border-[#2a5aaa] hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700"
               >
-                <span className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400">{account.role}</span>
                 <span className="block truncate text-xs font-bold text-slate-800 dark:text-slate-100">
-                  {account.username}
+                  {account.label}
+                </span>
+                <span className="mt-0.5 block truncate text-[11px] text-slate-500 dark:text-slate-400">
+                  {account.note}
                 </span>
               </button>
             ))}

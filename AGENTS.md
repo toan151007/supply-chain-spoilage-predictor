@@ -113,6 +113,15 @@ ngoài dự báo nhu cầu còn có **điều chuyển hàng giữa cửa hàng*
       nội dung → không tràn ở breakpoint 4 cột (1280 px).
     - **Hệ quả toàn cục:** mọi bảng dùng `formatCurrency` (Đơn hàng…) cũng đổi từ `₫`
       sang `đ` — cố ý, để cả hệ thống cùng một kiểu.
+13. **Tên tài khoản dùng thử ở trang Đăng nhập (19/11/2026):**
+    - `LoginPage.jsx` giữ mảng `DEMO_ACCOUNTS` với 3 trường: `label` (chữ hiển thị),
+      `note` (mô tả quyền) và `username`/`password` (giá trị điền vào form).
+    - Hiển thị: **Toàn (Admin)** · **Quản lý** · **Nhân viên** — không còn lộ chuỗi
+      thô `owner` / `manager` / `staff` trên giao diện.
+    - Bấm nút vẫn điền đúng `owner` / `manager` / `staff` + mật khẩu, nên logic đăng
+      nhập không đổi; `title` + `aria-label` giữ tên tài khoản thật để dễ kiểm tra.
+    - `users.full_name` của `owner` là **"Toàn"** (migration 013), nên Header sau khi
+      đăng nhập hiện đúng "Toàn" + "Chủ sở hữu" + ảnh đại diện.
 
 ## Rules (BẮT BUỘC TUÂN THỦ)
 
