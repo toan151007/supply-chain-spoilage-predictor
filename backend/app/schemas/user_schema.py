@@ -17,6 +17,20 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.auth_schema import UserRead
 
+
+class UserCreated(UserRead):
+    """
+    Response for POST /api/v1/users.
+
+    The account is always created; `email_sent` only reports whether the
+    credentials notice reached the address on the form. The UI uses it to
+    pick between "created and sent" and "created but not sent", so a broken
+    SMTP setup never looks like a failed account.
+    """
+
+    email_sent: bool = False
+    email_message: str | None = None
+
 # Mirrors the CHECK constraint on users.role.
 UserRole = str
 ROLE_PATTERN = "^(owner|manager|staff)$"
@@ -78,4 +92,10 @@ class UserUpdate(UserPermissionFields):
     can_manage_user: bool | None = None
 
 
-__all__ = ["UserCreate", "UserUpdate", "UserRead", "UserPermissionFields"]
+__all__ = [
+    "UserCreate",
+    "UserCreated",
+    "UserUpdate",
+    "UserRead",
+    "UserPermissionFields",
+]

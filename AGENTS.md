@@ -18,6 +18,7 @@ ngoài dự báo nhu cầu còn có **điều chuyển hàng giữa cửa hàng*
 - AI/ML: Prophet, XGBoost, ARIMA (Python)
 - Real-time: WebSocket
 - AI Agent: Gemini API (chatbot hỏi đáp kho)
+- Email: `fastapi-mail` + Gmail SMTP (App Password) — gửi thông tin tài khoản mới
 
 ## Commands
 
@@ -31,6 +32,8 @@ ngoài dự báo nhu cầu còn có **điều chuyển hàng giữa cửa hàng*
 - Tạo schema + Stored Procedure: xem `database/HUONG-DAN-CHAY-SSMS.md` (copy/paste trên SSMS), sau đó chạy `database/03-migrations/010-sqlserver-analytics-procedures.sql` và `database/03-migrations/011-transfers-seasonal.sql`
 - Chạy migration 011 bằng dòng lệnh: `sqlcmd -S "<host>" -U sa -P <mat_khau> -C -d spoilage_predictor -I -b -i database\03-migrations\011-transfers-seasonal.sql`
 - Chạy migration 012 (làm mới dữ liệu cảnh báo) rồi nạp lại: `sqlcmd ... -i database\03-migrations\012-refresh-alert-demo-data.sql` sau đó `python scripts\refresh_alert_demo_data.py`
+- Chạy migration 013 (quyền người dùng + email): `sqlcmd ... -I -b -i database\03-migrations\013-users-permissions.sql`
+- Cấu hình gửi mail: điền `MAIL_USERNAME`, `MAIL_PASSWORD` (**App Password 16 ký tự**, không phải mật khẩu Gmail), `MAIL_FROM` trong `.env` — xem `backend/.env.example`
 - Chạy AI model: `cd ai-model && jupyter notebook`
 
 > ⚠️ **Dữ liệu PostgreSQL cũ KHÔNG tự chuyển sang SQL Server.** File T-SQL trong
@@ -288,7 +291,7 @@ Vì vậy **không dùng được** tiêu chí "hệ số biến động mùa v�
 
 - **Bước 3 dùng `DbSession` bọc `pyodbc` raw connection, KHÔNG dùng SQLAlchemy Session.** `Session` không có `nextset()`, và procedure tự `COMMIT` transaction ngầm của pyodbc gây lỗi `266 Transaction count after EXECUTE...`. Engine tạo với `autocommit=True`, lấy connection bằng `engine.raw_connection()`. Router gọi `db.call("sp_Ten", {TenThamSo: value})` → `list[list[dict]]` (mỗi result set là list dict theo TÊN cột).
 - **Chuỗi kết nối phải dựng qua `mssql+pyodbc:///?odbc_connect=<quote_plus(...)>`** vì host chứa dấu `\` bị URL-encode sai nếu viết dạng `user:pass@host`.
-- **Có 85 Stored Procedure**: 49 trong `database/HUONG-DAN-CHAY-SSMS.md` + 25 trong `database/03-migrations/010-sqlserver-analytics-procedures.sql` (dashboard, dashboard nâng cao, đề xuất nhập hàng, báo cáo, import dùng `OPENJSON`) + **10 điều chuyển + 1 dự báo mùa vụ** trong `database/03-migrations/011-transfers-seasonal.sql`. Chạy migration 010 rồi 011 sau file hướng dẫn.
+- **Có 91 Stored Procedure**: 49 trong `database/HUONG-DAN-CHAY-SSMS.md` + 25 trong `database/03-migrations/010-sqlserver-analytics-procedures.sql` (dashboard, dashboard nâng cao, đề xuất nhập hàng, báo cáo, import dùng `OPENJSON`) + **10 điều chuyển + 1 dự báo mùa vụ** trong `database/03-migrations/011-transfers-seasonal.sql` + **4 quản lý người dùng** (`sp_Users_List/Create/Update/Delete`) trong `013-users-permissions.sql`. Chạy migration 010 → 011 → 013 sau file hướng dẫn.
 - **Có 11 bảng** (10 bảng gốc + `transfer_requests`) và **4 view**.
 - **Nạp dữ liệu dev**: `python scripts/convert_seed_to_sqlserver.py` (sinh `database/02-seed/seed-sqlserver.sql`) rồi `python scripts/load_sqlserver_data.py`. Script nạp **bỏ các dòng `sales = 0`** để không vi phạm `CHECK (quantity > 0)` — đúng bài học cũ.
 - **`sp_Orders_Delete` xoá dòng hàng trước rồi xoá đơn** trong cùng transaction (khôi phục `ON DELETE CASCADE` của PostgreSQL). Xoá đơn `completed` vẫn bị chặn ở tầng trạng thái.
@@ -384,6 +387,44 @@ Vì vậy **không dùng được** tiêu chí "hệ số biến động mùa v�
   đúng và request `?probe=…` trả nội dung mới — vì watcher không nhận thay đổi nên module
   graph vẫn phục vụ bản cũ cho URL **không có query**. → **Khởi động lại `npm run dev`**
   rồi tải lại trang. Đừng mất thời gian tìm lỗi React.
+
+### Quản lý người dùng · phân quyền · email thông báo (19/11/2026)
+
+- **`users` có 7 cột quyền `BIT`** (`can_edit_product`, `can_delete_product`,
+  `can_view_report`, `can_manage_inventory`, `can_manage_order`, `can_manage_transfer`,
+  `can_manage_user`) + `avatar_url`, thêm bằng migration `013-users-permissions.sql`.
+  `/auth/me` trả kèm các cờ này nên frontend không cần gọi thêm API.
+- **Phân quyền owner-only ở tầng router**: `APIRouter(dependencies=[Depends(require_role("owner"))])`
+  cho `/users`. Manager/Staff nhận **403** dù có cờ `can_manage_user`.
+- **`uq_users_email` đổi thành filtered unique index** `WHERE email IS NOT NULL` — cùng lý do
+  đã gặp ở `inventory`: SQL Server coi nhiều `NULL` là trùng nhau.
+- **Stored Procedure `sp_Users_Update` chặn hạ cấp/xoá owner hoạt động cuối cùng**
+  (`50004`) và chặn xoá tài khoản đang được `transfer_requests` tham chiếu (`50003`).
+  Router cũng chặn owner tự khoá/xoá chính mình.
+- **Gửi mail là best-effort, chạy SAU khi đã ghi DB.** `POST /users` tạo tài khoản trước rồi
+  mới gọi `send_account_info_email`; SMTP lỗi **không** rollback tài khoản. Response
+  `UserCreated` có thêm `email_sent` + `email_message` để UI chọn toast xanh/đỏ.
+- **`MAIL_PASSWORD` là App Password 16 ký tự của Gmail**, không phải mật khẩu đăng nhập.
+  Phải bật 2-Step Verification rồi tạo tại `myaccount.google.com/apppasswords`.
+- **Giá trị mẫu trong `.env` được coi là CHƯA cấu hình.** `Settings.mail_configured` loại
+  `email_cua_ban@gmail.com` / `mat_khau_ung_dung`, nhờ vậy demo không gửi SMTP bằng thông tin
+  giả rồi treo chờ timeout; API trả "Tạo thành công nhưng chưa gửi được mail (chưa cấu hình SMTP)".
+- **Muốn kiểm thử đường gửi mail thành công mà không có tài khoản Gmail thật:** chạy server
+  với biến môi trường `MAIL_USERNAME`/`MAIL_PASSWORD` giả + `MAIL_SUPPRESS_SEND=1`
+  (`fastapi-mail` bỏ qua kết nối SMTP nhưng vẫn dựng message). Biến môi trường **ưu tiên hơn**
+  file `.env`.
+- **Form Thêm tài khoản dùng `noValidate`.** Để `required` của HTML tự chặn thì Chromium hiện
+  bubble tiếng Anh ("Please fill out this field."), không khớp phần còn lại của giao diện.
+  `noValidate` + kiểm tra trong `handleSubmit` cho ra thông báo tiếng Việt thống nhất.
+- **Email bắt buộc khi TẠO tài khoản, không bắt buộc khi SỬA.** Tài khoản cũ có thể chưa có
+  email; bắt buộc ở cả hai chiều sẽ khoá không cho cập nhật tên.
+- **Cổng 8000 có thể vẫn do tiến trình cũ giữ.** `Stop-Process` theo `-LocalPort` đôi khi
+  không dừng kịp: uvicorn mới bind lỗi `10048` nhưng `/health` vẫn trả `ok` vì **server cũ**
+  đang phục vụ → test lại rơi vào code cũ. Kiểm tra `Get-NetTCPConnection -LocalPort 8000`
+  và `Get-Content uvicorn_err.log` trước khi kết luận API sai.
+- **Avatar lưu KEY, không lưu đường dẫn build.** Cột `avatar_url` giữ `toan`; frontend map key
+  sang `src/assets/Avatar.jpg`. Lưu `/assets/Avatar-abc123.jpg` sẽ hỏng ngay lần build sau vì
+  Vite băm tên file.
 
 ### Giai đoạn PostgreSQL (lịch sử)
 
@@ -543,6 +584,8 @@ Chương 2 là cơ sở lý thuyết, trình bày cả 5 mô hình, chỉ **kỳ
 - [x] **DỰ BÁO THEO MÙA VỤ (31/10/2026)**: `sp_Forecasts_Seasonal` (200 dòng = 50 SP × 4 mùa, dữ liệu 2013-01-01→2017-12-31); `services/seasonal.py` (cache 300 giây, nhãn tiếng Việt); `GET /api/v1/forecasts/seasonal` (lần đầu 3.086 ms → cache 45 ms); tab "Dự báo theo mùa" + **tự động làm mới 5 phút** (đã kiểm chứng bằng cách hạ tạm xuống 10 giây)
 - [x] **TỐI ƯU CHATBOT (31/10/2026)**: đường nhanh cho câu ngoài nghiệp vụ (4.500 ms → 10–144 ms), `TYPO_MAP` ~45 mục (sửa cả gõ sai dấu và gõ không dấu), chỉ nạp khối dữ liệu liên quan, thêm khối mùa vụ + điều chuyển, System Prompt 10 quy tắc. Test 8 câu thật, không câu nào lộ `SP#`/`CH#`/`SL`
 - [x] Kiểm chứng sau nâng cấp (31/10/2026): smoke test **48/48** đọc + **29/29** ghi; `npm run build` PASS (681 module); `npm run lint` 0 error; DB **11 bảng · 4 view · 85 Stored Procedure**
+- [x] **QUẢN LÝ NGƯỜI DÙNG + PHÂN QUYỀN CHI TIẾT (19/11/2026)**: migration `013-users-permissions.sql` (7 cột quyền `BIT` + `avatar_url`, filtered unique index cho `email`, 4 procedure CRUD); `user_router.py` owner-only + `UserRead` trả quyền cho `/auth/me`; trang `/users` với modal thêm/sửa có công tắc từng quyền, `Avatar.jpg` chuyển vào `frontend/src/assets/`, Header hiện ảnh + tên "Toàn"; Sidebar ẩn "Báo cáo" khi thiếu `can_view_report`. Test: sqlcmd + API + trình duyệt (tạo Manager tắt quyền báo cáo → đăng nhập Manager → mục Báo cáo biến mất), `npm run build` PASS
+- [x] **EMAIL THÔNG BÁO TÀI KHOẢN (19/11/2026)**: `fastapi-mail==1.6.8` + `services/email_service.py`; `POST /users` gửi thông tin đăng nhập tới email trong form (best-effort, không rollback tài khoản nếu SMTP lỗi); response `UserCreated` thêm `email_sent`/`email_message`; form bắt buộc Email khi tạo + toast "Đã tạo tài khoản và gửi thông tin về email …" hoặc cảnh báo vàng. Test: API 201 + `email_sent=false` khi chưa cấu hình SMTP, `email_sent=true` với `MAIL_SUPPRESS_SEND=1`
 - [ ] T2: README con cho từng thư mục
 - [ ] Tích hợp AI Model
 

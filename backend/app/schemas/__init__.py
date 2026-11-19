@@ -95,6 +95,7 @@ from app.schemas.store_schema import (
 )
 from app.schemas.user_schema import (
     UserCreate,
+    UserCreated,
     UserPermissionFields,
     UserRead,
     UserUpdate,
@@ -121,5 +122,5 @@ __all__ = [
     "ProductBase", "ProductBrief", "ProductCreate", "ProductPage",
     "ProductRead", "ProductUpdate",
     "StoreBase", "StoreBrief", "StoreCreate", "StoreRead", "StoreUpdate",
-    "UserCreate", "UserPermissionFields", "UserRead", "UserUpdate",
+    "UserCreate", "UserCreated", "UserPermissionFields", "UserRead", "UserUpdate",
 ]

@@ -86,6 +86,52 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-1.5-flash"
 
+    # ---- Email / SMTP (thong bao tai khoan moi) ----
+    # Dung Gmail SMTP. MAIL_PASSWORD la MAT KHAU UNG DUNG (App Password,
+    # 16 ky tu) chu KHONG phai mat khau dang nhap Gmail.
+    # Xem backend/.env.example va AGENTS.md muc "Email thong bao".
+    MAIL_SERVER: str = "smtp.gmail.com"
+    MAIL_PORT: int = 587
+    MAIL_USERNAME: str = ""
+    MAIL_PASSWORD: str = ""
+    # Dia chi hien thi trong o "From"; de trong thi dung MAIL_USERNAME.
+    MAIL_FROM: str = ""
+    MAIL_FROM_NAME: str = "FreshChain"
+    # 587 = STARTTLS (khuyen dung), 465 = SSL/TLS.
+    MAIL_STARTTLS: bool = True
+    MAIL_SSL_TLS: bool = False
+    MAIL_USE_CREDENTIALS: bool = True
+    MAIL_TIMEOUT: int = 20
+    # Dat True khi can test luong API ma khong muon gui mail that.
+    MAIL_SUPPRESS_SEND: bool = False
+
+    # Gia tri mau trong `.env` (chua duoc thay bang thong tin that).
+    # Coi nhu CHUA cau hinh de khong gui SMTP bang thong tin gia.
+    MAIL_PLACEHOLDER_VALUES: tuple[str, ...] = (
+        "email_cua_ban@gmail.com",
+        "mat_khau_ung_dung",
+        "your_app_password_here",
+        "your_gmail@gmail.com",
+    )
+
+    @property
+    def mail_configured(self) -> bool:
+        """True khi da co tai khoan SMTP that (khong phai gia tri mau)."""
+        username = self.MAIL_USERNAME.strip()
+        password = self.MAIL_PASSWORD.strip()
+        if not username or not password:
+            return False
+        if username in self.MAIL_PLACEHOLDER_VALUES:
+            return False
+        if password in self.MAIL_PLACEHOLDER_VALUES:
+            return False
+        return True
+
+    @property
+    def mail_from_address(self) -> str:
+        """Dia chi gui: MAIL_FROM neu co, nguoc lai lay MAIL_USERNAME."""
+        return self.MAIL_FROM.strip() or self.MAIL_USERNAME.strip()
+
     @property
     def cors_origins_list(self) -> list[str]:
         """

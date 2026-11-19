@@ -3118,3 +3118,97 @@ Riêng `Intl.NumberFormat('vi-VN', { notation: 'compact' })` trả về **`1,42 
 5. **Kiểm tra tràn chữ bằng số đo, không bằng mắt.** Dùng `Range.getBoundingClientRect()`
    để đo bề rộng chuỗi ở đúng cỡ chữ, so với bề rộng thẻ ở breakpoint hẹp nhất.
 
+---
+
+## 14. Quản lý người dùng, phân quyền chi tiết và email thông báo (19/11/2026)
+
+### 14.1. Yêu cầu
+
+1. Admin (owner) tạo/sửa/xoá tài khoản Manager & Staff ngay trên giao diện.
+2. Phân quyền **chi tiết từng hành động**, không chỉ theo vai trò: sửa/xoá sản phẩm,
+   xem báo cáo, quản lý kho, đơn hàng, điều chuyển, quản lý người dùng.
+3. Đổi tên hiển thị của Admin thành **"Toàn"** và hiện ảnh đại diện ở góc phải Header.
+4. Nhánh "Báo cáo" ở Sidebar **tự ẩn** khi tài khoản không có quyền xem báo cáo.
+5. Khi tạo tài khoản mới có email, hệ thống **tự gửi thông tin đăng nhập** về hộp thư đó.
+
+### 14.2. Database — `database/03-migrations/013-users-permissions.sql`
+
+- `ALTER TABLE dbo.users` thêm `avatar_url NVARCHAR(500)` và 7 cột `BIT`:
+  `can_edit_product`, `can_delete_product`, `can_view_report`,
+  `can_manage_inventory`, `can_manage_order`, `can_manage_transfer`, `can_manage_user`.
+  **Không drop bảng**, dữ liệu cũ giữ nguyên.
+- Backfill chỉ chạy **lần đầu** (cờ `fresh` truyền qua bảng tạm vì biến cục bộ không
+  sống qua `GO`), gán quyền mặc định theo vai trò và đặt `full_name = N'Toàn'`,
+  `avatar_url = N'toan'` cho `owner`.
+- `uq_users_email` đổi thành **filtered unique index** `WHERE email IS NOT NULL`
+  (SQL Server coi nhiều `NULL` là trùng nhau — bài học từ `inventory`).
+- Procedure mới: `sp_Users_List` (tìm kiếm + lọc + phân trang), `sp_Users_Create`,
+  `sp_Users_Update`, `sp_Users_Delete`; `sp_Users_GetById`/`GetByUsername` trả thêm
+  avatar + 7 cờ quyền. Tất cả theo mẫu `BEGIN TRY/CATCH` + transaction.
+- Chốt an toàn: không cho hạ cấp/xoá **owner hoạt động cuối cùng** (`50004`); không cho
+  xoá tài khoản đang được `transfer_requests` tham chiếu (`50003`).
+
+### 14.3. Backend
+
+- `routers/user_router.py`: 5 endpoint `/api/v1/users`, gắn
+  `dependencies=[Depends(require_role("owner"))]` nên mọi endpoint mới đều mặc định
+  chỉ owner. Mật khẩu plain text → bcrypt hash trước khi gọi procedure.
+- `PUT` là **partial update**: đọc dòng hiện tại, merge thay đổi rồi mới gọi procedure
+  (procedure nhận toàn bộ dòng) — nhờ vậy bỏ trống mật khẩu nghĩa là "giữ nguyên".
+- `schemas/user_schema.py`: `UserCreate` / `UserUpdate` / `UserPermissionFields`;
+  `UserRead` thêm `avatar_url` + 7 cờ để `/auth/me` trả đủ quyền.
+- `services/email_service.py` (fastapi-mail 1.6.8): `send_account_info_email()` dựng cả
+  bản text và HTML, escape dữ liệu người dùng trước khi chèn vào HTML.
+  Hai lỗi tách riêng: `EmailNotConfiguredError` (chưa có credential) và
+  `EmailDeliveryError` (SMTP từ chối / mạng lỗi).
+- `POST /users` trả `UserCreated` = `UserRead` + `email_sent` + `email_message`.
+  **Tài khoản được ghi trước, mail gửi sau** — SMTP chết không làm mất tài khoản.
+
+### 14.4. Frontend
+
+- `src/assets/Avatar.jpg` + `components/common/Avatar.jsx`: `avatar_url` lưu **key**
+  (`toan`) và được map sang asset; tài khoản khác hiện chữ viết tắt.
+- `pages/UsersPage.jsx`: bảng tài khoản (avatar, vai trò, các quyền đang bật, trạng thái),
+  modal thêm/sửa có **7 công tắc quyền** (`components/common/Toggle.jsx`),
+  `ConfirmDialog` khi xoá, không cho xoá chính mình.
+- Modal dùng `noValidate` + kiểm tra trong `handleSubmit` để thông báo lỗi là tiếng Việt
+  thay vì bubble tiếng Anh của trình duyệt.
+- Email **bắt buộc khi tạo** (có gợi ý "Tên đăng nhập và mật khẩu sẽ được gửi tới email này"),
+  không bắt buộc khi sửa.
+- Sau khi tạo: toast xanh "Đã tạo tài khoản và gửi thông tin về email …" nếu
+  `email_sent = true`, ngược lại toast **vàng** cảnh báo "Tạo thành công nhưng chưa gửi được mail".
+- `Sidebar.jsx`: nhóm "Hệ thống → Người dùng" chỉ owner; mục "Báo cáo" lọc theo
+  `can_view_report`; dòng mô tả quyền ở chân sidebar phản ánh quyền thật.
+
+### 14.5. Kiểm chứng
+
+| Hạng mục | Kết quả |
+|----------|---------|
+| `sqlcmd -i 013-users-permissions.sql` | PASS, 3 user giữ nguyên + cột mới |
+| Tạo/sửa/xoá qua procedure | PASS (50002 khi trùng username, 50004 khi hạ cấp owner cuối) |
+| `POST /users` khi chưa cấu hình SMTP | 201, `email_sent=false`, thông báo "chưa cấu hình SMTP" |
+| `POST /users` với `MAIL_SUPPRESS_SEND=1` | 201, `email_sent=true`, message "Đã gửi thông tin tài khoản tới …" |
+| Trình duyệt: tạo Manager → tắt "Xem báo cáo" → đăng nhập Manager | mục "Báo cáo" biến mất, nhóm "Hệ thống" ẩn |
+| Bật lại quyền và tải trang | mục "Báo cáo" xuất hiện trở lại |
+| `npm run lint` / `npm run build` | 0 error / PASS (687 module) |
+
+### 14.6. Bài học
+
+1. **Email phải best-effort và chạy sau khi ghi DB.** Đảo thứ tự (gửi trước, ghi sau) thì
+   SMTP lỗi sẽ làm mất tài khoản Admin vừa tạo — đúng thứ người dùng không mong đợi.
+2. **Gmail bắt buộc App Password 16 ký tự.** Dùng mật khẩu đăng nhập thường sẽ bị từ chối
+   với `535 Username and Password not accepted` — thông báo này không nói gì về App Password.
+3. **Đừng để giá trị mẫu trong `.env` được coi là cấu hình thật.** Gửi bằng thông tin giả sẽ
+   chờ timeout rồi mới báo lỗi, làm thao tác tạo tài khoản chậm một cách khó hiểu. `Settings`
+   lọc các giá trị mẫu và trả về thông báo rõ ràng ngay.
+4. **`required` của HTML hiện bubble theo ngôn ngữ trình duyệt**, không theo ngôn ngữ ứng dụng.
+   Dùng `noValidate` + kiểm tra trong JS để giữ thông báo tiếng Việt thống nhất.
+5. **Trạng thái "đã gửi mail" phải nằm trong response**, không phải chỉ trong log. Frontend
+   cần biết để chọn toast xanh hay vàng; đoán theo HTTP 201 sẽ báo sai.
+6. **Cổng 8000 bị tiến trình cũ giữ là bẫy thật.** uvicorn mới bind lỗi `10048`, nhưng
+   `/health` vẫn trả `ok` do **server cũ** phục vụ → test API rơi vào code cũ và kết luận sai.
+   Luôn kiểm tra `Get-NetTCPConnection -LocalPort 8000` và log `uvicorn_err.log` sau khi restart.
+7. **Test gửi mail mà không có credential thật:** `MAIL_SUPPRESS_SEND=1` cùng biến môi trường
+   giả — `fastapi-mail` dựng message nhưng bỏ qua kết nối SMTP, đủ để kiểm tra toàn bộ luồng
+   `email_sent=true`.
+

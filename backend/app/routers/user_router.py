@@ -19,14 +19,22 @@ merges the payload into the current row before calling it. That is what lets
 an omitted field mean "unchanged" instead of "set to NULL".
 """
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pyodbc import Error as PyodbcError
+from starlette.concurrency import run_in_threadpool
 
 from app.database import DbSession, get_db, map_sqlserver_error
 from app.dependencies import CurrentUser, require_role
 from app.schemas.common import Page
-from app.schemas.user_schema import UserCreate, UserRead, UserUpdate
+from app.schemas.user_schema import UserCreate, UserCreated, UserRead, UserUpdate
 from app.security import hash_password
+from app.services.email_service import (
+    EmailDeliveryError,
+    EmailNotConfiguredError,
+    send_account_info_email,
+)
 from app.sp_helpers import as_bit
 
 router = APIRouter(
@@ -37,6 +45,10 @@ router = APIRouter(
 
 HTTP_409_CONFLICT = status.HTTP_409_CONFLICT
 HTTP_422_UNPROCESSABLE_CONTENT = 422
+
+logger = logging.getLogger(__name__)
+
+NOT_SENT_MESSAGE = "Đã tạo tài khoản nhưng chưa gửi được mail."
 
 PERMISSION_FIELDS = (
     "can_edit_product",
@@ -88,6 +100,39 @@ def _write_params(data: dict) -> dict:
     }
 
 
+async def _deliver_account_email(
+    to_email: str,
+    full_name: str,
+    username: str,
+    password: str,
+) -> tuple[bool, str]:
+    """
+    Best-effort delivery of the credentials notice.
+
+    Returns (sent, message) and never raises: the account already exists by
+    the time this runs, so an SMTP problem must not turn a 201 into a 500.
+    """
+    try:
+        await send_account_info_email(
+            to_email=to_email,
+            username=username,
+            password=password,
+            full_name=full_name,
+        )
+    except EmailNotConfiguredError:
+        logger.warning("Account created for %s but SMTP is not configured", to_email)
+        return (
+            False,
+            "Tạo thành công nhưng chưa gửi được mail: "
+            "máy chủ chưa cấu hình SMTP (MAIL_USERNAME / MAIL_PASSWORD).",
+        )
+    except EmailDeliveryError as exc:
+        logger.warning("Account created for %s but email failed: %s", to_email, exc)
+        return False, NOT_SENT_MESSAGE
+
+    return True, f"Đã tạo tài khoản và gửi thông tin về email {to_email}."
+
+
 @router.get("", response_model=Page[UserRead], summary="List accounts")
 def list_users(
     db: DbSession = Depends(get_db),
@@ -129,19 +174,48 @@ def get_user(user_id: int, db: DbSession = Depends(get_db)) -> dict:
 
 @router.post(
     "",
-    response_model=UserRead,
+    response_model=UserCreated,
     status_code=status.HTTP_201_CREATED,
     summary="Create an account",
 )
-def create_user(payload: UserCreate, db: DbSession = Depends(get_db)) -> dict:
+async def create_user(
+    payload: UserCreate, db: DbSession = Depends(get_db)
+) -> UserCreated:
+    """
+    Create the account, then try to email the credentials.
+
+    Order matters: the row is written first and the message is best-effort.
+    A dead SMTP server must not lose the account the administrator just
+    filled in - the UI shows "created but not sent" instead.
+    """
     data = payload.model_dump()
     params = _write_params(data)
     params["PasswordHash"] = _hash_or_422(data["password"])
 
     try:
-        return db.one("sp_Users_Create", params)
+        created = await run_in_threadpool(db.one, "sp_Users_Create", params)
     except PyodbcError as exc:
         raise map_sqlserver_error(exc) from exc
+
+    email_sent = False
+    email_message: str | None = None
+    to_email = (created.get("email") or "").strip() if created else ""
+
+    if to_email:
+        email_sent, email_message = await _deliver_account_email(
+            to_email=to_email,
+            full_name=created.get("full_name") or data["full_name"],
+            username=created.get("username") or data["username"],
+            password=data["password"],
+        )
+    else:
+        email_message = "Tài khoản không có email nên chưa gửi thông báo."
+
+    return UserCreated(
+        **created,
+        email_sent=email_sent,
+        email_message=email_message,
+    )
 
 
 @router.put("/{user_id}", response_model=UserRead, summary="Update an account")

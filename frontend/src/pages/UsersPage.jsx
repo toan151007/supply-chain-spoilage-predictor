@@ -106,6 +106,10 @@ const EMPTY_FORM = {
   ...ROLE_DEFAULTS.manager,
 }
 
+/* Pragmatic email shape check: the API is the authority, this only stops a
+   typo from becoming an account nobody can log into. */
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 function TableSkeleton() {
   return (
     <>
@@ -206,6 +210,7 @@ export default function UsersPage() {
     const fullName = form.full_name.trim()
     const username = form.username.trim()
     const password = form.password
+    const email = form.email.trim()
     const creating = !editing
 
     if (!fullName) {
@@ -214,6 +219,14 @@ export default function UsersPage() {
     }
     if (!username) {
       setFormError('Vui lòng nhập tên đăng nhập.')
+      return
+    }
+    if (creating && !email) {
+      setFormError('Vui lòng nhập email để hệ thống gửi thông tin đăng nhập.')
+      return
+    }
+    if (email && !EMAIL_PATTERN.test(email)) {
+      setFormError('Email chưa đúng định dạng, ví dụ: ten@cuahang.vn')
       return
     }
     if (creating && password.length < 6) {
@@ -233,7 +246,7 @@ export default function UsersPage() {
     const payload = {
       full_name: fullName,
       username,
-      email: form.email.trim() || null,
+      email: email || null,
       role: form.role,
       is_active: Boolean(form.is_active),
       avatar_url: form.avatar_url || null,
@@ -245,18 +258,30 @@ export default function UsersPage() {
 
     try {
       if (creating) {
-        await api.post('/users', { ...payload, password })
+        const response = await api.post('/users', { ...payload, password })
+        const created = response.data || {}
+
+        setFormOpen(false)
+        /* The account is created even when SMTP is down, so report the two
+           outcomes separately instead of a single happy-path toast. */
+        setToast({
+          type: created.email_sent ? 'success' : 'warning',
+          message:
+            created.email_message ||
+            (created.email_sent
+              ? `Đã tạo tài khoản và gửi thông tin về email ${email}.`
+              : 'Đã tạo tài khoản nhưng chưa gửi được mail.'),
+          duration: created.email_sent ? 4500 : 7000,
+        })
       } else {
         const update = { ...payload }
         if (password) update.password = password
         await api.put(`/users/${editing.user_id}`, update)
+
+        setFormOpen(false)
+        setToast({ type: 'success', message: 'Đã cập nhật tài khoản.' })
       }
 
-      setFormOpen(false)
-      setToast({
-        type: 'success',
-        message: creating ? 'Đã tạo tài khoản mới.' : 'Đã cập nhật tài khoản.',
-      })
       setReloadKey((key) => key + 1)
     } catch (requestError) {
       setFormError(getErrorMessage(requestError, 'Không lưu được tài khoản.'))
@@ -519,7 +544,7 @@ export default function UsersPage() {
           </>
         }
       >
-        <form id="user-form" onSubmit={handleSubmit} className="space-y-4">
+        <form id="user-form" onSubmit={handleSubmit} className="space-y-4" noValidate>
           {formError && (
             <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
               <Icon name="warning" className="mt-0.5 h-4 w-4 shrink-0" />
@@ -587,7 +612,16 @@ export default function UsersPage() {
               </select>
             </Field>
 
-            <Field label="Email" htmlFor="email" hint="Không bắt buộc.">
+            <Field
+              label="Email"
+              htmlFor="email"
+              required={!editing}
+              hint={
+                editing
+                  ? 'Dùng để liên hệ và gửi lại thông tin khi cần.'
+                  : 'Tên đăng nhập và mật khẩu sẽ được gửi tới email này.'
+              }
+            >
               <input
                 id="email"
                 type="email"
@@ -596,6 +630,8 @@ export default function UsersPage() {
                 className="input"
                 maxLength={150}
                 placeholder="ten@cuahang.vn"
+                required={!editing}
+                autoComplete="off"
               />
             </Field>
 

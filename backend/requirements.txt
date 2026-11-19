@@ -56,5 +56,10 @@ reportlab==5.0.1
 # ---- AI Agent Chatbot (Gemini) ----
 google-genai
 
+# ---- Gui email thong bao tai khoan (SMTP) ----
+# fastapi-mail: gui mail bat dong bo qua aiosmtplib (Gmail App Password).
+# Ly do: API tao tai khoan la async, gui bang smtplib se chan event loop.
+fastapi-mail==1.6.8
+
 # ---- Realtime WebSocket ----
 websockets==14.1
