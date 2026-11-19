@@ -122,6 +122,16 @@ ngoài dự báo nhu cầu còn có **điều chuyển hàng giữa cửa hàng*
       nhập không đổi; `title` + `aria-label` giữ tên tài khoản thật để dễ kiểm tra.
     - `users.full_name` của `owner` là **"Toàn"** (migration 013), nên Header sau khi
       đăng nhập hiện đúng "Toàn" + "Chủ sở hữu" + ảnh đại diện.
+14. **Khoá tự sửa quyền của chính mình (19/11/2026):** trong modal Sửa tài khoản,
+    `UsersPage.jsx` tự nhận biết `editing.user_id === currentUser.user_id` rồi
+    - hiện banner vàng "Đây là tài khoản của bạn…",
+    - **disable** ô Vai trò (kèm ghi chú "Bạn không thể tự thay đổi vai trò của mình."),
+    - **disable** cả 7 công tắc quyền + công tắc "Tài khoản đang hoạt động" + hai nút
+      "Chọn tất cả"/"Bỏ chọn",
+    - **ẩn** nút xoá ở dòng của chính mình (dòng khác vẫn có).
+    Khi submit, payload **bỏ** `role`, `is_active` và các cờ quyền — chỉ gửi họ tên,
+    username, email, avatar (+ mật khẩu nếu có). Nhờ vậy sửa tên chính mình vẫn lưu được
+    dù backend chặn đổi quyền.
 
 ## Rules (BẮT BUỘC TUÂN THỦ)
 
@@ -409,7 +419,20 @@ Vì vậy **không dùng được** tiêu chí "hệ số biến động mùa v�
   đã gặp ở `inventory`: SQL Server coi nhiều `NULL` là trùng nhau.
 - **Stored Procedure `sp_Users_Update` chặn hạ cấp/xoá owner hoạt động cuối cùng**
   (`50004`) và chặn xoá tài khoản đang được `transfer_requests` tham chiếu (`50003`).
-  Router cũng chặn owner tự khoá/xoá chính mình.
+- **Chống tự khoá mình (self-lockout) ở router, không chỉ ở giao diện.** `PUT /users/{id}`
+  trả **403** khi caller sửa chính mình mà đổi `role`, tắt một quyền đang bật, hoặc đặt
+  `is_active = false`; `DELETE /users/{id}` trả **403** khi xoá chính mình. Thông điệp:
+  "Không thể tự thay đổi vai trò của chính mình" · "Không thể tự thu hồi quyền hạn của
+  chính mình" · "Không thể tự khoá tài khoản của mình" · "Không thể tự xóa tài khoản của mình".
+  Frontend khoá ô Vai trò + toàn bộ công tắc quyền + công tắc hoạt động và **ẩn nút xoá**
+  ở dòng của chính mình; payload khi tự sửa **không gửi** `role`/`is_active`/các cờ quyền
+  (procedure hiểu là "giữ nguyên").
+- **Chỉ chặn khi giá trị THỰC SỰ đổi.** So sánh với dòng hiện tại trước khi trả 403, nhờ vậy
+  client gửi kèm nguyên trạng (role cũ, cờ đang bật) vẫn sửa được tên/email/mật khẩu —
+  nếu chặn theo kiểu "có mặt trong payload là cấm" thì mọi lần tự sửa đều hỏng.
+- **Còn một khe hở nhỏ giữa `_get_row_or_404` và `sp_Users_Update`:** owner thứ hai có thể
+  đổi dòng trong khoảng đó. Chấp nhận được ở mô hình một chủ sở hữu; procedure vẫn giữ
+  bất biến "luôn còn ít nhất một owner đang hoạt động".
 - **Gửi mail là best-effort, chạy SAU khi đã ghi DB.** `POST /users` tạo tài khoản trước rồi
   mới gọi `send_account_info_email`; SMTP lỗi **không** rollback tài khoản. Response
   `UserCreated` có thêm `email_sent` + `email_message` để UI chọn toast xanh/đỏ.
@@ -595,6 +618,7 @@ Chương 2 là cơ sở lý thuyết, trình bày cả 5 mô hình, chỉ **kỳ
 - [x] Kiểm chứng sau nâng cấp (31/10/2026): smoke test **48/48** đọc + **29/29** ghi; `npm run build` PASS (681 module); `npm run lint` 0 error; DB **11 bảng · 4 view · 85 Stored Procedure**
 - [x] **QUẢN LÝ NGƯỜI DÙNG + PHÂN QUYỀN CHI TIẾT (19/11/2026)**: migration `013-users-permissions.sql` (7 cột quyền `BIT` + `avatar_url`, filtered unique index cho `email`, 4 procedure CRUD); `user_router.py` owner-only + `UserRead` trả quyền cho `/auth/me`; trang `/users` với modal thêm/sửa có công tắc từng quyền, `Avatar.jpg` chuyển vào `frontend/src/assets/`, Header hiện ảnh + tên "Toàn"; Sidebar ẩn "Báo cáo" khi thiếu `can_view_report`. Test: sqlcmd + API + trình duyệt (tạo Manager tắt quyền báo cáo → đăng nhập Manager → mục Báo cáo biến mất), `npm run build` PASS
 - [x] **EMAIL THÔNG BÁO TÀI KHOẢN (19/11/2026)**: `fastapi-mail==1.6.8` + `services/email_service.py`; `POST /users` gửi thông tin đăng nhập tới email trong form (best-effort, không rollback tài khoản nếu SMTP lỗi); response `UserCreated` thêm `email_sent`/`email_message`; form bắt buộc Email khi tạo + toast "Đã tạo tài khoản và gửi thông tin về email …" hoặc cảnh báo vàng. Test: API 201 + `email_sent=false` khi chưa cấu hình SMTP, `email_sent=true` với `MAIL_SUPPRESS_SEND=1`
+- [x] **CHẶN TỰ HẠ QUYỀN / TỰ XOÁ MÌNH (19/11/2026)**: `PUT /users/{id}` trả 403 khi tự đổi vai trò, tự tắt quyền đang bật hoặc tự khoá tài khoản; `DELETE /users/{id}` trả 403 khi xoá chính mình. Modal Sửa tài khoản của chính mình khoá Vai trò + 7 công tắc quyền + công tắc hoạt động, ẩn nút xoá, và không gửi các trường bị khoá trong payload. Test API 6/6 PASS (4 lần 403 + tự sửa tên 200 + owner vẫn hoạt động); trình duyệt xác nhận disable/ẩn đúng; `npm run build` PASS
 - [ ] T2: README con cho từng thư mục
 - [ ] Tích hợp AI Model
 

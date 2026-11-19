@@ -3261,4 +3261,85 @@ Không cần sửa. `users.full_name` của `owner` đã là **"Toàn"** từ mi
 2. **Giữ `title`/`aria-label` mang tên tài khoản thật** để vẫn kiểm tra được nút nào điền
    tài khoản nào, tránh trường hợp đổi nhãn xong không ai biết nút "Quản lý" là `manager`.
 
+---
+
+## 16. Chặn Admin tự hạ quyền và tự xoá chính mình (19/11/2026)
+
+### 16.1. Lỗ hổng
+
+Admin (owner) sửa **tài khoản của chính mình** vẫn có thể
+
+1. đổi Vai trò từ **Chủ sở hữu** xuống **Quản lý** hoặc **Nhân viên**;
+2. tắt các công tắc **Quyền hạn chi tiết** của chính mình;
+3. tắt công tắc **Tài khoản đang hoạt động**.
+
+Cả ba đều dẫn tới **tự khoá mình khỏi hệ thống**: không còn màn hình nào để bật lại quyền,
+và nếu là owner hoạt động cuối cùng thì procedure cũng không cho hạ cấp — nhưng khi còn
+owner khác thì thao tác vẫn lọt. Xoá chính mình thì route đã chặn nhưng trả **409** kèm
+thông điệp tiếng Anh, không khớp phần còn lại của giao diện.
+
+### 16.2. Backend — `backend/app/routers/user_router.py`
+
+Thêm hằng số thông điệp dùng chung (`SELF_ROLE_MESSAGE`, `SELF_PERMISSION_MESSAGE`,
+`SELF_DEACTIVATE_MESSAGE`, `SELF_DELETE_MESSAGE`) và so sánh payload với **dòng hiện tại**
+trước khi ghi:
+
+| Trường hợp (caller sửa chính mình) | Điều kiện chặn | HTTP |
+|---|---|---|
+| Đổi vai trò | `changes["role"] != existing["role"]` | **403** "Không thể tự thay đổi vai trò của chính mình" |
+| Tắt quyền | Có cờ đang `True` bị gửi `False` | **403** "Không thể tự thu hồi quyền hạn của chính mình" |
+| Tự khoá | `is_active` chuyển `True → False` | **403** "Không thể tự khoá tài khoản của mình" |
+| Tự xoá | `DELETE /users/{id}` với `id == current.user_id` | **403** "Không thể tự xóa tài khoản của mình" |
+
+- Chỉ chặn khi giá trị **thực sự đổi**, nên client gửi kèm nguyên trạng (role cũ, cờ đang
+  bật) vẫn sửa được họ tên/email/mật khẩu.
+- Đọc dòng hiện tại **trước** khi kiểm tra, thay vì kiểm tra ngoài `try` như bản cũ — nhờ vậy
+  cùng một `_get_row_or_404` phục vụ cả 404 và so sánh.
+- Bỏ hằng số `HTTP_409_CONFLICT` không còn dùng.
+
+### 16.3. Frontend — `frontend/src/pages/UsersPage.jsx`
+
+- `editingSelf = Boolean(editing) && editing.user_id === currentUser?.user_id`.
+- Modal hiện **banner vàng** "Đây là tài khoản của bạn. Vai trò, quyền hạn và trạng thái
+  hoạt động được khoá…".
+- Ô **Vai trò** `disabled` + ghi chú "Bạn không thể tự thay đổi vai trò của mình."
+- **8 công tắc** (7 quyền + "Tài khoản đang hoạt động") đều `disabled`; hai nút
+  "Chọn tất cả"/"Bỏ chọn" cũng `disabled` với `opacity-40`.
+- Payload khi tự sửa **không chứa** `role`, `is_active`, các cờ quyền — chỉ gửi họ tên,
+  username, email, avatar (+ mật khẩu nếu nhập). Nếu gửi kèm, backend vẫn cho qua khi giá trị
+  không đổi, nhưng bỏ đi thì rõ ràng hơn và tránh 403 nếu form lệch trạng thái DB.
+- Bảng: dòng của chính mình **không render nút xoá** (trước đây chỉ `disabled`).
+- `Toggle` đã có sẵn prop `disabled` từ trước, không cần sửa component.
+
+### 16.4. Kiểm chứng
+
+| Test | Kết quả |
+|---|---|
+| `PUT /users/1` `{role: "manager"}` (owner tự sửa) | **403** "Không thể tự thay đổi vai trò của chính mình" |
+| `PUT /users/1` `{can_view_report: false}` | **403** "Không thể tự thu hồi quyền hạn của chính mình" |
+| `PUT /users/1` `{is_active: false}` | **403** "Không thể tự khoá tài khoản của mình" |
+| `DELETE /users/1` | **403** "Không thể tự xóa tài khoản của mình" |
+| `PUT /users/1` `{full_name: "Toàn", can_view_report: <giá trị cũ>}` | **200**, vai trò vẫn `owner`, tài khoản vẫn hoạt động |
+| `GET /auth/me` sau các test | `role=owner`, `is_active=true`, token vẫn dùng được |
+| Trình duyệt: mở "Sửa owner" | Vai trò disabled, 8/8 công tắc disabled, 2 nút bulk disabled, banner vàng hiện |
+| Trình duyệt: mở "Sửa manager" | Không có banner, Vai trò và công tắc bật bình thường |
+| Trình duyệt: dòng owner | Chỉ có nút Sửa, **không có** nút Xoá; manager/staff vẫn có |
+| Trình duyệt: lưu form tự sửa | Toast "Đã cập nhật tài khoản.", modal đóng |
+| `npm run lint` / `npm run build` | 0 error / PASS |
+
+### 16.5. Bài học
+
+1. **Chặn ở API mới là chặn thật.** Disable nút trên giao diện chỉ là trải nghiệm; một
+   request tự dựng vẫn qua được. Phải kiểm tra ở router rồi mới khoá UI cho khớp.
+2. **So sánh với dòng hiện tại, đừng cấm theo sự có mặt của trường.** Nếu hễ thấy `role`
+   trong payload là trả 403 thì chính Admin cũng không sửa được tên mình, vì form luôn gửi
+   đủ trường.
+3. **Form tự sửa phải bỏ hẳn trường bị khoá khỏi payload.** Vừa tránh 403 khi dữ liệu form
+   lệch DB, vừa đúng ngữ nghĩa "partial update" mà procedure đang dùng.
+4. **Ẩn nút xoá tốt hơn disable nút xoá.** Nút mờ vẫn gợi ý "có thể xoá nếu đủ điều kiện";
+   với tài khoản của chính mình thì không có điều kiện nào để đủ.
+5. **Đổi 409 → 403 cho đúng ngữ nghĩa.** 409 là xung đột trạng thái, còn "bạn không có
+   quyền làm điều này với chính mình" là **Forbidden**; đồng thời thống nhất thông điệp
+   tiếng Việt với ba trường hợp còn lại.
+
 

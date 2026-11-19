@@ -212,6 +212,9 @@ export default function UsersPage() {
     const password = form.password
     const email = form.email.trim()
     const creating = !editing
+    /* Editing your own row cannot change role, permissions or the active flag.
+       The API enforces this too, so sending the fields would only produce 403. */
+    const editingSelf = !creating && editing.user_id === currentUser?.user_id
 
     if (!fullName) {
       setFormError('Vui lòng nhập họ tên.')
@@ -247,10 +250,13 @@ export default function UsersPage() {
       full_name: fullName,
       username,
       email: email || null,
-      role: form.role,
-      is_active: Boolean(form.is_active),
       avatar_url: form.avatar_url || null,
-      ...permissionPayload,
+    }
+
+    if (!editingSelf) {
+      payload.role = form.role
+      payload.is_active = Boolean(form.is_active)
+      Object.assign(payload, permissionPayload)
     }
 
     setSaving(true)
@@ -330,7 +336,10 @@ export default function UsersPage() {
     )
   }
 
+  const editingSelf = Boolean(editing) && editing.user_id === currentUser?.user_id
   const roleOptions = editing?.role === 'owner' ? ['owner', 'manager', 'staff'] : ['manager', 'staff']
+  const lockedInputClass =
+    'disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 dark:disabled:bg-slate-800/60 dark:disabled:text-slate-400'
 
   return (
     <div className="animate-fade-in space-y-5">
@@ -484,16 +493,18 @@ export default function UsersPage() {
                             >
                               <Icon name="pencil" className="h-4 w-4" />
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => setDeleteTarget(account)}
-                              disabled={isSelf}
-                              className="rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40 dark:text-slate-400 dark:hover:bg-red-950/50 dark:hover:text-red-400"
-                              aria-label={`Xoá ${account.username}`}
-                              title={isSelf ? 'Không thể xoá tài khoản đang đăng nhập' : undefined}
-                            >
-                              <Icon name="trash" className="h-4 w-4" />
-                            </button>
+                            {/* Own row: no delete affordance at all. The API
+                                also refuses it, this just avoids a dead-end. */}
+                            {!isSelf && (
+                              <button
+                                type="button"
+                                onClick={() => setDeleteTarget(account)}
+                                className="rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-950/50 dark:hover:text-red-400"
+                                aria-label={`Xoá ${account.username}`}
+                              >
+                                <Icon name="trash" className="h-4 w-4" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -552,6 +563,16 @@ export default function UsersPage() {
             </div>
           )}
 
+          {editingSelf && (
+            <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+              <Icon name="shield" className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                Đây là tài khoản của bạn. Vai trò, quyền hạn và trạng thái hoạt động
+                được khoá để bạn không tự hạ quyền hoặc tự khoá mình khỏi hệ thống.
+              </span>
+            </div>
+          )}
+
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Họ và tên" htmlFor="full_name" required>
               <input
@@ -597,12 +618,18 @@ export default function UsersPage() {
               />
             </Field>
 
-            <Field label="Vai trò" htmlFor="role" required>
+            <Field
+              label="Vai trò"
+              htmlFor="role"
+              required
+              hint={editingSelf ? 'Bạn không thể tự thay đổi vai trò của mình.' : undefined}
+            >
               <select
                 id="role"
                 value={form.role}
                 onChange={(event) => applyRoleDefaults(event.target.value)}
-                className="input"
+                disabled={editingSelf}
+                className={`input ${lockedInputClass}`}
               >
                 {roleOptions.map((role) => (
                   <option key={role} value={role}>
@@ -639,9 +666,14 @@ export default function UsersPage() {
               <div className="w-full">
                 <Toggle
                   label="Tài khoản đang hoạt động"
-                  hint="Tài khoản bị khoá sẽ không đăng nhập được."
+                  hint={
+                    editingSelf
+                      ? 'Bạn không thể tự khoá tài khoản của mình.'
+                      : 'Tài khoản bị khoá sẽ không đăng nhập được.'
+                  }
                   checked={Boolean(form.is_active)}
                   onChange={(value) => setField('is_active', value)}
+                  disabled={editingSelf}
                 />
               </div>
             </div>
@@ -652,21 +684,25 @@ export default function UsersPage() {
               <div>
                 <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Quyền hạn chi tiết</p>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Bật các quyền mà tài khoản này được phép sử dụng.
+                  {editingSelf
+                    ? 'Bạn không thể tự thu hồi quyền hạn của chính mình.'
+                    : 'Bật các quyền mà tài khoản này được phép sử dụng.'}
                 </p>
               </div>
               <div className="flex gap-1">
                 <button
                   type="button"
                   onClick={() => PERMISSION_KEYS.forEach((key) => setField(key, true))}
-                  className="rounded-lg px-2 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-brand-950/50"
+                  disabled={editingSelf}
+                  className="rounded-lg px-2 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-40 dark:text-brand-300 dark:hover:bg-brand-950/50"
                 >
                   Chọn tất cả
                 </button>
                 <button
                   type="button"
                   onClick={() => PERMISSION_KEYS.forEach((key) => setField(key, false))}
-                  className="rounded-lg px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                  disabled={editingSelf}
+                  className="rounded-lg px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 dark:text-slate-400 dark:hover:bg-slate-800"
                 >
                   Bỏ chọn
                 </button>
@@ -681,6 +717,7 @@ export default function UsersPage() {
                   hint={option.hint}
                   checked={Boolean(form[option.key])}
                   onChange={(value) => setField(option.key, value)}
+                  disabled={editingSelf}
                 />
               ))}
             </div>

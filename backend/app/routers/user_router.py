@@ -43,12 +43,19 @@ router = APIRouter(
     dependencies=[Depends(require_role("owner"))],
 )
 
-HTTP_409_CONFLICT = status.HTTP_409_CONFLICT
+HTTP_403_FORBIDDEN = status.HTTP_403_FORBIDDEN
 HTTP_422_UNPROCESSABLE_CONTENT = 422
 
 logger = logging.getLogger(__name__)
 
 NOT_SENT_MESSAGE = "Đã tạo tài khoản nhưng chưa gửi được mail."
+
+# Self-lockout guards. The UI also disables these fields, but the API is the
+# trust boundary: a hand-built request must not be able to demote an owner.
+SELF_ROLE_MESSAGE = "Không thể tự thay đổi vai trò của chính mình"
+SELF_PERMISSION_MESSAGE = "Không thể tự thu hồi quyền hạn của chính mình"
+SELF_DEACTIVATE_MESSAGE = "Không thể tự khoá tài khoản của mình"
+SELF_DELETE_MESSAGE = "Không thể tự xóa tài khoản của mình"
 
 PERMISSION_FIELDS = (
     "can_edit_product",
@@ -225,18 +232,41 @@ def update_user(
     current: CurrentUser,
     db: DbSession = Depends(get_db),
 ) -> dict:
-    changes = payload.model_dump(exclude_unset=True)
+    """
+    Update an account.
 
-    # An owner locking themselves out is almost always a mistake, and there
-    # is no self-service way back in.
-    if user_id == current["user_id"] and changes.get("is_active") is False:
-        raise HTTPException(
-            status_code=HTTP_409_CONFLICT,
-            detail="You cannot deactivate your own account",
-        )
+    Optional `payload` fields mean "unchanged". For the caller's own account
+    the role, the permission flags and the active switch are frozen: there is
+    no self-service way back in once an owner demotes or disables itself.
+    """
+    changes = payload.model_dump(exclude_unset=True)
 
     try:
         existing = _get_row_or_404(db, user_id)
+
+        if user_id == current["user_id"]:
+            if "role" in changes and changes["role"] != existing["role"]:
+                raise HTTPException(
+                    status_code=HTTP_403_FORBIDDEN,
+                    detail=SELF_ROLE_MESSAGE,
+                )
+
+            revoked = [
+                field
+                for field in PERMISSION_FIELDS
+                if changes.get(field) is False and existing.get(field)
+            ]
+            if revoked:
+                raise HTTPException(
+                    status_code=HTTP_403_FORBIDDEN,
+                    detail=SELF_PERMISSION_MESSAGE,
+                )
+
+            if changes.get("is_active") is False and existing.get("is_active"):
+                raise HTTPException(
+                    status_code=HTTP_403_FORBIDDEN,
+                    detail=SELF_DEACTIVATE_MESSAGE,
+                )
 
         merged = {**existing, **{k: v for k, v in changes.items() if k != "password"}}
         for field in PERMISSION_FIELDS:
@@ -267,8 +297,8 @@ def delete_user(
 ) -> None:
     if user_id == current["user_id"]:
         raise HTTPException(
-            status_code=HTTP_409_CONFLICT,
-            detail="You cannot delete your own account",
+            status_code=HTTP_403_FORBIDDEN,
+            detail=SELF_DELETE_MESSAGE,
         )
 
     try:
