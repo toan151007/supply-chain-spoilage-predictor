@@ -15,6 +15,7 @@ import OrdersPage from './pages/OrdersPage.jsx'
 import ProductsPage from './pages/ProductsPage.jsx'
 import StoresPage from './pages/StoresPage.jsx'
 import TransfersPage from './pages/TransfersPage.jsx'
+import UsersPage from './pages/UsersPage.jsx'
 
 export default function App() {
   return (
@@ -33,6 +34,7 @@ export default function App() {
             <Route path="forecasts" element={<ForecastsPage />} />
             <Route path="categories" element={<CategoriesPage />} />
             <Route path="stores" element={<StoresPage />} />
+            <Route path="users" element={<UsersPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Route>

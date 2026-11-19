@@ -93,6 +93,12 @@ from app.schemas.store_schema import (
     StoreRead,
     StoreUpdate,
 )
+from app.schemas.user_schema import (
+    UserCreate,
+    UserPermissionFields,
+    UserRead,
+    UserUpdate,
+)
 
 __all__ = [
     "AlertsSummaryResponse", "ExpiringResponse", "LowStockResponse",
@@ -115,4 +121,5 @@ __all__ = [
     "ProductBase", "ProductBrief", "ProductCreate", "ProductPage",
     "ProductRead", "ProductUpdate",
     "StoreBase", "StoreBrief", "StoreCreate", "StoreRead", "StoreUpdate",
+    "UserCreate", "UserPermissionFields", "UserRead", "UserUpdate",
 ]

@@ -2,6 +2,7 @@ import { useLocation } from 'react-router-dom'
 
 import { useAuth } from '../../contexts/AuthContext.jsx'
 import { useTheme } from '../../contexts/ThemeContext.jsx'
+import Avatar from '../common/Avatar.jsx'
 import Icon from '../common/Icon.jsx'
 
 const PAGE_TITLES = {
@@ -13,16 +14,8 @@ const PAGE_TITLES = {
   '/forecasts': 'Dự báo nhu cầu',
   '/categories': 'Nhóm hàng',
   '/stores': 'Cửa hàng',
-}
-
-function initials(name = '') {
-  return name
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase()
+  '/transfers': 'Điều chuyển hàng',
+  '/users': 'Quản lý người dùng',
 }
 
 export default function Header({ onOpenMenu, onLogout }) {
@@ -63,11 +56,9 @@ export default function Header({ onOpenMenu, onLogout }) {
           <Icon name={isDark ? 'sun' : 'moon'} />
         </button>
 
-        <div className="hidden items-center gap-3 rounded-xl border border-slate-200 py-1.5 pl-1.5 pr-3 dark:border-slate-700 sm:flex">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-100 text-xs font-bold text-brand-700 dark:bg-brand-900/60 dark:text-brand-300">
-            {initials(user?.full_name || user?.username)}
-          </span>
-          <div className="leading-tight">
+        <div className="flex items-center gap-3 rounded-xl border border-slate-200 py-1.5 pl-1.5 pr-2 dark:border-slate-700 sm:pr-3">
+          <Avatar user={user} size="sm" />
+          <div className="hidden leading-tight sm:block">
             <p className="max-w-[150px] truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
               {user?.full_name || user?.username}
             </p>

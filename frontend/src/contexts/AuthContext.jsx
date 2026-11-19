@@ -13,6 +13,27 @@ const ROLE_LABELS = {
 /** Both admin roles may write master data; `staff` may not. */
 const ADMIN_ROLES = new Set(['owner', 'manager'])
 
+/** Detailed permission flags returned by /auth/me and /users. */
+export const PERMISSION_KEYS = [
+  'can_edit_product',
+  'can_delete_product',
+  'can_view_report',
+  'can_manage_inventory',
+  'can_manage_order',
+  'can_manage_transfer',
+  'can_manage_user',
+]
+
+export const PERMISSION_LABELS = {
+  can_edit_product: 'Thêm / sửa sản phẩm',
+  can_delete_product: 'Xoá sản phẩm',
+  can_view_report: 'Xem báo cáo',
+  can_manage_inventory: 'Quản lý kho hàng',
+  can_manage_order: 'Quản lý đơn hàng',
+  can_manage_transfer: 'Điều chuyển hàng',
+  can_manage_user: 'Quản lý người dùng',
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => tokenStore.getUser())
   const [initializing, setInitializing] = useState(() => Boolean(tokenStore.getAccess()))
@@ -77,13 +98,21 @@ export function AuthProvider({ children }) {
 
   const value = useMemo(() => {
     const role = user?.role ?? null
+    const permissions = PERMISSION_KEYS.reduce((flags, key) => {
+      flags[key] = Boolean(user?.[key])
+      return flags
+    }, {})
+
     return {
       user,
       role,
       roleLabel: role ? (ROLE_LABELS[role] ?? role) : '',
       isAuthenticated: Boolean(user),
       isAdmin: Boolean(role && ADMIN_ROLES.has(role)),
+      isOwner: role === 'owner',
       isStaff: role === 'staff',
+      permissions,
+      hasPermission: (name) => Boolean(user?.[name]),
       initializing,
       login,
       logout,

@@ -36,7 +36,13 @@ class RefreshRequest(BaseModel):
 
 
 class UserRead(BaseModel):
-    """A user as returned by the API. Never includes password_hash."""
+    """
+    A user as returned by the API. Never includes password_hash.
+
+    `avatar_url` is a frontend avatar key (for example "toan") or an
+    http(s)/absolute URL. The permission flags mirror the `users` columns so
+    the UI can decide what to show without a second request.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -47,6 +53,14 @@ class UserRead(BaseModel):
     role: UserRole
     store_id: int | None
     is_active: bool
+    avatar_url: str | None = None
+    can_edit_product: bool = False
+    can_delete_product: bool = False
+    can_view_report: bool = False
+    can_manage_inventory: bool = False
+    can_manage_order: bool = False
+    can_manage_transfer: bool = False
+    can_manage_user: bool = False
     created_at: datetime
 
 

@@ -33,8 +33,18 @@ const NAV_GROUPS = [
     adminOnly: true,
     items: [
       { label: 'Đề xuất nhập hàng', icon: 'recommendations', soon: true },
-      { label: 'Báo cáo', icon: 'reports', soon: true },
+      {
+        label: 'Báo cáo',
+        icon: 'reports',
+        soon: true,
+        permission: 'can_view_report',
+      },
     ],
+  },
+  {
+    title: 'Hệ thống',
+    ownerOnly: true,
+    items: [{ to: '/users', label: 'Người dùng', icon: 'users' }],
   },
 ]
 
@@ -74,7 +84,28 @@ function NavigationItem({ item }) {
 }
 
 export default function Sidebar({ open, onClose }) {
-  const { roleLabel, isAdmin } = useAuth()
+  const { roleLabel, isAdmin, isOwner, hasPermission } = useAuth()
+
+  /* The footer used to promise "full data and report rights" to both admin
+     roles. That stopped being true once report access became a per-user
+     permission, so describe what this account can actually do. */
+  const canViewReports = hasPermission('can_view_report')
+  const accessSummary = isAdmin
+    ? canViewReports
+      ? 'Bạn có toàn quyền quản trị dữ liệu và báo cáo.'
+      : 'Bạn quản trị dữ liệu vận hành; quyền xem báo cáo đang tắt.'
+    : 'Bạn có thể thao tác tồn kho, đơn hàng và trạng thái cảnh báo.'
+
+  const visibleGroups = NAV_GROUPS.filter(
+    (group) => (!group.adminOnly || isAdmin) && (!group.ownerOnly || isOwner),
+  )
+    .map((group) => ({
+      ...group,
+      items: group.items.filter(
+        (item) => !item.permission || hasPermission(item.permission),
+      ),
+    }))
+    .filter((group) => group.items.length > 0)
 
   return (
     <>
@@ -116,7 +147,7 @@ export default function Sidebar({ open, onClose }) {
         </div>
 
         <nav className="scrollbar-thin flex-1 space-y-6 overflow-y-auto px-3 py-5">
-          {NAV_GROUPS.filter((group) => !group.adminOnly || isAdmin).map((group) => (
+          {visibleGroups.map((group) => (
             <div key={group.title}>
               <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                 {group.title}
@@ -136,9 +167,7 @@ export default function Sidebar({ open, onClose }) {
               Vai trò của bạn: {roleLabel}
             </p>
             <p className="mt-1 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
-              {isAdmin
-                ? 'Bạn có toàn quyền quản trị dữ liệu và báo cáo.'
-                : 'Bạn có thể thao tác tồn kho, đơn hàng và trạng thái cảnh báo.'}
+              {accessSummary}
             </p>
           </div>
           <p className="mt-3 text-center text-[11px] text-slate-400 dark:text-slate-500">
