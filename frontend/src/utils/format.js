@@ -61,6 +61,25 @@ export function formatDate(value) {
 }
 
 /**
+ * Date plus 24-hour time, e.g. "19/11/2026 14:32".
+ *
+ * Hand-built instead of `toLocaleString('vi-VN')` so the account table shows
+ * the exact dd/mm/yyyy HH:mm the spec asks for, independent of browser locale
+ * settings that would otherwise render "14:32:11" or "2:32 PM".
+ */
+export function formatDateTime(value) {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+
+  const pad = (part) => String(part).padStart(2, '0')
+  return (
+    `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ` +
+    `${pad(date.getHours())}:${pad(date.getMinutes())}`
+  )
+}
+
+/**
  * FastAPI returns `detail` either as a string or, for validation errors,
  * as a list of `{ loc, msg }` objects. Normalise both into one sentence
  * the UI can show without leaking a raw object.

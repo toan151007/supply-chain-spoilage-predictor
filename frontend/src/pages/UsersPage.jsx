@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import Avatar from '../components/common/Avatar.jsx'
@@ -10,7 +10,25 @@ import Toast from '../components/common/Toast.jsx'
 import Toggle from '../components/common/Toggle.jsx'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import api from '../services/api.js'
-import { formatDate, getErrorMessage } from '../utils/format.js'
+import { formatDateTime, getErrorMessage } from '../utils/format.js'
+
+/*
+ * The page is split into two jobs that used to share one table:
+ *
+ *   1. "Danh sách tài khoản"  - who exists, when it was created, is it locked.
+ *      Actions here only touch the profile (name, email) and the active flag.
+ *   2. "Cấp phép & Phân quyền" - the seven switches, on their own screen, so a
+ *      save cannot silently rewrite a username or reset a password.
+ *
+ * Keeping the two apart also matches the API: PUT /users/{id} for the profile,
+ * PUT /users/{id}/permissions for the switches, PUT /users/{id}/status for the
+ * lock.
+ */
+
+const TABS = [
+  { id: 'list', label: 'Danh sách tài khoản', icon: 'users' },
+  { id: 'permissions', label: 'Cấp phép & Phân quyền', icon: 'shield' },
+]
 
 const ROLE_META = {
   owner: {
@@ -72,6 +90,8 @@ const PERMISSION_OPTIONS = [
   },
 ]
 
+const PERMISSION_KEYS = PERMISSION_OPTIONS.map((option) => option.key)
+
 const ALL_PERMISSIONS = PERMISSION_OPTIONS.reduce((flags, option) => {
   flags[option.key] = true
   return flags
@@ -93,9 +113,14 @@ const ROLE_DEFAULTS = {
   },
 }
 
-const PERMISSION_KEYS = PERMISSION_OPTIONS.map((option) => option.key)
+function permissionSnapshot(account) {
+  return PERMISSION_KEYS.reduce((flags, key) => {
+    flags[key] = Boolean(account?.[key])
+    return flags
+  }, {})
+}
 
-const EMPTY_FORM = {
+const EMPTY_CREATE = {
   full_name: '',
   username: '',
   password: '',
@@ -115,7 +140,7 @@ function TableSkeleton() {
     <>
       {Array.from({ length: 4 }).map((_, idx) => (
         <tr key={idx} className="animate-pulse">
-          {Array.from({ length: 5 }).map((__, cell) => (
+          {Array.from({ length: 7 }).map((__, cell) => (
             <td key={cell} className="px-4 py-4">
               <div className="h-3 rounded bg-slate-100 dark:bg-slate-800" />
             </td>
@@ -129,20 +154,40 @@ function TableSkeleton() {
 export default function UsersPage() {
   const navigate = useNavigate()
   const { user: currentUser, isOwner } = useAuth()
+  const currentUserId = currentUser?.user_id
+
+  const [tab, setTab] = useState('list')
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [items, setItems] = useState([])
   const [reloadKey, setReloadKey] = useState(0)
 
-  const [formOpen, setFormOpen] = useState(false)
-  const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState(EMPTY_FORM)
-  const [formError, setFormError] = useState('')
-  const [saving, setSaving] = useState(false)
+  /* Create dialog */
+  const [createOpen, setCreateOpen] = useState(false)
+  const [createForm, setCreateForm] = useState(EMPTY_CREATE)
+  const [createError, setCreateError] = useState('')
+  const [creating, setCreating] = useState(false)
 
+  /* Basic-info dialog */
+  const [editTarget, setEditTarget] = useState(null)
+  const [editForm, setEditForm] = useState({ full_name: '', email: '' })
+  const [editError, setEditError] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
+
+  /* Lock / unlock */
+  const [statusTarget, setStatusTarget] = useState(null)
+  const [statusBusy, setStatusBusy] = useState(false)
+
+  /* Delete */
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting] = useState(false)
+
+  /* Permissions tab */
+  const [selectedId, setSelectedId] = useState(null)
+  const [draft, setDraft] = useState(null)
+  const [draftError, setDraftError] = useState('')
+  const [savingDraft, setSavingDraft] = useState(false)
 
   const [toast, setToast] = useState(null)
 
@@ -170,129 +215,182 @@ export default function UsersPage() {
     }
   }, [reloadKey])
 
-  const setField = (name, value) => {
-    setForm((previous) => ({ ...previous, [name]: value }))
-  }
+  const selected = useMemo(
+    () => items.find((account) => account.user_id === selectedId) ?? null,
+    [items, selectedId],
+  )
 
-  const applyRoleDefaults = (role) => {
-    setForm((previous) => ({ ...previous, role, ...ROLE_DEFAULTS[role] }))
-  }
+  /* Reload the draft whenever the list is refreshed or another row is picked,
+     so the switches always start from what the database actually holds. */
+  useEffect(() => {
+    if (!selected) {
+      setDraft(null)
+      return
+    }
+    setDraft({ role: selected.role, ...permissionSnapshot(selected) })
+    setDraftError('')
+  }, [selected, reloadKey])
+
+  const reload = () => setReloadKey((key) => key + 1)
+
+  const isSelf = (account) => Boolean(account) && account.user_id === currentUserId
+  const editingSelf = isSelf(selected)
+
+  const draftDirty = useMemo(() => {
+    if (!selected || !draft) return false
+    if (draft.role !== selected.role) return true
+    return PERMISSION_KEYS.some((key) => Boolean(draft[key]) !== Boolean(selected[key]))
+  }, [selected, draft])
+
+  const draftGrantedCount = draft
+    ? PERMISSION_KEYS.filter((key) => Boolean(draft[key])).length
+    : 0
 
   const openCreate = () => {
-    setEditing(null)
-    setForm({ ...EMPTY_FORM })
-    setFormError('')
-    setFormOpen(true)
+    setCreateForm({ ...EMPTY_CREATE })
+    setCreateError('')
+    setCreateOpen(true)
   }
 
-  const openEdit = (account) => {
-    setEditing(account)
-    setForm({
-      full_name: account.full_name ?? '',
-      username: account.username ?? '',
-      password: '',
-      email: account.email ?? '',
-      role: account.role,
-      is_active: Boolean(account.is_active),
-      avatar_url: account.avatar_url ?? '',
-      ...PERMISSION_KEYS.reduce((flags, key) => {
-        flags[key] = Boolean(account[key])
-        return flags
-      }, {}),
-    })
-    setFormError('')
-    setFormOpen(true)
+  const setCreateField = (name, value) => {
+    setCreateForm((previous) => ({ ...previous, [name]: value }))
   }
 
-  const handleSubmit = async (event) => {
+  const applyCreateRoleDefaults = (role) => {
+    setCreateForm((previous) => ({ ...previous, role, ...ROLE_DEFAULTS[role] }))
+  }
+
+  const handleCreate = async (event) => {
     event.preventDefault()
 
-    const fullName = form.full_name.trim()
-    const username = form.username.trim()
-    const password = form.password
-    const email = form.email.trim()
-    const creating = !editing
-    /* Editing your own row cannot change role, permissions or the active flag.
-       The API enforces this too, so sending the fields would only produce 403. */
-    const editingSelf = !creating && editing.user_id === currentUser?.user_id
+    const fullName = createForm.full_name.trim()
+    const username = createForm.username.trim()
+    const email = createForm.email.trim()
+    const password = createForm.password
 
     if (!fullName) {
-      setFormError('Vui lòng nhập họ tên.')
+      setCreateError('Vui lòng nhập họ tên.')
       return
     }
     if (!username) {
-      setFormError('Vui lòng nhập tên đăng nhập.')
+      setCreateError('Vui lòng nhập tên đăng nhập.')
       return
     }
-    if (creating && !email) {
-      setFormError('Vui lòng nhập email để hệ thống gửi thông tin đăng nhập.')
+    if (!email) {
+      setCreateError('Vui lòng nhập email để hệ thống gửi thông tin đăng nhập.')
+      return
+    }
+    if (!EMAIL_PATTERN.test(email)) {
+      setCreateError('Email chưa đúng định dạng, ví dụ: ten@cuahang.vn')
+      return
+    }
+    if (password.length < 6) {
+      setCreateError('Mật khẩu phải có ít nhất 6 ký tự.')
+      return
+    }
+
+    setCreating(true)
+    setCreateError('')
+
+    try {
+      const response = await api.post('/users', {
+        full_name: fullName,
+        username,
+        email,
+        password,
+        role: createForm.role,
+        is_active: true,
+        avatar_url: createForm.avatar_url || null,
+        ...permissionSnapshot(createForm),
+      })
+      const created = response.data || {}
+
+      setCreateOpen(false)
+      /* The account is created even when SMTP is down, so report the two
+         outcomes separately instead of a single happy-path toast. */
+      setToast({
+        type: created.email_sent ? 'success' : 'warning',
+        message:
+          created.email_message ||
+          (created.email_sent
+            ? `Đã tạo tài khoản và gửi thông tin về email ${email}.`
+            : 'Đã tạo tài khoản nhưng chưa gửi được mail.'),
+        duration: created.email_sent ? 4500 : 7000,
+      })
+      reload()
+    } catch (requestError) {
+      setCreateError(getErrorMessage(requestError, 'Không tạo được tài khoản.'))
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  const openEdit = (account) => {
+    setEditTarget(account)
+    setEditForm({ full_name: account.full_name ?? '', email: account.email ?? '' })
+    setEditError('')
+  }
+
+  /* Basic info only: name and email. Username stays as the login key, and the
+     role belongs to the permissions tab, not to this dialog. */
+  const handleEdit = async (event) => {
+    event.preventDefault()
+    if (!editTarget) return
+
+    const fullName = editForm.full_name.trim()
+    const email = editForm.email.trim()
+
+    if (!fullName) {
+      setEditError('Vui lòng nhập họ tên.')
       return
     }
     if (email && !EMAIL_PATTERN.test(email)) {
-      setFormError('Email chưa đúng định dạng, ví dụ: ten@cuahang.vn')
-      return
-    }
-    if (creating && password.length < 6) {
-      setFormError('Mật khẩu phải có ít nhất 6 ký tự.')
-      return
-    }
-    if (!creating && password && password.length < 6) {
-      setFormError('Mật khẩu mới phải có ít nhất 6 ký tự.')
+      setEditError('Email chưa đúng định dạng, ví dụ: ten@cuahang.vn')
       return
     }
 
-    const permissionPayload = PERMISSION_KEYS.reduce((flags, key) => {
-      flags[key] = Boolean(form[key])
-      return flags
-    }, {})
-
-    const payload = {
-      full_name: fullName,
-      username,
-      email: email || null,
-      avatar_url: form.avatar_url || null,
-    }
-
-    if (!editingSelf) {
-      payload.role = form.role
-      payload.is_active = Boolean(form.is_active)
-      Object.assign(payload, permissionPayload)
-    }
-
-    setSaving(true)
-    setFormError('')
+    setSavingEdit(true)
+    setEditError('')
 
     try {
-      if (creating) {
-        const response = await api.post('/users', { ...payload, password })
-        const created = response.data || {}
-
-        setFormOpen(false)
-        /* The account is created even when SMTP is down, so report the two
-           outcomes separately instead of a single happy-path toast. */
-        setToast({
-          type: created.email_sent ? 'success' : 'warning',
-          message:
-            created.email_message ||
-            (created.email_sent
-              ? `Đã tạo tài khoản và gửi thông tin về email ${email}.`
-              : 'Đã tạo tài khoản nhưng chưa gửi được mail.'),
-          duration: created.email_sent ? 4500 : 7000,
-        })
-      } else {
-        const update = { ...payload }
-        if (password) update.password = password
-        await api.put(`/users/${editing.user_id}`, update)
-
-        setFormOpen(false)
-        setToast({ type: 'success', message: 'Đã cập nhật tài khoản.' })
-      }
-
-      setReloadKey((key) => key + 1)
+      await api.put(`/users/${editTarget.user_id}`, {
+        full_name: fullName,
+        email: email || null,
+      })
+      setEditTarget(null)
+      setToast({ type: 'success', message: 'Đã cập nhật thông tin tài khoản.' })
+      reload()
     } catch (requestError) {
-      setFormError(getErrorMessage(requestError, 'Không lưu được tài khoản.'))
+      setEditError(getErrorMessage(requestError, 'Không lưu được tài khoản.'))
     } finally {
-      setSaving(false)
+      setSavingEdit(false)
+    }
+  }
+
+  const handleToggleStatus = async () => {
+    if (!statusTarget) return
+
+    setStatusBusy(true)
+    try {
+      await api.put(`/users/${statusTarget.account.user_id}/status`, {
+        is_active: statusTarget.nextActive,
+      })
+      setToast({
+        type: 'success',
+        message: statusTarget.nextActive
+          ? `Đã mở khoá tài khoản "${statusTarget.account.username}".`
+          : `Đã khoá tài khoản "${statusTarget.account.username}".`,
+      })
+      setStatusTarget(null)
+      reload()
+    } catch (requestError) {
+      setStatusTarget(null)
+      setToast({
+        type: 'error',
+        message: getErrorMessage(requestError, 'Không đổi được trạng thái tài khoản.'),
+      })
+    } finally {
+      setStatusBusy(false)
     }
   }
 
@@ -307,7 +405,9 @@ export default function UsersPage() {
         message: `Đã xoá tài khoản "${deleteTarget.full_name || deleteTarget.username}".`,
       })
       setDeleteTarget(null)
-      setReloadKey((key) => key + 1)
+      setEditTarget(null)
+      if (selectedId === deleteTarget.user_id) setSelectedId(null)
+      reload()
     } catch (requestError) {
       setToast({
         type: 'error',
@@ -316,6 +416,50 @@ export default function UsersPage() {
       setDeleteTarget(null)
     } finally {
       setDeleting(false)
+    }
+  }
+
+  const setDraftField = (name, value) => {
+    setDraft((previous) => ({ ...previous, [name]: value }))
+  }
+
+  const setAllDraftFlags = (value) => {
+    setDraft((previous) =>
+      PERMISSION_KEYS.reduce(
+        (next, key) => {
+          next[key] = value
+          return next
+        },
+        { ...previous },
+      ),
+    )
+  }
+
+  const applyDraftRoleDefaults = () => {
+    if (!draft) return
+    setDraft((previous) => ({ ...previous, ...ROLE_DEFAULTS[previous.role] }))
+  }
+
+  const handleSavePermissions = async () => {
+    if (!selected || !draft || editingSelf) return
+
+    setSavingDraft(true)
+    setDraftError('')
+
+    try {
+      await api.put(`/users/${selected.user_id}/permissions`, {
+        role: draft.role,
+        ...permissionSnapshot(draft),
+      })
+      setToast({
+        type: 'success',
+        message: `Đã lưu quyền hạn cho "${selected.full_name || selected.username}".`,
+      })
+      reload()
+    } catch (requestError) {
+      setDraftError(getErrorMessage(requestError, 'Không lưu được quyền hạn.'))
+    } finally {
+      setSavingDraft(false)
     }
   }
 
@@ -336,8 +480,7 @@ export default function UsersPage() {
     )
   }
 
-  const editingSelf = Boolean(editing) && editing.user_id === currentUser?.user_id
-  const roleOptions = editing?.role === 'owner' ? ['owner', 'manager', 'staff'] : ['manager', 'staff']
+  const roleOptions = ['owner', 'manager', 'staff']
   const lockedInputClass =
     'disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 dark:disabled:bg-slate-800/60 dark:disabled:text-slate-400'
 
@@ -362,185 +505,469 @@ export default function UsersPage() {
             Quản lý người dùng
           </h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Tạo tài khoản và bật/tắt từng quyền hạn chi tiết cho quản lý và nhân viên.
+            Tách riêng danh sách tài khoản và phần cấp phép chi tiết.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button type="button" onClick={openCreate} className="btn-primary w-fit">
-            <Icon name="plus" className="h-4 w-4" />
-            Thêm tài khoản
-          </button>
-          <button
-            type="button"
-            onClick={() => setReloadKey((key) => key + 1)}
-            className="btn-secondary w-fit"
-          >
+          {tab === 'list' && (
+            <button type="button" onClick={openCreate} className="btn-primary w-fit">
+              <Icon name="plus" className="h-4 w-4" />
+              Thêm tài khoản mới
+            </button>
+          )}
+          <button type="button" onClick={reload} className="btn-secondary w-fit">
             <Icon name="refresh" className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             Tải lại
           </button>
         </div>
       </div>
 
-      <div className="card overflow-hidden">
-        {error ? (
-          <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
-            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600 dark:bg-red-950/50 dark:text-red-400">
-              <Icon name="warning" className="h-6 w-6" />
-            </span>
-            <div>
-              <p className="font-semibold text-slate-900 dark:text-white">Không tải được dữ liệu</p>
-              <p className="mt-1 max-w-md text-sm text-slate-500 dark:text-slate-400">{error}</p>
-            </div>
-            <button type="button" onClick={() => setReloadKey((key) => key + 1)} className="btn-secondary mt-1">
-              <Icon name="refresh" className="h-4 w-4" />
-              Thử lại
+      <div className="flex flex-wrap gap-1 rounded-xl border border-slate-200 bg-white p-1 dark:border-slate-800 dark:bg-slate-900 sm:w-fit">
+        {TABS.map((item) => {
+          const active = tab === item.id
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setTab(item.id)}
+              aria-current={active ? 'page' : undefined}
+              className={[
+                'inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors',
+                active
+                  ? 'bg-brand-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800',
+              ].join(' ')}
+            >
+              <Icon name={item.icon} className="h-4 w-4" />
+              {item.label}
+              {item.id === 'list' && !loading && (
+                <span
+                  className={[
+                    'rounded-md px-1.5 py-0.5 text-[11px] font-semibold tabular-nums',
+                    active
+                      ? 'bg-white/20 text-white'
+                      : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
+                  ].join(' ')}
+                >
+                  {items.length}
+                </span>
+              )}
             </button>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] text-left text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50/70 text-xs uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
-                  <th className="px-4 py-3 font-semibold">Người dùng</th>
-                  <th className="px-4 py-3 font-semibold">Vai trò</th>
-                  <th className="px-4 py-3 font-semibold">Quyền hạn</th>
-                  <th className="px-4 py-3 font-semibold">Trạng thái</th>
-                  <th className="px-4 py-3 font-semibold">Ngày tạo</th>
-                  <th className="px-4 py-3 text-right font-semibold">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {loading ? (
-                  <TableSkeleton />
-                ) : items.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-16 text-center">
-                      <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500">
-                        <Icon name="users" className="h-6 w-6" />
-                      </span>
-                      <p className="mt-3 font-semibold text-slate-700 dark:text-slate-200">Chưa có tài khoản nào</p>
-                    </td>
-                  </tr>
-                ) : (
-                  items.map((account) => {
-                    const meta = ROLE_META[account.role] ?? ROLE_META.staff
-                    const granted = PERMISSION_OPTIONS.filter((option) => account[option.key])
-                    const isSelf = account.user_id === currentUser?.user_id
+          )
+        })}
+      </div>
 
-                    return (
-                      <tr
-                        key={account.user_id}
-                        className="transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
-                      >
-                        <td className="px-4 py-3.5">
-                          <div className="flex items-center gap-3">
-                            <Avatar user={account} size="md" />
-                            <div className="min-w-0">
-                              <p className="flex items-center gap-2 font-semibold text-slate-900 dark:text-white">
-                                <span className="truncate">{account.full_name}</span>
-                                {isSelf && (
+      {tab === 'list' ? (
+        <div className="card overflow-hidden">
+          {error ? (
+            <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600 dark:bg-red-950/50 dark:text-red-400">
+                <Icon name="warning" className="h-6 w-6" />
+              </span>
+              <div>
+                <p className="font-semibold text-slate-900 dark:text-white">Không tải được dữ liệu</p>
+                <p className="mt-1 max-w-md text-sm text-slate-500 dark:text-slate-400">{error}</p>
+              </div>
+              <button type="button" onClick={reload} className="btn-secondary mt-1">
+                <Icon name="refresh" className="h-4 w-4" />
+                Thử lại
+              </button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[900px] text-left text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50/70 text-xs uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
+                    <th className="px-4 py-3 font-semibold">Họ tên</th>
+                    <th className="px-4 py-3 font-semibold">Username</th>
+                    <th className="px-4 py-3 font-semibold">Email</th>
+                    <th className="px-4 py-3 font-semibold">Vai trò</th>
+                    <th className="px-4 py-3 font-semibold">Ngày giờ tạo</th>
+                    <th className="px-4 py-3 font-semibold">Trạng thái</th>
+                    <th className="px-4 py-3 text-right font-semibold">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {loading ? (
+                    <TableSkeleton />
+                  ) : items.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-6 py-16 text-center">
+                        <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500">
+                          <Icon name="users" className="h-6 w-6" />
+                        </span>
+                        <p className="mt-3 font-semibold text-slate-700 dark:text-slate-200">
+                          Chưa có tài khoản nào
+                        </p>
+                      </td>
+                    </tr>
+                  ) : (
+                    items.map((account) => {
+                      const meta = ROLE_META[account.role] ?? ROLE_META.staff
+                      const own = isSelf(account)
+
+                      return (
+                        <tr
+                          key={account.user_id}
+                          className="transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
+                        >
+                          <td className="px-4 py-3.5">
+                            <div className="flex items-center gap-3">
+                              <Avatar user={account} size="md" />
+                              <div className="flex min-w-0 items-center gap-2">
+                                <span className="truncate font-semibold text-slate-900 dark:text-white">
+                                  {account.full_name}
+                                </span>
+                                {own && (
                                   <span className="badge bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300">
                                     Bạn
                                   </span>
                                 )}
-                              </p>
-                              <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                                @{account.username}
-                                {account.email ? ` · ${account.email}` : ''}
-                              </p>
+                              </div>
                             </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3.5">
-                          <span className={`badge ${meta.badge}`}>{meta.label}</span>
-                        </td>
-                        <td className="px-4 py-3.5">
-                          {granted.length === 0 ? (
-                            <span className="text-xs text-slate-400 dark:text-slate-500">Không có quyền</span>
-                          ) : (
-                            <div className="flex max-w-sm flex-wrap gap-1">
-                              {granted.map((option) => (
-                                <span
-                                  key={option.key}
-                                  className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300"
-                                >
-                                  {option.short}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-4 py-3.5">
-                          <span className="inline-flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
-                            <span
-                              className={`h-1.5 w-1.5 rounded-full ${
-                                account.is_active ? 'bg-emerald-500' : 'bg-slate-400'
-                              }`}
-                            />
-                            {account.is_active ? 'Hoạt động' : 'Đã khoá'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3.5 text-slate-500 dark:text-slate-400">
-                          {formatDate(account.created_at)}
-                        </td>
-                        <td className="px-4 py-3.5 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <button
-                              type="button"
-                              onClick={() => openEdit(account)}
-                              className="rounded-lg p-2 text-slate-500 hover:bg-sky-50 hover:text-sky-600 dark:text-slate-400 dark:hover:bg-sky-950/50 dark:hover:text-sky-400"
-                              aria-label={`Sửa ${account.username}`}
-                            >
-                              <Icon name="pencil" className="h-4 w-4" />
-                            </button>
-                            {/* Own row: no delete affordance at all. The API
-                                also refuses it, this just avoids a dead-end. */}
-                            {!isSelf && (
+                          </td>
+                          <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
+                            @{account.username}
+                          </td>
+                          <td className="px-4 py-3.5 text-slate-500 dark:text-slate-400">
+                            {account.email || '—'}
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <span className={`badge whitespace-nowrap ${meta.badge}`}>{meta.label}</span>
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3.5 tabular-nums text-slate-500 dark:text-slate-400">
+                            {formatDateTime(account.created_at)}
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-slate-600 dark:text-slate-300">
+                              <span
+                                className={`h-1.5 w-1.5 rounded-full ${
+                                  account.is_active ? 'bg-emerald-500' : 'bg-slate-400'
+                                }`}
+                              />
+                              {account.is_active ? 'Đang hoạt động' : 'Bị khoá'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3.5 text-right">
+                            <div className="flex items-center justify-end gap-1">
                               <button
                                 type="button"
-                                onClick={() => setDeleteTarget(account)}
-                                className="rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-950/50 dark:hover:text-red-400"
-                                aria-label={`Xoá ${account.username}`}
+                                onClick={() => openEdit(account)}
+                                className="rounded-lg p-2 text-slate-500 hover:bg-sky-50 hover:text-sky-600 dark:text-slate-400 dark:hover:bg-sky-950/50 dark:hover:text-sky-400"
+                                aria-label={`Sửa thông tin ${account.username}`}
                               >
-                                <Icon name="trash" className="h-4 w-4" />
+                                <Icon name="pencil" className="h-4 w-4" />
                               </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })
-                )}
-              </tbody>
-            </table>
+                              {/* Locking yourself would need another owner to
+                                  undo it, so own row has no lock affordance.
+                                  The API refuses it as well. */}
+                              {!own && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setStatusTarget({
+                                      account,
+                                      nextActive: !account.is_active,
+                                    })
+                                  }
+                                  className={[
+                                    'rounded-lg p-2',
+                                    account.is_active
+                                      ? 'text-slate-500 hover:bg-amber-50 hover:text-amber-600 dark:text-slate-400 dark:hover:bg-amber-950/50 dark:hover:text-amber-400'
+                                      : 'text-slate-500 hover:bg-emerald-50 hover:text-emerald-600 dark:text-slate-400 dark:hover:bg-emerald-950/50 dark:hover:text-emerald-400',
+                                  ].join(' ')}
+                                  aria-label={`${
+                                    account.is_active ? 'Khoá' : 'Mở khoá'
+                                  } tài khoản ${account.username}`}
+                                >
+                                  <Icon
+                                    name={account.is_active ? 'lock' : 'unlock'}
+                                    className="h-4 w-4"
+                                  />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {!error && !loading && items.length > 0 && (
+            <div className="border-t border-slate-100 px-4 py-2.5 text-xs text-slate-400 dark:border-slate-800 dark:text-slate-500">
+              Quyền hạn chi tiết được cấu hình ở tab “Cấp phép &amp; Phân quyền”.
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-[minmax(240px,320px),1fr]">
+          <div className="card overflow-hidden">
+            <div className="border-b border-slate-200 px-4 py-3 dark:border-slate-800">
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Chọn tài khoản</p>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                {loading ? 'Đang tải…' : `${items.length} tài khoản`}
+              </p>
+            </div>
+
+            <div className="max-h-[560px] divide-y divide-slate-100 overflow-y-auto scrollbar-thin dark:divide-slate-800">
+              {loading ? (
+                <div className="space-y-3 p-4">
+                  {Array.from({ length: 4 }).map((_, idx) => (
+                    <div key={idx} className="h-12 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800" />
+                  ))}
+                </div>
+              ) : items.length === 0 ? (
+                <p className="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
+                  Chưa có tài khoản nào.
+                </p>
+              ) : (
+                items.map((account) => {
+                  const meta = ROLE_META[account.role] ?? ROLE_META.staff
+                  const active = account.user_id === selectedId
+                  const granted = PERMISSION_OPTIONS.filter((option) => account[option.key]).length
+
+                  return (
+                    <button
+                      key={account.user_id}
+                      type="button"
+                      onClick={() => setSelectedId(account.user_id)}
+                      aria-pressed={active}
+                      className={[
+                        'flex w-full items-center gap-3 px-4 py-3 text-left transition-colors',
+                        active
+                          ? 'bg-brand-50 dark:bg-brand-950/40'
+                          : 'hover:bg-slate-50 dark:hover:bg-slate-800/40',
+                      ].join(' ')}
+                    >
+                      <Avatar user={account} size="md" />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center gap-2">
+                          <span className="truncate text-sm font-semibold text-slate-900 dark:text-white">
+                            {account.full_name}
+                          </span>
+                          {!account.is_active && (
+                            <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                              Đã khoá
+                            </span>
+                          )}
+                        </span>
+                        <span className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                          <span className={`badge ${meta.badge} !px-1.5 !py-0`}>{meta.label}</span>
+                          <span className="truncate">@{account.username}</span>
+                        </span>
+                        <span className="mt-1 block text-[11px] text-slate-400 dark:text-slate-500">
+                          {granted}/{PERMISSION_OPTIONS.length} quyền được bật
+                        </span>
+                      </span>
+                      <Icon
+                        name="chevronRight"
+                        className={`h-4 w-4 shrink-0 ${
+                          active ? 'text-brand-600 dark:text-brand-300' : 'text-slate-300 dark:text-slate-600'
+                        }`}
+                      />
+                    </button>
+                  )
+                })
+              )}
+            </div>
           </div>
-        )}
-      </div>
+
+          {!selected || !draft ? (
+            <div className="card flex flex-col items-center justify-center px-6 py-16 text-center">
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500">
+                <Icon name="shield" className="h-6 w-6" />
+              </span>
+              <p className="mt-3 font-semibold text-slate-700 dark:text-slate-200">
+                Chọn một tài khoản để phân quyền
+              </p>
+              <p className="mt-1 max-w-sm text-sm text-slate-500 dark:text-slate-400">
+                Các nút gạt quyền hạn sẽ hiện ở đây. Thay đổi chỉ có hiệu lực sau khi bấm
+                “Lưu thay đổi quyền”.
+              </p>
+            </div>
+          ) : (
+            <div className="card overflow-hidden">
+              <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 px-4 py-3.5 dark:border-slate-800">
+                <Avatar user={selected} size="lg" />
+                <div className="min-w-0 flex-1">
+                  <p className="flex items-center gap-2 font-semibold text-slate-900 dark:text-white">
+                    <span className="truncate">{selected.full_name}</span>
+                    {editingSelf && (
+                      <span className="badge bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300">
+                        Bạn
+                      </span>
+                    )}
+                  </p>
+                  <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+                    @{selected.username}
+                    {selected.email ? ` · ${selected.email}` : ''}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-slate-400 dark:text-slate-500">Đang bật</p>
+                  <p className="text-sm font-semibold tabular-nums text-slate-700 dark:text-slate-200">
+                    {draftGrantedCount}/{PERMISSION_OPTIONS.length}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4 px-4 py-4">
+                {draftError && (
+                  <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
+                    <Icon name="warning" className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>{draftError}</span>
+                  </div>
+                )}
+
+                {editingSelf && (
+                  <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+                    <Icon name="shield" className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>
+                      Đây là tài khoản của bạn. Vai trò và quyền hạn được khoá để bạn không tự hạ
+                      quyền hoặc tự khoá mình khỏi hệ thống.
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="w-full sm:w-56">
+                    <Field
+                      label="Vai trò"
+                      htmlFor="perm-role"
+                      hint={editingSelf ? 'Không thể tự đổi vai trò.' : 'Vai trò là mức nền cho các quyền bên dưới.'}
+                    >
+                      <select
+                        id="perm-role"
+                        value={draft.role}
+                        onChange={(event) => setDraftField('role', event.target.value)}
+                        disabled={editingSelf}
+                        className={`input ${lockedInputClass}`}
+                      >
+                        {roleOptions.map((role) => (
+                          <option key={role} value={role}>
+                            {ROLE_META[role].label}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1 pb-1">
+                    <button
+                      type="button"
+                      onClick={() => setAllDraftFlags(true)}
+                      disabled={editingSelf}
+                      className="rounded-lg px-2 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-40 dark:text-brand-300 dark:hover:bg-brand-950/50"
+                    >
+                      Chọn tất cả
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAllDraftFlags(false)}
+                      disabled={editingSelf}
+                      className="rounded-lg px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 dark:text-slate-400 dark:hover:bg-slate-800"
+                    >
+                      Bỏ chọn
+                    </button>
+                    <button
+                      type="button"
+                      onClick={applyDraftRoleDefaults}
+                      disabled={editingSelf}
+                      className="rounded-lg px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 dark:text-slate-400 dark:hover:bg-slate-800"
+                    >
+                      Mặc định theo vai trò
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {PERMISSION_OPTIONS.map((option) => (
+                    <Toggle
+                      key={option.key}
+                      label={option.label}
+                      hint={option.hint}
+                      checked={Boolean(draft[option.key])}
+                      onChange={(value) => setDraftField(option.key, value)}
+                      disabled={editingSelf}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-slate-50/70 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/40">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {editingSelf
+                    ? 'Bạn không thể tự thu hồi quyền hạn của chính mình.'
+                    : draftDirty
+                      ? 'Có thay đổi chưa lưu.'
+                      : 'Chưa có thay đổi nào.'}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDraft({ role: selected.role, ...permissionSnapshot(selected) })}
+                    disabled={!draftDirty || savingDraft}
+                    className="btn-secondary"
+                  >
+                    Hoàn tác
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSavePermissions}
+                    disabled={editingSelf || !draftDirty || savingDraft}
+                    className="btn-primary"
+                  >
+                    {savingDraft ? (
+                      <>
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                        Đang lưu…
+                      </>
+                    ) : (
+                      <>
+                        <Icon name="check" className="h-4 w-4" />
+                        Lưu thay đổi quyền
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <p className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
         <Icon name="shield" className="h-4 w-4" />
-        Quyền hạn có hiệu lực ngay ở lần tải trang tiếp theo; hệ thống luôn giữ ít nhất một chủ sở hữu đang hoạt động.
+        Quyền hạn có hiệu lực ngay ở lần tải trang tiếp theo; hệ thống luôn giữ ít nhất một chủ sở
+        hữu đang hoạt động.
       </p>
 
+      {/* Create: needs a username, a password and a role, so it stays here
+          rather than in the basic-info dialog. */}
       <Modal
-        open={formOpen}
+        open={createOpen}
         size="lg"
-        title={editing ? 'Sửa tài khoản' : 'Thêm tài khoản'}
-        description={
-          editing
-            ? `Cập nhật thông tin và quyền hạn cho "${editing.username}".`
-            : 'Tạo tài khoản mới và chọn các quyền hạn được phép sử dụng.'
-        }
+        title="Thêm tài khoản"
+        description="Tạo tài khoản mới; quyền hạn chi tiết có thể chỉnh ở tab Cấp phép & Phân quyền."
         onClose={() => {
-          if (!saving) setFormOpen(false)
+          if (!creating) setCreateOpen(false)
         }}
         footer={
           <>
-            <button type="button" onClick={() => setFormOpen(false)} disabled={saving} className="btn-secondary">
+            <button
+              type="button"
+              onClick={() => setCreateOpen(false)}
+              disabled={creating}
+              className="btn-secondary"
+            >
               Huỷ
             </button>
-            <button type="submit" form="user-form" disabled={saving} className="btn-primary">
-              {saving ? (
+            <button type="submit" form="user-create-form" disabled={creating} className="btn-primary">
+              {creating ? (
                 <>
                   <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
                   Đang lưu…
@@ -548,37 +975,27 @@ export default function UsersPage() {
               ) : (
                 <>
                   <Icon name="check" className="h-4 w-4" />
-                  {editing ? 'Lưu thay đổi' : 'Tạo tài khoản'}
+                  Tạo tài khoản
                 </>
               )}
             </button>
           </>
         }
       >
-        <form id="user-form" onSubmit={handleSubmit} className="space-y-4" noValidate>
-          {formError && (
+        <form id="user-create-form" onSubmit={handleCreate} className="space-y-4" noValidate>
+          {createError && (
             <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
               <Icon name="warning" className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{formError}</span>
-            </div>
-          )}
-
-          {editingSelf && (
-            <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
-              <Icon name="shield" className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>
-                Đây là tài khoản của bạn. Vai trò, quyền hạn và trạng thái hoạt động
-                được khoá để bạn không tự hạ quyền hoặc tự khoá mình khỏi hệ thống.
-              </span>
+              <span>{createError}</span>
             </div>
           )}
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Họ và tên" htmlFor="full_name" required>
+            <Field label="Họ và tên" htmlFor="create_full_name" required>
               <input
-                id="full_name"
-                value={form.full_name}
-                onChange={(event) => setField('full_name', event.target.value)}
+                id="create_full_name"
+                value={createForm.full_name}
+                onChange={(event) => setCreateField('full_name', event.target.value)}
                 className="input"
                 maxLength={150}
                 placeholder="VD: Nguyễn Văn A"
@@ -586,11 +1003,11 @@ export default function UsersPage() {
               />
             </Field>
 
-            <Field label="Username" htmlFor="username" required>
+            <Field label="Username" htmlFor="create_username" required>
               <input
-                id="username"
-                value={form.username}
-                onChange={(event) => setField('username', event.target.value)}
+                id="create_username"
+                value={createForm.username}
+                onChange={(event) => setCreateField('username', event.target.value)}
                 className="input"
                 maxLength={50}
                 autoComplete="off"
@@ -599,37 +1016,50 @@ export default function UsersPage() {
               />
             </Field>
 
-            <Field
-              label={editing ? 'Mật khẩu mới' : 'Mật khẩu'}
-              htmlFor="password"
-              required={!editing}
-              hint={editing ? 'Để trống nếu không đổi mật khẩu.' : 'Tối thiểu 6 ký tự.'}
-            >
+            <Field label="Mật khẩu" htmlFor="create_password" required hint="Tối thiểu 6 ký tự.">
               <input
-                id="password"
+                id="create_password"
                 type="password"
-                value={form.password}
-                onChange={(event) => setField('password', event.target.value)}
+                value={createForm.password}
+                onChange={(event) => setCreateField('password', event.target.value)}
                 className="input"
                 maxLength={72}
                 autoComplete="new-password"
-                placeholder={editing ? '••••••••' : 'Tối thiểu 6 ký tự'}
-                required={!editing}
+                placeholder="Tối thiểu 6 ký tự"
+                required
+              />
+            </Field>
+
+            <Field
+              label="Email"
+              htmlFor="create_email"
+              required
+              hint="Tên đăng nhập và mật khẩu sẽ được gửi tới email này."
+            >
+              <input
+                id="create_email"
+                type="email"
+                value={createForm.email}
+                onChange={(event) => setCreateField('email', event.target.value)}
+                className="input"
+                maxLength={150}
+                placeholder="ten@cuahang.vn"
+                autoComplete="off"
+                required
               />
             </Field>
 
             <Field
               label="Vai trò"
-              htmlFor="role"
+              htmlFor="create_role"
               required
-              hint={editingSelf ? 'Bạn không thể tự thay đổi vai trò của mình.' : undefined}
+              hint="Đổi vai trò sẽ đặt lại các quyền bên dưới theo mức mặc định."
             >
               <select
-                id="role"
-                value={form.role}
-                onChange={(event) => applyRoleDefaults(event.target.value)}
-                disabled={editingSelf}
-                className={`input ${lockedInputClass}`}
+                id="create_role"
+                value={createForm.role}
+                onChange={(event) => applyCreateRoleDefaults(event.target.value)}
+                className="input"
               >
                 {roleOptions.map((role) => (
                   <option key={role} value={role}>
@@ -638,92 +1068,125 @@ export default function UsersPage() {
                 ))}
               </select>
             </Field>
+          </div>
 
-            <Field
-              label="Email"
-              htmlFor="email"
-              required={!editing}
-              hint={
-                editing
-                  ? 'Dùng để liên hệ và gửi lại thông tin khi cần.'
-                  : 'Tên đăng nhập và mật khẩu sẽ được gửi tới email này.'
-              }
+          <p className="flex items-start gap-2 rounded-xl bg-slate-50 px-3.5 py-2.5 text-xs text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
+            <Icon name="info" className="mt-0.5 h-4 w-4 shrink-0" />
+            Tài khoản được tạo với {PERMISSION_KEYS.filter((key) => createForm[key]).length} quyền
+            hạn mặc định của vai trò {ROLE_META[createForm.role].label.toLowerCase()}.
+          </p>
+        </form>
+      </Modal>
+
+      {/* Basic info: name and email only. Role and flags live in the other tab. */}
+      <Modal
+        open={Boolean(editTarget)}
+        title="Sửa thông tin cơ bản"
+        description={
+          editTarget ? `Cập nhật họ tên và email của "${editTarget.username}".` : undefined
+        }
+        onClose={() => {
+          if (!savingEdit) setEditTarget(null)
+        }}
+        footer={
+          <>
+            {/* Delete stays reachable but out of the list, so the table only
+                offers the three actions the tab is meant to have. */}
+            {editTarget && !isSelf(editTarget) && (
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(editTarget)}
+                disabled={savingEdit}
+                className="btn mr-auto inline-flex bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950/70"
+              >
+                <Icon name="trash" className="h-4 w-4" />
+                Xoá tài khoản
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setEditTarget(null)}
+              disabled={savingEdit}
+              className="btn-secondary"
             >
+              Huỷ
+            </button>
+            <button type="submit" form="user-edit-form" disabled={savingEdit} className="btn-primary">
+              {savingEdit ? (
+                <>
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                  Đang lưu…
+                </>
+              ) : (
+                <>
+                  <Icon name="check" className="h-4 w-4" />
+                  Lưu thay đổi
+                </>
+              )}
+            </button>
+          </>
+        }
+      >
+        <form id="user-edit-form" onSubmit={handleEdit} className="space-y-4" noValidate>
+          {editError && (
+            <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
+              <Icon name="warning" className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{editError}</span>
+            </div>
+          )}
+
+          <div className="grid gap-4">
+            <Field label="Họ và tên" htmlFor="edit_full_name" required>
               <input
-                id="email"
-                type="email"
-                value={form.email}
-                onChange={(event) => setField('email', event.target.value)}
+                id="edit_full_name"
+                value={editForm.full_name}
+                onChange={(event) => setEditForm((prev) => ({ ...prev, full_name: event.target.value }))}
                 className="input"
                 maxLength={150}
-                placeholder="ten@cuahang.vn"
-                required={!editing}
-                autoComplete="off"
+                required
               />
             </Field>
 
-            <div className="flex items-end">
-              <div className="w-full">
-                <Toggle
-                  label="Tài khoản đang hoạt động"
-                  hint={
-                    editingSelf
-                      ? 'Bạn không thể tự khoá tài khoản của mình.'
-                      : 'Tài khoản bị khoá sẽ không đăng nhập được.'
-                  }
-                  checked={Boolean(form.is_active)}
-                  onChange={(value) => setField('is_active', value)}
-                  disabled={editingSelf}
-                />
-              </div>
-            </div>
+            <Field label="Email" htmlFor="edit_email" hint="Dùng để liên hệ và gửi lại thông tin khi cần.">
+              <input
+                id="edit_email"
+                type="email"
+                value={editForm.email}
+                onChange={(event) => setEditForm((prev) => ({ ...prev, email: event.target.value }))}
+                className="input"
+                maxLength={150}
+                placeholder="ten@cuahang.vn"
+                autoComplete="off"
+              />
+            </Field>
           </div>
 
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Quyền hạn chi tiết</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {editingSelf
-                    ? 'Bạn không thể tự thu hồi quyền hạn của chính mình.'
-                    : 'Bật các quyền mà tài khoản này được phép sử dụng.'}
-                </p>
-              </div>
-              <div className="flex gap-1">
-                <button
-                  type="button"
-                  onClick={() => PERMISSION_KEYS.forEach((key) => setField(key, true))}
-                  disabled={editingSelf}
-                  className="rounded-lg px-2 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-40 dark:text-brand-300 dark:hover:bg-brand-950/50"
-                >
-                  Chọn tất cả
-                </button>
-                <button
-                  type="button"
-                  onClick={() => PERMISSION_KEYS.forEach((key) => setField(key, false))}
-                  disabled={editingSelf}
-                  className="rounded-lg px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 dark:text-slate-400 dark:hover:bg-slate-800"
-                >
-                  Bỏ chọn
-                </button>
-              </div>
-            </div>
-
-            <div className="grid gap-2 sm:grid-cols-2">
-              {PERMISSION_OPTIONS.map((option) => (
-                <Toggle
-                  key={option.key}
-                  label={option.label}
-                  hint={option.hint}
-                  checked={Boolean(form[option.key])}
-                  onChange={(value) => setField(option.key, value)}
-                  disabled={editingSelf}
-                />
-              ))}
-            </div>
-          </div>
+          <p className="flex items-start gap-2 rounded-xl bg-slate-50 px-3.5 py-2.5 text-xs text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
+            <Icon name="info" className="mt-0.5 h-4 w-4 shrink-0" />
+            Username là khoá đăng nhập nên không sửa ở đây. Vai trò và quyền hạn nằm ở tab
+            “Cấp phép &amp; Phân quyền”.
+          </p>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        open={Boolean(statusTarget)}
+        title={statusTarget?.nextActive ? 'Mở khoá tài khoản' : 'Khoá tài khoản'}
+        message={
+          statusTarget
+            ? statusTarget.nextActive
+              ? `Mở khoá "${statusTarget.account.full_name || statusTarget.account.username}"? Tài khoản sẽ đăng nhập được trở lại với nguyên quyền hạn cũ.`
+              : `Khoá "${statusTarget.account.full_name || statusTarget.account.username}"? Tài khoản sẽ không đăng nhập được cho tới khi được mở khoá lại.`
+            : ''
+        }
+        confirmLabel={statusTarget?.nextActive ? 'Mở khoá' : 'Khoá tài khoản'}
+        busyLabel={statusTarget?.nextActive ? 'Đang mở khoá…' : 'Đang khoá…'}
+        tone={statusTarget?.nextActive ? 'brand' : 'warning'}
+        icon={statusTarget?.nextActive ? 'unlock' : 'lock'}
+        busy={statusBusy}
+        onCancel={() => setStatusTarget(null)}
+        onConfirm={handleToggleStatus}
+      />
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}

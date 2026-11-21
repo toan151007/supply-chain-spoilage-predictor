@@ -3414,4 +3414,68 @@ cộng 9 năm sẽ ra tháng 1/2027, một năm **không có dữ liệu bán h�
 | Đăng nhập `staff` trên trình duyệt | Không thấy nút Thêm/Sửa/Xoá ở Sản phẩm/Nhóm hàng/Cửa hàng; vẫn thấy Thêm lô hàng (Kho) và Tạo đơn (Đơn hàng) |
 | Manager tắt `can_view_report` | `GET /reports/sales` trả **403** và menu Báo cáo biến mất |
 
+---
+
+# 21/11/2026 — Tách tab Danh sách tài khoản và Cấp phép & Phân quyền
+
+Trang `/users` trước đây gộp mọi thứ vào một bảng + một modal: mỗi lần sửa
+tên cũng phải gửi lại 7 cờ quyền, và mỗi lần bật/tắt quyền cũng phải gửi lại
+username, email, trạng thái. Nay chia thành **2 tab** và **3 endpoint riêng**.
+
+## 18.1. Giao diện hai tab (`frontend/src/pages/UsersPage.jsx`)
+
+**Tab 1 — “Danh sách tài khoản”**: bảng Họ tên · Username · Email · Vai trò ·
+**Ngày giờ tạo** (`dd/mm/yyyy HH:mm`, hàm mới `formatDateTime` trong
+`utils/format.js`) · Trạng thái · Thao tác. Chỉ có 3 việc:
+
+| Nút | Gọi API | Ghi chú |
+|---|---|---|
+| Thêm tài khoản mới | `POST /users` | Họ tên, username, mật khẩu, email, vai trò |
+| Sửa thông tin cơ bản | `PUT /users/{id}` | Chỉ họ tên + email (username là khoá đăng nhập) |
+| Khoá / Mở khoá | `PUT /users/{id}/status` | Hộp xác nhận màu hổ phách, icon ổ khoá |
+
+Không còn công tắc quyền nào ở tab này. Nút Xoá được đưa vào modal “Sửa thông
+tin cơ bản” (bên trái footer) để bảng giữ đúng 3 thao tác, vẫn không mất chức năng.
+
+**Tab 2 — “Cấp phép & Phân quyền”**: danh sách dọc tài khoản ở cột trái (kèm
+số quyền đang bật), chọn một dòng thì khung bên phải hiện vai trò + **7 công
+tắc** + nút “Chọn tất cả / Bỏ chọn / Mặc định theo vai trò” và
+**“Lưu thay đổi quyền”**. Nút Lưu chỉ bật khi có thay đổi thật (`draftDirty`),
+có thêm “Hoàn tác”. Tài khoản của chính mình bị khoá toàn bộ công tắc + ô vai
+trò kèm banner giải thích.
+
+## 18.2. Backend
+
+Hai endpoint mới trong `backend/app/routers/user_router.py`, cùng chịu
+`require_role("owner")` ở cấp router:
+
+| Endpoint | Body | Ghi chú |
+|---|---|---|
+| `PUT /api/v1/users/{id}/permissions` | 7 cờ `bool` (tuỳ chọn) + `role` (tuỳ chọn) | `None` = giữ nguyên; **không** gửi username/email/mật khẩu |
+| `PUT /api/v1/users/{id}/status` | `{ "is_active": bool }` | Chỉ đổi cờ hoạt động |
+
+- Cả hai đọc dòng hiện tại bằng `sp_Users_GetById`, merge rồi gọi
+  `sp_Users_Update` với `PasswordHash = NULL` (procedure hiểu là “giữ nguyên”)
+  qua helper `_save_row`. Không thêm procedure mới, không đổi schema.
+- `GET /users` vốn đã trả `created_at` + 7 cờ nên không phải sửa.
+- Giữ nguyên 3 chốt chống tự khoá mình: tự đổi vai trò → 403, tự tắt quyền
+  đang bật → 403, tự khoá tài khoản → 403; `sp_Users_Update` vẫn chặn hạ cấp
+  owner hoạt động cuối cùng (mã 50004).
+- `ConfirmDialog` thêm prop `tone` / `icon` / `busyLabel` (mặc định vẫn là đỏ +
+  icon thùng rác) để dùng lại cho hộp “Khoá tài khoản” mà chữ không còn là
+  “Đang xoá…”.
+
+## 18.3. Kết quả kiểm chứng
+
+| Kiểm tra | Kết quả |
+|---|---|
+| Script API (`users_tabs_check.py`, tài khoản tạm rồi xoá) | **30/30 PASS** |
+| Trong đó: quyền mới có hiệu lực **ngay** với token cũ | `GET /reports/inventory/export` 403 → 200 sau khi bật `can_view_report` |
+| Mật khẩu không bị đổi khi lưu quyền | đăng nhập lại bằng mật khẩu cũ vẫn 200 |
+| Khoá tài khoản | `PUT /status` → đăng nhập trả 403; mở khoá → 200 |
+| Manager gọi 2 endpoint mới | **403** (chỉ owner) |
+| Trình duyệt: staff đăng nhập lại sau khi được cấp quyền | `localStorage.scsp_user.can_view_report = true`, xuất báo cáo 200, `/users` vẫn 403 |
+| `npm run build` | PASS (687 module) |
+| `npm run lint` | 0 error (chỉ warning cũ) |
+
 

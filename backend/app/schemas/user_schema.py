@@ -63,6 +63,40 @@ class UserCreate(UserPermissionFields):
     avatar_url: Annotated[str | None, Field(max_length=500)] = None
 
 
+class UserPermissionsUpdate(BaseModel):
+    """
+    Request body for PUT /api/v1/users/{id}/permissions.
+
+    Every field is optional and `None` means "leave as is", so the permissions
+    tab can save exactly the switches it showed without resending the profile.
+    `role` rides along because the role is the baseline those switches are
+    layered on: choosing "Nhân viên" and keeping manager-level flags would be
+    a nonsensical combination.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    role: str | None = Field(default=None, pattern=ROLE_PATTERN)
+    can_edit_product: bool | None = None
+    can_delete_product: bool | None = None
+    can_view_report: bool | None = None
+    can_manage_inventory: bool | None = None
+    can_manage_order: bool | None = None
+    can_manage_transfer: bool | None = None
+    can_manage_user: bool | None = None
+
+
+class UserStatusUpdate(BaseModel):
+    """
+    Request body for PUT /api/v1/users/{id}/status.
+
+    Only the active switch: an administrator locking an account should not be
+    able to accidentally rewrite its role or permissions in the same call.
+    """
+
+    is_active: bool
+
+
 class UserUpdate(UserPermissionFields):
     """
     Request body for PUT /api/v1/users/{id}. All fields optional.
@@ -95,6 +129,8 @@ class UserUpdate(UserPermissionFields):
 __all__ = [
     "UserCreate",
     "UserCreated",
+    "UserPermissionsUpdate",
+    "UserStatusUpdate",
     "UserUpdate",
     "UserRead",
     "UserPermissionFields",

@@ -17,6 +17,11 @@ editing a name does not silently reset a password.
 Partial update: the stored procedure expects a whole row, so the router
 merges the payload into the current row before calling it. That is what lets
 an omitted field mean "unchanged" instead of "set to NULL".
+
+Writing is split by intent, not by table shape: PUT /users/{id} for the
+profile, PUT /users/{id}/permissions for the seven switches (plus the
+baseline role) and PUT /users/{id}/status for the active flag. Each one only
+needs to know about the fields its screen actually shows.
 """
 
 import logging
@@ -28,7 +33,14 @@ from starlette.concurrency import run_in_threadpool
 from app.database import DbSession, get_db, map_sqlserver_error
 from app.dependencies import CurrentUser, require_role
 from app.schemas.common import Page
-from app.schemas.user_schema import UserCreate, UserCreated, UserRead, UserUpdate
+from app.schemas.user_schema import (
+    UserCreate,
+    UserCreated,
+    UserPermissionsUpdate,
+    UserRead,
+    UserStatusUpdate,
+    UserUpdate,
+)
 from app.security import hash_password
 from app.services.email_service import (
     EmailDeliveryError,
@@ -105,6 +117,23 @@ def _write_params(data: dict) -> dict:
         "CanManageTransfer": as_bit(data.get("can_manage_transfer", False)),
         "CanManageUser": as_bit(data.get("can_manage_user", False)),
     }
+
+
+def _save_row(db: DbSession, user_id: int, row: dict) -> dict:
+    """
+    Write a whole row back through sp_Users_Update.
+
+    `PasswordHash` is always None here, which the procedure reads as "keep the
+    current hash". Used by the permissions and status endpoints, where the
+    password must never be part of the round trip.
+    """
+    for field in PERMISSION_FIELDS:
+        row.setdefault(field, False)
+
+    params = _write_params(row)
+    params["UserId"] = user_id
+    params["PasswordHash"] = None
+    return db.one("sp_Users_Update", params)
 
 
 async def _deliver_account_email(
@@ -279,6 +308,92 @@ def update_user(
         )
 
         return db.one("sp_Users_Update", params)
+    except HTTPException:
+        raise
+    except PyodbcError as exc:
+        raise map_sqlserver_error(exc) from exc
+
+
+@router.put(
+    "/{user_id}/permissions",
+    response_model=UserRead,
+    summary="Grant or revoke permission flags",
+)
+def update_user_permissions(
+    user_id: int,
+    payload: UserPermissionsUpdate,
+    current: CurrentUser,
+    db: DbSession = Depends(get_db),
+) -> dict:
+    """
+    Save the permission switches on their own.
+
+    The permissions tab never shows a username or an email, so routing that
+    save through PUT /users/{id} would mean resending profile fields the
+    administrator did not touch. This endpoint only merges the switches (and
+    the optional baseline role) into the stored row.
+
+    The same self-lockout guards as PUT /users/{id} apply: an owner cannot
+    demote itself or switch off its own permissions from here either.
+    """
+    # None means "unchanged", so drop it before merging.
+    changes = payload.model_dump(exclude_none=True)
+
+    try:
+        existing = _get_row_or_404(db, user_id)
+
+        if user_id == current["user_id"]:
+            if "role" in changes and changes["role"] != existing["role"]:
+                raise HTTPException(
+                    status_code=HTTP_403_FORBIDDEN,
+                    detail=SELF_ROLE_MESSAGE,
+                )
+
+            revoked = [
+                field
+                for field in PERMISSION_FIELDS
+                if changes.get(field) is False and existing.get(field)
+            ]
+            if revoked:
+                raise HTTPException(
+                    status_code=HTTP_403_FORBIDDEN,
+                    detail=SELF_PERMISSION_MESSAGE,
+                )
+
+        return _save_row(db, user_id, {**existing, **changes})
+    except HTTPException:
+        raise
+    except PyodbcError as exc:
+        raise map_sqlserver_error(exc) from exc
+
+
+@router.put(
+    "/{user_id}/status",
+    response_model=UserRead,
+    summary="Lock or unlock an account",
+)
+def update_user_status(
+    user_id: int,
+    payload: UserStatusUpdate,
+    current: CurrentUser,
+    db: DbSession = Depends(get_db),
+) -> dict:
+    """
+    Flip only `is_active`.
+
+    Keeping this separate keeps locking an account from becoming a
+    read-modify-write of every column on the page: the row is fetched, one
+    field changes, and the stored procedure keeps the last-active-owner rule.
+    """
+    if user_id == current["user_id"] and not payload.is_active:
+        raise HTTPException(
+            status_code=HTTP_403_FORBIDDEN,
+            detail=SELF_DEACTIVATE_MESSAGE,
+        )
+
+    try:
+        existing = _get_row_or_404(db, user_id)
+        return _save_row(db, user_id, {**existing, "is_active": payload.is_active})
     except HTTPException:
         raise
     except PyodbcError as exc:

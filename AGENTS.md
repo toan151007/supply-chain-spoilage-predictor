@@ -132,6 +132,24 @@ ngoài dự báo nhu cầu còn có **điều chuyển hàng giữa cửa hàng*
     Khi submit, payload **bỏ** `role`, `is_active` và các cờ quyền — chỉ gửi họ tên,
     username, email, avatar (+ mật khẩu nếu có). Nhờ vậy sửa tên chính mình vẫn lưu được
     dù backend chặn đổi quyền.
+15. **Tách tab Danh sách / Phân quyền (21/11/2026):** trang `/users` có **2 tab**:
+    - **"Danh sách tài khoản"** — bảng Họ tên · Username · Email · Vai trò ·
+      **Ngày giờ tạo** (`formatDateTime` → `dd/mm/yyyy HH:mm`) · Trạng thái · Thao tác.
+      Chỉ 3 thao tác: Thêm tài khoản mới (`POST /users`), Sửa thông tin cơ bản
+      (`PUT /users/{id}` — **chỉ họ tên + email**, username là khoá đăng nhập),
+      Khoá/Mở khoá (`PUT /users/{id}/status`). Không có công tắc quyền ở tab này.
+      Nút Xoá nằm trong modal Sửa (footer bên trái) để bảng không có thao tác thứ tư.
+    - **"Cấp phép & Phân quyền"** — danh sách dọc bên trái (kèm `x/7 quyền`), khung bên
+      phải có ô Vai trò + 7 công tắc + "Chọn tất cả / Bỏ chọn / Mặc định theo vai trò"
+      + **"Lưu thay đổi quyền"** (chỉ bật khi `draftDirty`) + "Hoàn tác". Tự chọn tài
+      khoản của mình thì khoá hết kèm banner.
+    - Backend: thêm `PUT /users/{id}/permissions` (7 cờ tuỳ chọn + `role` tuỳ chọn,
+      `None` = giữ nguyên) và `PUT /users/{id}/status` (`{is_active}`). Cả hai đọc dòng
+      bằng `sp_Users_GetById`, merge rồi gọi `sp_Users_Update` với `PasswordHash = NULL`
+      qua helper `_save_row` — **không thêm procedure, không đổi schema**. Vẫn owner-only
+      và vẫn giữ 3 chốt chống tự khoá mình (403).
+    - `ConfirmDialog` có thêm prop `tone` / `icon` / `busyLabel` (mặc định giữ nguyên đỏ +
+      thùng rác) để dùng cho hộp "Khoá tài khoản" mà không hiện chữ "Đang xoá…".
 
 ## Rules (BẮT BUỘC TUÂN THỦ)
 
@@ -620,6 +638,7 @@ Chương 2 là cơ sở lý thuyết, trình bày cả 5 mô hình, chỉ **kỳ
 - [x] **EMAIL THÔNG BÁO TÀI KHOẢN (19/11/2026)**: `fastapi-mail==1.6.8` + `services/email_service.py`; `POST /users` gửi thông tin đăng nhập tới email trong form (best-effort, không rollback tài khoản nếu SMTP lỗi); response `UserCreated` thêm `email_sent`/`email_message`; form bắt buộc Email khi tạo + toast "Đã tạo tài khoản và gửi thông tin về email …" hoặc cảnh báo vàng. Test: API 201 + `email_sent=false` khi chưa cấu hình SMTP, `email_sent=true` với `MAIL_SUPPRESS_SEND=1`
 - [x] **CHẶN TỰ HẠ QUYỀN / TỰ XOÁ MÌNH (19/11/2026)**: `PUT /users/{id}` trả 403 khi tự đổi vai trò, tự tắt quyền đang bật hoặc tự khoá tài khoản; `DELETE /users/{id}` trả 403 khi xoá chính mình. Modal Sửa tài khoản của chính mình khoá Vai trò + 7 công tắc quyền + công tắc hoạt động, ẩn nút xoá, và không gửi các trường bị khoá trong payload. Test API 6/6 PASS (4 lần 403 + tự sửa tên 200 + owner vẫn hoạt động); trình duyệt xác nhận disable/ẩn đúng; `npm run build` PASS
 - [x] **CHUẨN HOÁ RBAC + ĐỒNG BỘ DỮ LIỆU 2026 (20/11/2026)**: `dependencies.require_permission(flag)` chặn theo 7 cờ quyền (đọc lại `users` mỗi request nên có hiệu lực ngay); gắn vào toàn bộ endpoint ghi — sản phẩm/nhóm/cửa hàng/import dùng `can_edit_product` (+ `can_delete_product` khi xoá), kho dùng `can_manage_inventory`, đơn hàng `can_manage_order`, điều chuyển `can_manage_transfer`, `/reports/*` là `can_view_report`, `/chat` yêu cầu đăng nhập. Frontend tách `canEdit`/`canDelete`/`canWrite` cho Sản phẩm · Nhóm hàng · Cửa hàng, dùng cờ cho Kho/Đơn hàng/Điều chuyển (staff vẫn ghi được). Script `scripts/shift_and_generate_2026.py`: cộng **3287 ngày** cho dữ liệu trước 2019 (2013→2022 … 2017→2026), sinh lại bán hàng 01/01→20/11/2026 (3.240 đơn · 162.000 dòng hàng) theo mùa vụ + ngày lễ, dời khung dự báo về 21/11–20/12/2026, chạy lại 3 procedure cảnh báo. 0 lỗi FK, `npm run build` PASS
+- [x] **TÁCH TAB DANH SÁCH / PHÂN QUYỀN (21/11/2026)**: `/users` có 2 tab — "Danh sách tài khoản" (bảng có cột **Ngày giờ tạo** `dd/mm/yyyy HH:mm`, chỉ Thêm / Sửa thông tin cơ bản (tên + email) / Khoá–Mở khoá, không có công tắc quyền) và "Cấp phép & Phân quyền" (danh sách chọn bên trái, khung 7 công tắc + ô vai trò + "Lưu thay đổi quyền" bên phải). Backend thêm `PUT /users/{id}/permissions` và `PUT /users/{id}/status` (owner-only, merge dòng hiện tại rồi gọi `sp_Users_Update` với `PasswordHash = NULL`, không thêm procedure mới). Test API **30/30 PASS**, quyền mới có hiệu lực ngay với token đang dùng (report 403 → 200), tài khoản bị khoá không đăng nhập được; trình duyệt xác nhận 2 tab, modal sửa cơ bản, hộp khoá tài khoản; `npm run build` PASS, `npm run lint` 0 error
 - [ ] T2: README con cho từng thư mục
 - [ ] Tích hợp AI Model
 
