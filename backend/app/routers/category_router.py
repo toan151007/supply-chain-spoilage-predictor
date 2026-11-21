@@ -1,4 +1,4 @@
-﻿"""
+"""
 CRUD router for categories (B3 - SQL Server Stored Procedure).
 
 Categories form a two-level hierarchy (`parent_category_id` references the
@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pyodbc import Error as PyodbcError
 
 from app.database import DbSession, get_db, map_sqlserver_error
-from app.dependencies import require_role
+from app.dependencies import require_permission, require_role
 from app.schemas.category_schema import CategoryCreate, CategoryRead, CategoryUpdate
 from app.schemas.common import Page
 
@@ -75,7 +75,10 @@ def get_category(category_id: int, db: DbSession = Depends(get_db)) -> dict:
 @router.post(
     "", response_model=CategoryRead, status_code=status.HTTP_201_CREATED,
     summary="Create a category",
-    dependencies=[Depends(require_role("owner", "manager"))],
+    dependencies=[
+        Depends(require_role("owner", "manager")),
+        Depends(require_permission("can_edit_product")),
+    ],
 )
 def create_category(payload: CategoryCreate, db: DbSession = Depends(get_db)) -> dict:
     data = payload.model_dump()
@@ -94,7 +97,10 @@ def create_category(payload: CategoryCreate, db: DbSession = Depends(get_db)) ->
 
 @router.put(
     "/{category_id}", response_model=CategoryRead, summary="Update a category",
-    dependencies=[Depends(require_role("owner", "manager"))],
+    dependencies=[
+        Depends(require_role("owner", "manager")),
+        Depends(require_permission("can_edit_product")),
+    ],
 )
 def update_category(
     category_id: int, payload: CategoryUpdate, db: DbSession = Depends(get_db)
@@ -120,7 +126,10 @@ def update_category(
 @router.delete(
     "/{category_id}", status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a category",
-    dependencies=[Depends(require_role("owner", "manager"))],
+    dependencies=[
+        Depends(require_role("owner", "manager")),
+        Depends(require_permission("can_edit_product")),
+    ],
 )
 def delete_category(category_id: int, db: DbSession = Depends(get_db)) -> None:
     try:

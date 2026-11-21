@@ -3342,4 +3342,76 @@ trước khi ghi:
    quyền làm điều này với chính mình" là **Forbidden**; đồng thời thống nhất thông điệp
    tiếng Việt với ba trường hợp còn lại.
 
+## 17. Chuẩn hoá RBAC + đồng bộ dữ liệu thời gian sang 2026 (20/11/2026)
+
+### 17.1. Phân quyền backend
+
+Trước đây endpoint chỉ kiểm tra **vai trò** (`require_role`). Một manager bị tắt
+`can_view_report` vẫn gọi được API báo cáo, vì cờ quyền chỉ được dùng để ẩn menu.
+Đã thêm `require_permission(flag)` trong `backend/app/dependencies.py`: đọc lại
+`users` qua `sp_Users_GetById` ở mỗi request nên thay đổi quyền có hiệu lực ngay,
+không chờ token hết hạn.
+
+| Nhóm endpoint | Vai trò | Cờ quyền bắt buộc |
+|---|---|---|
+| `POST/PUT/DELETE /products`, `/categories`, `/stores`, import Excel | owner, manager | `can_edit_product` (xoá sản phẩm: `can_delete_product`) |
+| Ghi `/inventory` | owner, manager, staff | `can_manage_inventory` |
+| Ghi `/orders`, `/order-items` | owner, manager, staff | `can_manage_order` |
+| Ghi `/transfers` (duyệt / từ chối) | owner, manager | `can_manage_transfer` |
+| Ghi `/transfers` (gửi duyệt, huỷ, giao, nhận) | owner, manager, staff | `can_manage_transfer` |
+| `/reports/*` (đọc) | mọi vai trò đã đăng nhập | `can_view_report` |
+| `/users/*` | **owner** | — (router đã owner-only) |
+| `POST /chat` | owner, manager, staff | — |
+
+`GET` vẫn mở cho mọi tài khoản đã đăng nhập; chỉ các endpoint ghi mới siết.
+
+### 17.2. Phân quyền frontend
+
+Các trang danh mục/sản phẩm/cửa hàng tách 3 biến:
+
+```js
+const canEdit   = isAdmin && hasPermission('can_edit_product')
+const canDelete = isAdmin && hasPermission('can_delete_product')
+const canWrite  = canEdit || canDelete
+```
+
+- Nút "Thêm" chỉ hiện khi `canEdit`; nút bút chì khi `canEdit`; nút thùng rác khi
+  `canDelete`; cả cột "Thao tác" ẩn khi `canWrite === false` (kể cả header và `colSpan`).
+- `InventoryPage` và `OrdersPage` không dùng `isAdmin` nữa mà dùng cờ
+  `can_manage_inventory` / `can_manage_order`, vì **staff được ghi** hai module này.
+- `TransfersPage`: `canManage = hasPermission('can_manage_transfer')`,
+  `canApprove = isAdmin && canManage` — duyệt/từ chối vẫn chỉ owner/manager.
+- Sidebar đã lọc mục "Báo cáo" theo `can_view_report` từ trước; giờ backend chặn thật.
+
+### 17.3. Đồng bộ thời gian + sinh dữ liệu 2026
+
+Script một lần: `scripts/shift_and_generate_2026.py`.
+
+| Bước | Việc làm |
+|---|---|
+| 1 | Cộng **3287 ngày** (~9 năm) cho mọi dòng trước `2019-01-01`: `orders` (kèm dựng lại `order_code`), `order_items.created_at`, `inventory`, `inventory_transactions`. 2013→2022 … 2017→2026. |
+| 2 | Xoá khối bản ghi đã dịch của năm hiện tại rồi **sinh lại** từ `01/01/2026` đến hôm nay: trung bình theo (cửa hàng, sản phẩm, tháng, thứ) + hệ số ngày lễ Mỹ + nhiễu ±10%. Kết quả 3.240 đơn · 162.000 dòng hàng. |
+| 3 | Dời **khung dự báo** về 30 ngày kể từ mai (giữ nguyên số lượng, tên mô hình, RMSE/MAE/MAPE). |
+| 4 | Gọi lại `sp_Maintenance_RefreshInventoryDates` → `sp_Alerts_Generate` → `sp_Maintenance_FinalizeAlerts`. |
+
+Vì sao **3287 ngày** chứ không `DATEADD(YEAR, 9, ...)`: SQL Server gán
+`2016-02-29 + 9 năm = 2025-02-28`, trùng `order_code` với `2016-02-28 + 9 năm`
+và vi phạm `uq_orders_order_code`. Cộng số ngày là ánh xạ 1-1 nên không thể trùng.
+
+Vì sao **dời khung dự báo về 2026** chứ không cộng thẳng 9 năm (2018→2027):
+cộng 9 năm sẽ ra tháng 1/2027, một năm **không có dữ liệu bán hàng**; dời về
+"mai → +29 ngày" giữ được ý nghĩa "dự báo 30 ngày tới" và trang Dự báo hiển thị 2026.
+
+### 17.4. Kết quả kiểm chứng
+
+| Kiểm tra | Kết quả |
+|---|---|
+| `python scripts/shift_and_generate_2026.py` | 0 lỗi FK; `orders` 2022-01-01 → 2026-11-20; 3.240 đơn năm 2026 |
+| Toàn vẹn | 0 đơn không có dòng hàng, 0 dòng hàng mồ côi, 0 đơn tổng = 0 |
+| `forecasts` | 2026-11-21 → 2026-12-20 (3.000 dòng, 100 cặp × 30 ngày) |
+| `alerts` | tạo lại theo hôm nay, không còn cảnh báo `expired` tạo trước ngày hết hạn |
+| `npm run build` | PASS |
+| Đăng nhập `staff` trên trình duyệt | Không thấy nút Thêm/Sửa/Xoá ở Sản phẩm/Nhóm hàng/Cửa hàng; vẫn thấy Thêm lô hàng (Kho) và Tạo đơn (Đơn hàng) |
+| Manager tắt `can_view_report` | `GET /reports/sales` trả **403** và menu Báo cáo biến mất |
+
 

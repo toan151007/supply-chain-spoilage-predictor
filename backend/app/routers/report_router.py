@@ -31,8 +31,15 @@ from fastapi.responses import StreamingResponse
 from pyodbc import Error as PyodbcError
 
 from app.database import DbSession, get_db, map_sqlserver_error
+from app.dependencies import require_permission
 
-router = APIRouter(prefix="/reports", tags=["reports"])
+# Reports are sensitive and the administrator can switch the right off for a
+# manager, so this is checked per request rather than only hidden in the menu.
+router = APIRouter(
+    prefix="/reports",
+    tags=["reports"],
+    dependencies=[Depends(require_permission("can_view_report"))],
+)
 
 HTTP_422_UNPROCESSABLE_CONTENT = 422
 

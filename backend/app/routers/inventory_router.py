@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pyodbc import Error as PyodbcError
 
 from app.database import DbSession, get_db, map_sqlserver_error
-from app.dependencies import require_role
+from app.dependencies import require_permission, require_role
 from app.schemas.common import Page
 from app.schemas.inventory_schema import (
     ExpiringReport,
@@ -131,7 +131,10 @@ def get_inventory(inventory_id: int, db: DbSession = Depends(get_db)) -> dict:
 @router.post(
     "", response_model=InventoryRead, status_code=status.HTTP_201_CREATED,
     summary="Create a stock batch",
-    dependencies=[Depends(require_role("owner", "manager", "staff"))],
+    dependencies=[
+        Depends(require_role("owner", "manager", "staff")),
+        Depends(require_permission("can_manage_inventory")),
+    ],
 )
 def create_inventory(
     payload: InventoryCreate, db: DbSession = Depends(get_db)
@@ -163,7 +166,10 @@ def create_inventory(
 
 @router.put(
     "/{inventory_id}", response_model=InventoryRead, summary="Update a stock batch",
-    dependencies=[Depends(require_role("owner", "manager", "staff"))],
+    dependencies=[
+        Depends(require_role("owner", "manager", "staff")),
+        Depends(require_permission("can_manage_inventory")),
+    ],
 )
 def update_inventory(
     inventory_id: int, payload: InventoryUpdate, db: DbSession = Depends(get_db)
@@ -191,7 +197,10 @@ def update_inventory(
 @router.delete(
     "/{inventory_id}", status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a stock batch",
-    dependencies=[Depends(require_role("owner", "manager", "staff"))],
+    dependencies=[
+        Depends(require_role("owner", "manager", "staff")),
+        Depends(require_permission("can_manage_inventory")),
+    ],
 )
 def delete_inventory(inventory_id: int, db: DbSession = Depends(get_db)) -> None:
     try:

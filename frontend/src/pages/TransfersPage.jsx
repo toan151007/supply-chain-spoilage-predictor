@@ -114,12 +114,12 @@ function StatusBadge({ status }) {
 }
 
 /** Nhung thao tac duoc phep o tung trang thai (backend van la noi quyet dinh). */
-function availableActions(transfer, isAdmin) {
+function availableActions(transfer, canApprove) {
   switch (transfer.status) {
     case 'proposed':
-      return isAdmin ? ['approve', 'reject', 'submit', 'cancel'] : ['submit', 'cancel']
+      return canApprove ? ['approve', 'reject', 'submit', 'cancel'] : ['submit', 'cancel']
     case 'pending':
-      return isAdmin ? ['approve', 'reject', 'cancel'] : ['cancel']
+      return canApprove ? ['approve', 'reject', 'cancel'] : ['cancel']
     case 'approved':
       return ['ship']
     case 'in_transit':
@@ -147,7 +147,10 @@ function TableSkeleton() {
 
 export default function TransfersPage() {
   const navigate = useNavigate()
-  const { isAdmin } = useAuth()
+  const { isAdmin, hasPermission } = useAuth()
+  /* Approve/reject stay manager-only; ordinary actions need the transfer flag. */
+  const canManage = hasPermission('can_manage_transfer')
+  const canApprove = isAdmin && canManage
 
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
@@ -351,10 +354,12 @@ export default function TransfersPage() {
             Luân chuyển hàng giữa các cửa hàng theo quy trình đề xuất → chờ duyệt → đã duyệt → đang chuyển → đã nhận.
           </p>
         </div>
-        <button type="button" onClick={openCreate} className="btn-primary w-fit">
-          <Icon name="plus" className="h-4 w-4" />
-          Tạo yêu cầu
-        </button>
+        {canManage && (
+          <button type="button" onClick={openCreate} className="btn-primary w-fit">
+            <Icon name="plus" className="h-4 w-4" />
+            Tạo yêu cầu
+          </button>
+        )}
       </div>
 
       {/* Thanh quy trinh: bam vao mot buoc de loc */}
@@ -512,7 +517,7 @@ export default function TransfersPage() {
                   ) : (
                     data.items.map((item) => {
                       const priority = PRIORITY_META[item.priority] ?? PRIORITY_META.normal
-                      const actions = availableActions(item, isAdmin)
+                      const actions = availableActions(item, canApprove)
                       return (
                         <tr
                           key={item.transfer_id}

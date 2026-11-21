@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pyodbc import Error as PyodbcError
 
 from app.database import DbSession, get_db, map_sqlserver_error
-from app.dependencies import require_role
+from app.dependencies import require_permission, require_role
 from app.schemas.order_item_schema import (
     OrderItemCreate,
     OrderItemPage,
@@ -94,7 +94,10 @@ def get_order_item(order_item_id: int, db: DbSession = Depends(get_db)) -> dict:
 @router.post(
     "", response_model=OrderItemRead, status_code=status.HTTP_201_CREATED,
     summary="Add a line to an order",
-    dependencies=[Depends(require_role("owner", "manager", "staff"))],
+    dependencies=[
+        Depends(require_role("owner", "manager", "staff")),
+        Depends(require_permission("can_manage_order")),
+    ],
 )
 def create_order_item(
     payload: OrderItemCreate, db: DbSession = Depends(get_db)
@@ -119,7 +122,10 @@ def create_order_item(
 
 @router.put(
     "/{order_item_id}", response_model=OrderItemRead, summary="Update a line",
-    dependencies=[Depends(require_role("owner", "manager", "staff"))],
+    dependencies=[
+        Depends(require_role("owner", "manager", "staff")),
+        Depends(require_permission("can_manage_order")),
+    ],
 )
 def update_order_item(
     order_item_id: int, payload: OrderItemUpdate, db: DbSession = Depends(get_db)
@@ -153,7 +159,10 @@ def update_order_item(
 @router.delete(
     "/{order_item_id}", status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a line",
-    dependencies=[Depends(require_role("owner", "manager", "staff"))],
+    dependencies=[
+        Depends(require_role("owner", "manager", "staff")),
+        Depends(require_permission("can_manage_order")),
+    ],
 )
 def delete_order_item(order_item_id: int, db: DbSession = Depends(get_db)) -> None:
     try:

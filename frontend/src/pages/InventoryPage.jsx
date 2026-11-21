@@ -62,7 +62,10 @@ function toDateOnly(value) {
 
 export default function InventoryPage() {
   const navigate = useNavigate()
-  const { isAdmin } = useAuth()
+  const { hasPermission } = useAuth()
+  /* Inventory is the one module staff may write to, so the gate is the
+     permission flag rather than the role. */
+  const canManage = hasPermission('can_manage_inventory')
   const [tab, setTab] = useState('all')
   const [page, setPage] = useState(1)
   const [expDays, setExpDays] = useState(7)
@@ -131,9 +134,9 @@ export default function InventoryPage() {
     }
   }, [tab, page, expDays, reloadKey])
 
-  /* Only admins can write, so only they need the dropdown data. */
+  /* Only accounts with the inventory permission need the dropdown data. */
   useEffect(() => {
-    if (!isAdmin) return undefined
+    if (!canManage) return undefined
     let cancelled = false
 
     Promise.all([
@@ -152,11 +155,11 @@ export default function InventoryPage() {
     return () => {
       cancelled = true
     }
-  }, [isAdmin])
+  }, [canManage])
 
   const items = tab === 'expiring' ? expiring.items : data.items
   const totalCount = tab === 'expiring' ? expiring.total : data.total
-  const columns = isAdmin ? 8 : 7
+  const columns = canManage ? 8 : 7
 
   const storeNameById = useMemo(() => {
     const map = new Map()
@@ -312,7 +315,7 @@ export default function InventoryPage() {
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Quản lý lô hàng tồn kho theo cửa hàng và hạn sử dụng.</p>
         </div>
         <div className="flex items-center gap-2">
-          {isAdmin && (
+          {canManage && (
             <button type="button" onClick={openCreate} className="btn-primary w-fit">
               <Icon name="plus" className="h-4 w-4" />
               Thêm lô hàng
@@ -380,7 +383,7 @@ export default function InventoryPage() {
                     <th className="px-4 py-3 font-semibold">Ngày nhập</th>
                     <th className="px-4 py-3 font-semibold">Hạn sử dụng</th>
                     <th className="px-4 py-3 font-semibold">Tình trạng</th>
-                    {isAdmin && <th className="px-4 py-3 text-right font-semibold">Thao tác</th>}
+                    {canManage && <th className="px-4 py-3 text-right font-semibold">Thao tác</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -422,7 +425,7 @@ export default function InventoryPage() {
                               {badge.text}
                             </span>
                           </td>
-                          {isAdmin && (
+                          {canManage && (
                             <td className="px-4 py-3.5">
                               <div className="flex items-center justify-end gap-1">
                                 <button
@@ -471,10 +474,10 @@ export default function InventoryPage() {
           </>
         )}
       </div>
-      {!isAdmin && (
+      {!canManage && (
         <p className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
           <Icon name="shield" className="h-4 w-4" />
-          Tài khoản nhân viên có thể xem tồn kho. Chức năng thêm/sửa/xoá chỉ dành cho chủ sở hữu và quản lý.
+          Tài khoản của bạn đang tắt quyền quản lý kho nên chỉ xem được danh sách.
         </p>
       )}
 

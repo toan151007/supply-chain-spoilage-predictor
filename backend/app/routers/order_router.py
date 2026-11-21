@@ -23,7 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pyodbc import Error as PyodbcError
 
 from app.database import DbSession, get_db, map_sqlserver_error
-from app.dependencies import require_role
+from app.dependencies import require_permission, require_role
 from app.schemas.order_item_schema import OrderItemRead
 from app.schemas.order_schema import (
     OrderCreate,
@@ -190,7 +190,10 @@ def list_order_items(order_id: int, db: DbSession = Depends(get_db)) -> list[dic
 @router.post(
     "", response_model=OrderDetail, status_code=status.HTTP_201_CREATED,
     summary="Create an order together with its lines",
-    dependencies=[Depends(require_role("owner", "manager", "staff"))],
+    dependencies=[
+        Depends(require_role("owner", "manager", "staff")),
+        Depends(require_permission("can_manage_order")),
+    ],
 )
 def create_order(payload: OrderCreate, db: DbSession = Depends(get_db)) -> dict:
     """
@@ -243,7 +246,10 @@ def create_order(payload: OrderCreate, db: DbSession = Depends(get_db)) -> dict:
 
 @router.put(
     "/{order_id}", response_model=OrderRead, summary="Update an order",
-    dependencies=[Depends(require_role("owner", "manager", "staff"))],
+    dependencies=[
+        Depends(require_role("owner", "manager", "staff")),
+        Depends(require_permission("can_manage_order")),
+    ],
 )
 def update_order(
     order_id: int, payload: OrderUpdate, db: DbSession = Depends(get_db)
@@ -290,7 +296,10 @@ def update_order(
 @router.put(
     "/{order_id}/status", response_model=OrderRead,
     summary="Change the status of an order",
-    dependencies=[Depends(require_role("owner", "manager", "staff"))],
+    dependencies=[
+        Depends(require_role("owner", "manager", "staff")),
+        Depends(require_permission("can_manage_order")),
+    ],
 )
 def update_order_status(
     order_id: int, payload: OrderStatusUpdate, db: DbSession = Depends(get_db)
@@ -328,7 +337,10 @@ def update_order_status(
 @router.delete(
     "/{order_id}", status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete an order",
-    dependencies=[Depends(require_role("owner", "manager", "staff"))],
+    dependencies=[
+        Depends(require_role("owner", "manager", "staff")),
+        Depends(require_permission("can_manage_order")),
+    ],
 )
 def delete_order(order_id: int, db: DbSession = Depends(get_db)) -> None:
     """

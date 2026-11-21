@@ -71,7 +71,14 @@ function TableSkeleton() {
 
 export default function ProductsPage() {
   const navigate = useNavigate()
-  const { isAdmin } = useAuth()
+  const { isAdmin, hasPermission } = useAuth()
+
+  /* The role decides whether the account may touch master data at all; the
+     detailed flags decide which buttons. Manager can edit but not delete by
+     default, so gating on isAdmin alone would show a button the API rejects. */
+  const canEdit = isAdmin && hasPermission('can_edit_product')
+  const canDelete = isAdmin && hasPermission('can_delete_product')
+  const canWrite = canEdit || canDelete
 
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
@@ -137,9 +144,9 @@ export default function ProductsPage() {
     }
   }, [page, search, status, reloadKey])
 
-  /* The category list only changes when an admin edits it, so load it once. */
+  /* The category list only changes when a user with edit rights changes it. */
   useEffect(() => {
-    if (!isAdmin) return undefined
+    if (!canEdit) return undefined
     let cancelled = false
 
     api
@@ -154,7 +161,7 @@ export default function ProductsPage() {
     return () => {
       cancelled = true
     }
-  }, [isAdmin])
+  }, [canEdit])
 
   const activeCount = useMemo(
     () => data.items.filter((item) => item.is_active).length,
@@ -334,7 +341,7 @@ export default function ProductsPage() {
           </p>
         </div>
 
-        {isAdmin && (
+        {canEdit && (
           <button type="button" onClick={openCreate} className="btn-primary w-fit">
             <Icon name="plus" className="h-4 w-4" />
             Thêm sản phẩm
@@ -438,7 +445,7 @@ export default function ProductsPage() {
                     <th className="px-4 py-3 text-right font-semibold">Giá bán</th>
                     <th className="px-4 py-3 text-right font-semibold">Hạn sử dụng</th>
                     <th className="px-4 py-3 font-semibold">Trạng thái</th>
-                    {isAdmin && <th className="px-4 py-3 text-right font-semibold">Thao tác</th>}
+                    {canWrite && <th className="px-4 py-3 text-right font-semibold">Thao tác</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -446,7 +453,7 @@ export default function ProductsPage() {
                     <TableSkeleton />
                   ) : data.items.length === 0 ? (
                     <tr>
-                      <td colSpan={isAdmin ? 8 : 7} className="px-6 py-16 text-center">
+                      <td colSpan={canWrite ? 8 : 7} className="px-6 py-16 text-center">
                         <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500">
                           <Icon name="box" className="h-6 w-6" />
                         </span>
@@ -486,25 +493,29 @@ export default function ProductsPage() {
                         <td className="px-4 py-3.5">
                           <StatusBadge active={product.is_active} />
                         </td>
-                        {isAdmin && (
+                        {canWrite && (
                           <td className="px-4 py-3.5">
                             <div className="flex items-center justify-end gap-1">
-                              <button
-                                type="button"
-                                onClick={() => openEdit(product)}
-                                className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-sky-50 hover:text-sky-600 dark:text-slate-400 dark:hover:bg-sky-950/50 dark:hover:text-sky-400"
-                                aria-label={`Sửa ${product.product_name}`}
-                              >
-                                <Icon name="pencil" className="h-4 w-4" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setDeleteTarget(product)}
-                                className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-950/50 dark:hover:text-red-400"
-                                aria-label={`Xoá ${product.product_name}`}
-                              >
-                                <Icon name="trash" className="h-4 w-4" />
-                              </button>
+                              {canEdit && (
+                                <button
+                                  type="button"
+                                  onClick={() => openEdit(product)}
+                                  className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-sky-50 hover:text-sky-600 dark:text-slate-400 dark:hover:bg-sky-950/50 dark:hover:text-sky-400"
+                                  aria-label={`Sửa ${product.product_name}`}
+                                >
+                                  <Icon name="pencil" className="h-4 w-4" />
+                                </button>
+                              )}
+                              {canDelete && (
+                                <button
+                                  type="button"
+                                  onClick={() => setDeleteTarget(product)}
+                                  className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-950/50 dark:hover:text-red-400"
+                                  aria-label={`Xoá ${product.product_name}`}
+                                >
+                                  <Icon name="trash" className="h-4 w-4" />
+                                </button>
+                              )}
                             </div>
                           </td>
                         )}
@@ -552,10 +563,11 @@ export default function ProductsPage() {
         )}
       </div>
 
-      {!isAdmin && (
+      {!canWrite && (
         <p className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
           <Icon name="shield" className="h-4 w-4" />
-          Tài khoản nhân viên chỉ được xem danh sách. Nút thêm/sửa/xoá được ẩn theo phân quyền.
+          Tài khoản của bạn chỉ được xem danh sách. Nút thêm/sửa/xoá hiện theo quyền
+          được cấp.
         </p>
       )}
 

@@ -31,6 +31,7 @@ from pydantic import BaseModel, Field
 from pyodbc import Error as PyodbcError
 
 from app.config import settings
+from app.dependencies import require_role
 from app.database import DbSession, get_db, map_sqlserver_error
 from app.services import seasonal
 
@@ -716,7 +717,11 @@ def _fast_answer(message: str) -> str | None:
     return None
 
 
-@router.post("", response_model=ChatResponse)
+@router.post(
+    "",
+    response_model=ChatResponse,
+    dependencies=[Depends(require_role("owner", "manager", "staff"))],
+)
 def chat(payload: ChatRequest, db: DbSession = Depends(get_db)) -> ChatResponse:
     message = _fix_typos(payload.message).strip()
     sections = _pick_sections(message)

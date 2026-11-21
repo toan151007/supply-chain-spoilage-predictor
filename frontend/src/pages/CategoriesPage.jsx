@@ -34,7 +34,10 @@ function TableSkeleton({ cols }) {
 
 export default function CategoriesPage() {
   const navigate = useNavigate()
-  const { isAdmin } = useAuth()
+  const { isAdmin, hasPermission } = useAuth()
+  const canEdit = isAdmin && hasPermission('can_edit_product')
+  const canDelete = isAdmin && hasPermission('can_delete_product')
+  const canWrite = canEdit || canDelete
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [items, setItems] = useState([])
@@ -182,7 +185,7 @@ export default function CategoriesPage() {
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Phân cấp nhóm hàng (cha / con) dùng cho sản phẩm.</p>
         </div>
         <div className="flex items-center gap-2">
-          {isAdmin && (
+          {canEdit && (
             <button type="button" onClick={openCreate} className="btn-primary w-fit">
               <Icon name="plus" className="h-4 w-4" />
               Thêm nhóm hàng
@@ -219,15 +222,15 @@ export default function CategoriesPage() {
                   <th className="px-4 py-3 font-semibold">Mô tả</th>
                   <th className="px-4 py-3 font-semibold">Cấp</th>
                   <th className="px-4 py-3 font-semibold">Ngày tạo</th>
-                  {isAdmin && <th className="px-4 py-3 text-right font-semibold">Thao tác</th>}
+                  {canWrite && <th className="px-4 py-3 text-right font-semibold">Thao tác</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {loading ? (
-                  <TableSkeleton cols={isAdmin ? 5 : 4} />
+                  <TableSkeleton cols={canWrite ? 5 : 4} />
                 ) : roots.length === 0 ? (
                   <tr>
-                    <td colSpan={isAdmin ? 5 : 4} className="px-6 py-16 text-center">
+                    <td colSpan={canWrite ? 5 : 4} className="px-6 py-16 text-center">
                       <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500">
                         <Icon name="box" className="h-6 w-6" />
                       </span>
@@ -249,25 +252,29 @@ export default function CategoriesPage() {
                         <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">{root.description || '—'}</td>
                         <td className="px-4 py-3.5"><span className="badge bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300">Nhóm cha</span></td>
                         <td className="px-4 py-3.5 text-slate-500 dark:text-slate-400">{formatDate(root.created_at)}</td>
-                        {isAdmin && (
+                        {canWrite && (
                           <td className="px-4 py-3.5 text-right">
                             <div className="flex items-center justify-end gap-1">
-                              <button
-                                type="button"
-                                onClick={() => openEdit(root)}
-                                className="rounded-lg p-2 text-slate-500 hover:bg-sky-50 hover:text-sky-600 dark:text-slate-400 dark:hover:bg-sky-950/50 dark:hover:text-sky-400"
-                                aria-label={`Sửa ${root.category_name}`}
-                              >
-                                <Icon name="pencil" className="h-4 w-4" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setDeleteTarget(root)}
-                                className="rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-950/50 dark:hover:text-red-400"
-                                aria-label={`Xoá ${root.category_name}`}
-                              >
-                                <Icon name="trash" className="h-4 w-4" />
-                              </button>
+                              {canEdit && (
+                                <button
+                                  type="button"
+                                  onClick={() => openEdit(root)}
+                                  className="rounded-lg p-2 text-slate-500 hover:bg-sky-50 hover:text-sky-600 dark:text-slate-400 dark:hover:bg-sky-950/50 dark:hover:text-sky-400"
+                                  aria-label={`Sửa ${root.category_name}`}
+                                >
+                                  <Icon name="pencil" className="h-4 w-4" />
+                                </button>
+                              )}
+                              {canDelete && (
+                                <button
+                                  type="button"
+                                  onClick={() => setDeleteTarget(root)}
+                                  className="rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-950/50 dark:hover:text-red-400"
+                                  aria-label={`Xoá ${root.category_name}`}
+                                >
+                                  <Icon name="trash" className="h-4 w-4" />
+                                </button>
+                              )}
                             </div>
                           </td>
                         )}
@@ -283,25 +290,29 @@ export default function CategoriesPage() {
                           <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">{child.description || '—'}</td>
                           <td className="px-4 py-3.5"><span className="badge bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">Nhóm con</span></td>
                           <td className="px-4 py-3.5 text-slate-500 dark:text-slate-400">{formatDate(child.created_at)}</td>
-                          {isAdmin && (
+                          {canWrite && (
                             <td className="px-4 py-3.5 text-right">
                               <div className="flex items-center justify-end gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => openEdit(child)}
-                                  className="rounded-lg p-2 text-slate-500 hover:bg-sky-50 hover:text-sky-600 dark:text-slate-400 dark:hover:bg-sky-950/50 dark:hover:text-sky-400"
-                                  aria-label={`Sửa ${child.category_name}`}
-                                >
-                                  <Icon name="pencil" className="h-4 w-4" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setDeleteTarget(child)}
-                                  className="rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-950/50 dark:hover:text-red-400"
-                                  aria-label={`Xoá ${child.category_name}`}
-                                >
-                                  <Icon name="trash" className="h-4 w-4" />
-                                </button>
+                                {canEdit && (
+                                  <button
+                                    type="button"
+                                    onClick={() => openEdit(child)}
+                                    className="rounded-lg p-2 text-slate-500 hover:bg-sky-50 hover:text-sky-600 dark:text-slate-400 dark:hover:bg-sky-950/50 dark:hover:text-sky-400"
+                                    aria-label={`Sửa ${child.category_name}`}
+                                  >
+                                    <Icon name="pencil" className="h-4 w-4" />
+                                  </button>
+                                )}
+                                {canDelete && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setDeleteTarget(child)}
+                                    className="rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-950/50 dark:hover:text-red-400"
+                                    aria-label={`Xoá ${child.category_name}`}
+                                  >
+                                    <Icon name="trash" className="h-4 w-4" />
+                                  </button>
+                                )}
                               </div>
                             </td>
                           )}
@@ -315,10 +326,10 @@ export default function CategoriesPage() {
           </div>
         )}
       </div>
-      {!isAdmin && (
+      {!canWrite && (
         <p className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
           <Icon name="shield" className="h-4 w-4" />
-          Chỉ chủ sở hữu và quản lý mới có quyền thêm/sửa/xoá nhóm hàng.
+          Tài khoản của bạn chỉ được xem nhóm hàng; quyền thêm/sửa/xoá đang tắt.
         </p>
       )}
 

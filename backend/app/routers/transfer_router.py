@@ -23,7 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pyodbc import Error as PyodbcError
 
 from app.database import DbSession, get_db, map_sqlserver_error
-from app.dependencies import CurrentUser, require_role
+from app.dependencies import CurrentUser, require_permission, require_role
 from app.schemas.transfer_schema import (
     TransferCreate,
     TransferDecision,
@@ -182,7 +182,10 @@ def get_transfer(transfer_id: int, db: DbSession = Depends(get_db)) -> dict:
     response_model=TransferRead,
     status_code=status.HTTP_201_CREATED,
     summary="Tao yeu cau dieu chuyen",
-    dependencies=[Depends(require_role(*ANY_STAFF))],
+    dependencies=[
+        Depends(require_role(*ANY_STAFF)),
+        Depends(require_permission("can_manage_transfer")),
+    ],
 )
 def create_transfer(
     payload: TransferCreate,
@@ -219,7 +222,10 @@ def create_transfer(
     "/{transfer_id}/submit",
     response_model=TransferRead,
     summary="Gui yeu cau cho quan ly duyet",
-    dependencies=[Depends(require_role(*ANY_STAFF))],
+    dependencies=[
+        Depends(require_role(*ANY_STAFF)),
+        Depends(require_permission("can_manage_transfer")),
+    ],
 )
 def submit_transfer(
     transfer_id: int,
@@ -235,7 +241,10 @@ def submit_transfer(
     "/{transfer_id}/approve",
     response_model=TransferRead,
     summary="Duyet yeu cau dieu chuyen",
-    dependencies=[Depends(require_role(*MANAGER_ONLY))],
+    dependencies=[
+        Depends(require_role(*MANAGER_ONLY)),
+        Depends(require_permission("can_manage_transfer")),
+    ],
 )
 def approve_transfer(
     transfer_id: int,
@@ -258,7 +267,10 @@ def approve_transfer(
     "/{transfer_id}/reject",
     response_model=TransferRead,
     summary="Tu choi yeu cau dieu chuyen",
-    dependencies=[Depends(require_role(*MANAGER_ONLY))],
+    dependencies=[
+        Depends(require_role(*MANAGER_ONLY)),
+        Depends(require_permission("can_manage_transfer")),
+    ],
 )
 def reject_transfer(
     transfer_id: int,
@@ -281,7 +293,10 @@ def reject_transfer(
     "/{transfer_id}/cancel",
     response_model=TransferRead,
     summary="Huy yeu cau dieu chuyen",
-    dependencies=[Depends(require_role(*ANY_STAFF))],
+    dependencies=[
+        Depends(require_role(*ANY_STAFF)),
+        Depends(require_permission("can_manage_transfer")),
+    ],
 )
 def cancel_transfer(
     transfer_id: int,
@@ -297,7 +312,10 @@ def cancel_transfer(
     "/{transfer_id}/ship",
     response_model=TransferRead,
     summary="Xac nhan xuat kho, hang dang tren duong",
-    dependencies=[Depends(require_role(*ANY_STAFF))],
+    dependencies=[
+        Depends(require_role(*ANY_STAFF)),
+        Depends(require_permission("can_manage_transfer")),
+    ],
 )
 def ship_transfer(
     transfer_id: int,
@@ -313,7 +331,10 @@ def ship_transfer(
     "/{transfer_id}/complete",
     response_model=TransferRead,
     summary="Xac nhan da nhan hang, cap nhat kho hai ben",
-    dependencies=[Depends(require_role(*ANY_STAFF))],
+    dependencies=[
+        Depends(require_role(*ANY_STAFF)),
+        Depends(require_permission("can_manage_transfer")),
+    ],
 )
 def complete_transfer(
     transfer_id: int,

@@ -66,7 +66,10 @@ function toDateOnly(value) {
 
 export default function StoresPage() {
   const navigate = useNavigate()
-  const { isAdmin } = useAuth()
+  const { isAdmin, hasPermission } = useAuth()
+  const canEdit = isAdmin && hasPermission('can_edit_product')
+  const canDelete = isAdmin && hasPermission('can_delete_product')
+  const canWrite = canEdit || canDelete
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [items, setItems] = useState([])
@@ -218,7 +221,7 @@ export default function StoresPage() {
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Danh sách cửa hàng, nhà hàng và kho trong chuỗi.</p>
         </div>
         <div className="flex items-center gap-2">
-          {isAdmin && (
+          {canEdit && (
             <button type="button" onClick={openCreate} className="btn-primary w-fit">
               <Icon name="plus" className="h-4 w-4" />
               Thêm cửa hàng
@@ -258,15 +261,15 @@ export default function StoresPage() {
                   <th className="px-4 py-3 font-semibold">Điện thoại</th>
                   <th className="px-4 py-3 font-semibold">Ngày khai trương</th>
                   <th className="px-4 py-3 font-semibold">Trạng thái</th>
-                  {isAdmin && <th className="px-4 py-3 text-right font-semibold">Thao tác</th>}
+                  {canWrite && <th className="px-4 py-3 text-right font-semibold">Thao tác</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {loading ? (
-                  <TableSkeleton cols={isAdmin ? 8 : 7} />
+                  <TableSkeleton cols={canWrite ? 8 : 7} />
                 ) : items.length === 0 ? (
                   <tr>
-                    <td colSpan={isAdmin ? 8 : 7} className="px-6 py-16 text-center">
+                    <td colSpan={canWrite ? 8 : 7} className="px-6 py-16 text-center">
                       <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500">
                         <Icon name="dashboard" className="h-6 w-6" />
                       </span>
@@ -283,25 +286,29 @@ export default function StoresPage() {
                       <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">{store.phone || '—'}</td>
                       <td className="px-4 py-3.5 text-slate-500 dark:text-slate-400">{formatDate(store.opening_date)}</td>
                       <td className="px-4 py-3.5"><StatusBadge active={store.is_active} /></td>
-                      {isAdmin && (
+                      {canWrite && (
                         <td className="px-4 py-3.5 text-right">
                           <div className="flex items-center justify-end gap-1">
-                            <button
-                              type="button"
-                              onClick={() => openEdit(store)}
-                              className="rounded-lg p-2 text-slate-500 hover:bg-sky-50 hover:text-sky-600 dark:text-slate-400 dark:hover:bg-sky-950/50 dark:hover:text-sky-400"
-                              aria-label={`Sửa ${store.store_name}`}
-                            >
-                              <Icon name="pencil" className="h-4 w-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setDeleteTarget(store)}
-                              className="rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-950/50 dark:hover:text-red-400"
-                              aria-label={`Xoá ${store.store_name}`}
-                            >
-                              <Icon name="trash" className="h-4 w-4" />
-                            </button>
+                            {canEdit && (
+                              <button
+                                type="button"
+                                onClick={() => openEdit(store)}
+                                className="rounded-lg p-2 text-slate-500 hover:bg-sky-50 hover:text-sky-600 dark:text-slate-400 dark:hover:bg-sky-950/50 dark:hover:text-sky-400"
+                                aria-label={`Sửa ${store.store_name}`}
+                              >
+                                <Icon name="pencil" className="h-4 w-4" />
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button
+                                type="button"
+                                onClick={() => setDeleteTarget(store)}
+                                className="rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-950/50 dark:hover:text-red-400"
+                                aria-label={`Xoá ${store.store_name}`}
+                              >
+                                <Icon name="trash" className="h-4 w-4" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       )}
@@ -313,10 +320,10 @@ export default function StoresPage() {
           </div>
         )}
       </div>
-      {!isAdmin && (
+      {!canWrite && (
         <p className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
           <Icon name="shield" className="h-4 w-4" />
-          Chỉ chủ sở hữu và quản lý mới có quyền thêm/sửa/xoá cửa hàng.
+          Tài khoản của bạn chỉ được xem cửa hàng; quyền thêm/sửa/xoá đang tắt.
         </p>
       )}
 

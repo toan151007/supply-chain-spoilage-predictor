@@ -95,7 +95,9 @@ function DetailModal({ order, onClose }) {
 
 export default function OrdersPage() {
   const navigate = useNavigate()
-  const { isAdmin } = useAuth()
+  const { hasPermission } = useAuth()
+  /* Staff may create and update orders, so the flag is the gate here. */
+  const canManage = hasPermission('can_manage_order')
   const [page, setPage] = useState(1)
   const [type, setType] = useState('')
   const [status, setStatus] = useState('')
@@ -171,7 +173,7 @@ export default function OrdersPage() {
           <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-2xl">Đơn hàng</h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Theo dõi đơn bán hàng và đơn nhập hàng trên toàn chuỗi cửa hàng.</p>
         </div>
-        {(isAdmin) && (
+        {canManage && (
           <button type="button" onClick={() => setError('Tính năng tạo đơn hàng đang được phát triển.')} className="btn-primary w-fit">
             <Icon name="plus" className="h-4 w-4" />
             Tạo đơn mới
@@ -275,10 +277,10 @@ export default function OrdersPage() {
         )}
       </div>
       <DetailModal order={detail} onClose={() => setDetail(null)} />
-      {!isAdmin && (
+      {!canManage && (
         <p className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
           <Icon name="shield" className="h-4 w-4" />
-          Nút tạo đơn mới chỉ dành cho chủ sở hữu và quản lý.
+          Tài khoản của bạn đang tắt quyền quản lý đơn hàng nên chỉ xem được danh sách.
         </p>
       )}
     </div>

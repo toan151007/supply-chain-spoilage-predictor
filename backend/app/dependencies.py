@@ -208,6 +208,32 @@ def require_role(*allowed: str):
     return _checker
 
 
+def require_permission(flag: str):
+    """
+    Build a dependency that also requires one detailed permission flag.
+
+    The role check alone is not enough: an administrator can switch a flag
+    off for a manager (for example `can_view_report`), and the API must stop
+    honouring that account even though the role still allows the endpoint.
+    `current[flag]` comes from the `users` row returned by
+    `sp_Users_GetById`, so a change takes effect on the next request without
+    waiting for the JWT to expire.
+    """
+
+    def _checker(current: Annotated[dict, Depends(get_current_user)]) -> dict:
+        if not current.get(flag):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    f"Permission '{flag}' is required for this action and is "
+                    f"currently disabled for account '{current['username']}'"
+                ),
+            )
+        return current
+
+    return _checker
+
+
 # Convenience aliases so routers read clearly.
 CurrentUser = Annotated[dict, Depends(get_current_user)]
 AdminOnly = Annotated[dict, Depends(require_role("owner"))]

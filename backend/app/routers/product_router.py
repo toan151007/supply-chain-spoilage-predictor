@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pyodbc import Error as PyodbcError
 
 from app.database import DbSession, get_db, map_sqlserver_error
-from app.dependencies import require_role
+from app.dependencies import require_permission, require_role
 from app.schemas.product_schema import (
     ProductCreate,
     ProductPage,
@@ -82,7 +82,10 @@ def get_product(product_id: int, db: DbSession = Depends(get_db)) -> dict:
 @router.post(
     "", response_model=ProductRead, status_code=status.HTTP_201_CREATED,
     summary="Create a product",
-    dependencies=[Depends(require_role("owner", "manager"))],
+    dependencies=[
+        Depends(require_role("owner", "manager")),
+        Depends(require_permission("can_edit_product")),
+    ],
 )
 def create_product(payload: ProductCreate, db: DbSession = Depends(get_db)) -> dict:
     data = payload.model_dump()
@@ -118,7 +121,10 @@ def create_product(payload: ProductCreate, db: DbSession = Depends(get_db)) -> d
 
 @router.put(
     "/{product_id}", response_model=ProductRead, summary="Update a product",
-    dependencies=[Depends(require_role("owner", "manager"))],
+    dependencies=[
+        Depends(require_role("owner", "manager")),
+        Depends(require_permission("can_edit_product")),
+    ],
 )
 def update_product(
     product_id: int, payload: ProductUpdate, db: DbSession = Depends(get_db)
@@ -158,7 +164,10 @@ def update_product(
 @router.delete(
     "/{product_id}", status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a product",
-    dependencies=[Depends(require_role("owner", "manager"))],
+    dependencies=[
+        Depends(require_role("owner", "manager")),
+        Depends(require_permission("can_delete_product")),
+    ],
 )
 def delete_product(product_id: int, db: DbSession = Depends(get_db)) -> None:
     try:

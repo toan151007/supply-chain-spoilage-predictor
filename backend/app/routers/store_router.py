@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pyodbc import Error as PyodbcError
 
 from app.database import DbSession, get_db, map_sqlserver_error
-from app.dependencies import require_role
+from app.dependencies import require_permission, require_role
 from app.schemas.common import Page
 from app.schemas.store_schema import StoreCreate, StoreRead, StoreUpdate
 from app.sp_helpers import as_bit
@@ -73,7 +73,10 @@ def get_store(store_id: int, db: DbSession = Depends(get_db)) -> dict:
 @router.post(
     "", response_model=StoreRead, status_code=status.HTTP_201_CREATED,
     summary="Create a store",
-    dependencies=[Depends(require_role("owner", "manager"))],
+    dependencies=[
+        Depends(require_role("owner", "manager")),
+        Depends(require_permission("can_edit_product")),
+    ],
 )
 def create_store(payload: StoreCreate, db: DbSession = Depends(get_db)) -> dict:
     data = payload.model_dump()
@@ -97,7 +100,10 @@ def create_store(payload: StoreCreate, db: DbSession = Depends(get_db)) -> dict:
 
 @router.put(
     "/{store_id}", response_model=StoreRead, summary="Update a store",
-    dependencies=[Depends(require_role("owner", "manager"))],
+    dependencies=[
+        Depends(require_role("owner", "manager")),
+        Depends(require_permission("can_edit_product")),
+    ],
 )
 def update_store(
     store_id: int, payload: StoreUpdate, db: DbSession = Depends(get_db)
@@ -128,7 +134,10 @@ def update_store(
 @router.delete(
     "/{store_id}", status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a store",
-    dependencies=[Depends(require_role("owner", "manager"))],
+    dependencies=[
+        Depends(require_role("owner", "manager")),
+        Depends(require_permission("can_edit_product")),
+    ],
 )
 def delete_store(store_id: int, db: DbSession = Depends(get_db)) -> None:
     try:
