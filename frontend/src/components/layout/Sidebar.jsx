@@ -32,11 +32,10 @@ const NAV_GROUPS = [
     title: 'Phân tích',
     adminOnly: true,
     items: [
-      { label: 'Đề xuất nhập hàng', icon: 'recommendations', soon: true },
       {
-        label: 'Báo cáo',
-        icon: 'reports',
-        soon: true,
+        to: '/reports/spoilage',
+        label: 'Báo cáo Hàng hóa',
+        icon: 'chart',
         permission: 'can_view_report',
       },
     ],

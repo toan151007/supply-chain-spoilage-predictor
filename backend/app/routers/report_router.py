@@ -23,15 +23,23 @@ back partial data.
 """
 
 import io
-from datetime import date, timedelta
+import os
+from concurrent.futures import ThreadPoolExecutor
+from datetime import date, datetime, timedelta
 
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pyodbc import Error as PyodbcError
 
+from app.config import settings
 from app.database import DbSession, get_db, map_sqlserver_error
 from app.dependencies import require_permission
+from app.schemas.spoilage_schema import (
+    SpoilageAdviceResponse,
+    SpoilageRiskRow,
+    SpoilageSummaryResponse,
+)
 
 # Reports are sensitive and the administrator can switch the right off for a
 # manager, so this is checked per request rather than only hidden in the menu.
@@ -434,5 +442,414 @@ def export_waste(
 
     response = _render(data, columns, fmt, "bao-cao-lang-phi",
                        "BAO CAO LANG PHI (uoc toi da)")
+    _truncate_header(rows, limit, response)
+    return response
+
+
+# ===========================================================================
+# Spoilage risk report (inventory value at risk of being written off)
+# ===========================================================================
+SPOILAGE_ADVICE_TIMEOUT_SECONDS = 10
+
+SPOILAGE_ADVICE_SYSTEM_PROMPT = (
+    "Bạn là chuyên gia quản trị chuỗi cung ứng thực phẩm của FreshChain.\n"
+    "Nhiệm vụ: đọc số liệu rủi ro hao hụt bên dưới và viết khuyến nghị hành động.\n"
+    "QUY TẮC:\n"
+    "1. Chỉ dùng số liệu được cung cấp, không bịa thêm.\n"
+    "2. Trả lời bằng tiếng Việt có dấu, 3-5 gạch đầu dòng, mỗi dòng một hành động.\n"
+    "3. Nêu con số cụ thể (số lô, giá trị, số ngày còn lại) và thứ tự ưu tiên.\n"
+    "4. Không dùng markdown in đậm, không dùng bảng, không mở bài dài dòng.\n"
+    "5. Xưng 'Tôi', gọi người đọc là 'Bạn'.\n"
+)
+
+
+def _vi_num(value: float, digits: int = 0) -> str:
+    """Format a number the Vietnamese way: dot thousands, comma decimals."""
+    text = f"{float(value):,.{digits}f}"
+    return text.replace(",", "_").replace(".", ",").replace("_", ".")
+
+
+def _risk_reason(row: dict, quantity: float, sellable: float,
+                 unsold: float, loss: float, days_left: int) -> str:
+    """Build the Vietnamese explanation shown under each risk row."""
+    unit = (row.get("unit") or "sản phẩm").strip()
+    source = row.get("demand_source") or "none"
+    source_label = {
+        "forecast": "dự báo Prophet",
+        "sales": "bán thực tế 30 ngày",
+        "none": "chưa có dữ liệu bán",
+    }.get(source, "chưa có dữ liệu bán")
+
+    if days_left < 0:
+        return (
+            f"Đã hết hạn {abs(days_left)} ngày; toàn bộ {_vi_num(quantity)} {unit} "
+            f"({_vi_num(loss)} đ) có nguy cơ thất thoát."
+        )
+    if days_left == 0:
+        return (
+            f"Hết hạn hôm nay; {_vi_num(unsold)} {unit} ({_vi_num(loss)} đ) "
+            "gần như không kịp bán."
+        )
+    return (
+        f"Còn {days_left} ngày, dự kiến bán được {_vi_num(sellable)}/"
+        f"{_vi_num(quantity)} {unit} ({source_label}); ước tính thất thoát "
+        f"{_vi_num(unsold)} {unit} ({_vi_num(loss)} đ)."
+    )
+
+
+def _load_spoilage_rows(db: DbSession, days: int, category_id: int | None,
+                        store_id: int | None, risk_level: str | None,
+                        limit: int) -> list[dict]:
+    try:
+        return db.rows(
+            "sp_Reports_SpoilageRisk",
+            {
+                "Days": days,
+                "CategoryId": category_id,
+                "StoreId": store_id,
+                "RiskLevel": risk_level,
+                "Limit": limit,
+            },
+        )
+    except PyodbcError as exc:
+        raise map_sqlserver_error(exc) from exc
+
+
+def _to_risk_row(row: dict) -> SpoilageRiskRow:
+    quantity = _f(row["quantity"])
+    sellable = _f(row["sellable_qty"])
+    unsold = _f(row["unsold_qty"])
+    loss = _f(row["loss_value"])
+    days_left = int(row["days_left"] or 0)
+
+    return SpoilageRiskRow(
+        inventory_id=int(row["inventory_id"]),
+        batch_code=row["batch_code"],
+        store_id=int(row["store_id"]),
+        store_code=row["store_code"],
+        store_name=row["store_name"],
+        product_id=int(row["product_id"]),
+        product_code=row["product_code"],
+        product_name=row["product_name"],
+        unit=row["unit"],
+        category_id=row["category_id"],
+        category_name=row["category_name"],
+        quantity=round(quantity, 3),
+        unit_cost=round(_f(row["unit_cost"]), 2),
+        stock_value=round(_f(row["stock_value"]), 2),
+        expiry_date=row["expiry_date"],
+        days_left=days_left,
+        daily_demand=round(_f(row["daily_demand"]), 4),
+        demand_source=row["demand_source"],
+        sellable_qty=round(sellable, 3),
+        unsold_qty=round(unsold, 3),
+        loss_value=round(loss, 2),
+        risk_score=round(_f(row["risk_score"]), 1),
+        risk_level=row["risk_level"],
+        recommended_action=row["recommended_action"],
+        reason=_risk_reason(row, quantity, sellable, unsold, loss, days_left),
+    )
+
+
+def _load_spoilage_summary(db: DbSession, days: int, category_id: int | None,
+                           store_id: int | None) -> dict:
+    try:
+        sets = db.call(
+            "sp_Reports_SpoilageSummary",
+            {"Days": days, "CategoryId": category_id, "StoreId": store_id},
+        )
+    except PyodbcError as exc:
+        raise map_sqlserver_error(exc) from exc
+
+    kpi_row = sets[0][0] if sets and sets[0] else {}
+    category_rows = sets[1] if len(sets) > 1 else []
+    trend_rows = sets[2] if len(sets) > 2 else []
+    top_rows = sets[3] if len(sets) > 3 else []
+
+    return {
+        "kpi": {
+            "total_stock_qty": round(_f(kpi_row.get("total_stock_qty")), 3),
+            "total_stock_value": round(_f(kpi_row.get("total_stock_value")), 2),
+            "at_risk_qty": round(_f(kpi_row.get("at_risk_qty")), 3),
+            "at_risk_value": round(_f(kpi_row.get("at_risk_value")), 2),
+            "spoilage_rate": round(_f(kpi_row.get("spoilage_rate")), 2),
+            "lots_in_window": int(kpi_row.get("lots_in_window") or 0),
+            "lots_to_handle": int(kpi_row.get("lots_to_handle") or 0),
+            "expired_lots": int(kpi_row.get("expired_lots") or 0),
+            "high_risk_lots": int(kpi_row.get("high_risk_lots") or 0),
+            "window_days": int(kpi_row.get("window_days") or days),
+        },
+        "categories": [
+            {
+                "category_id": r["category_id"],
+                "category_name": r["category_name"],
+                "safe_count": int(r["safe_count"] or 0),
+                "warning_count": int(r["warning_count"] or 0),
+                "high_count": int(r["high_count"] or 0),
+                "safe_value": round(_f(r["safe_value"]), 2),
+                "warning_value": round(_f(r["warning_value"]), 2),
+                "high_value": round(_f(r["high_value"]), 2),
+            }
+            for r in category_rows
+        ],
+        "trend": [
+            {
+                "trend_date": r["trend_date"],
+                "loss_value": round(_f(r["loss_value"]), 2),
+                "total_value": round(_f(r["total_value"]), 2),
+                "lot_count": int(r["lot_count"] or 0),
+                "handled_rate": round(_f(r["handled_rate"]), 2),
+            }
+            for r in trend_rows
+        ],
+        "top_risks": [
+            {
+                "product_name": r["product_name"],
+                "product_code": r["product_code"],
+                "store_name": r["store_name"],
+                "batch_code": r["batch_code"],
+                "quantity": round(_f(r["quantity"]), 3),
+                "unit": r["unit"],
+                "days_left": int(r["days_left"] or 0),
+                "risk_score": round(_f(r["risk_score"]), 1),
+                "risk_level": r["risk_level"],
+                "loss_value": round(_f(r["loss_value"]), 2),
+            }
+            for r in top_rows
+        ],
+    }
+
+
+def _fallback_advice(summary: dict) -> str:
+    """Deterministic recommendations when Gemini is unavailable."""
+    kpi = summary["kpi"]
+    lines = [
+        f"Tỷ lệ giá trị hàng có nguy cơ hỏng là {_vi_num(kpi['spoilage_rate'], 2)}% "
+        f"({_vi_num(kpi['at_risk_value'])} đ trên tổng tồn kho "
+        f"{_vi_num(kpi['total_stock_value'])} đ).",
+    ]
+
+    if kpi["expired_lots"] > 0:
+        lines.append(
+            f"- Kiểm kê và xử lý ngay {_vi_num(kpi['expired_lots'])} lô đã hết hạn; "
+            "đây là phần không thể cứu được và cần ghi nhận thất thoát."
+        )
+    if kpi["high_risk_lots"] > 0:
+        lines.append(
+            f"- Ưu tiên {_vi_num(kpi['high_risk_lots'])} lô nguy cơ cao: chuyển bớt "
+            "sang cửa hàng bán nhanh hơn hoặc giảm giá trước khi quá hạn."
+        )
+    if kpi["lots_to_handle"] > 0:
+        lines.append(
+            f"- Trong {_vi_num(kpi['lots_in_window'])} lô thuộc khung "
+            f"{kpi['window_days']} ngày, có {_vi_num(kpi['lots_to_handle'])} lô cần "
+            "xử lý; nên lập danh sách theo thứ tự điểm rủi ro giảm dần."
+        )
+
+    if summary["top_risks"]:
+        top = summary["top_risks"][0]
+        lines.append(
+            f"- Lô rủi ro nhất: {top['product_name']} tại {top['store_name']} "
+            f"(lô {top['batch_code'] or 'chưa có mã'}), còn {top['days_left']} ngày, "
+            f"điểm rủi ro {_vi_num(top['risk_score'], 1)}, ước tính thất thoát "
+            f"{_vi_num(top['loss_value'])} đ."
+        )
+
+    if summary["categories"]:
+        worst = max(summary["categories"], key=lambda c: c["high_count"])
+        if worst["high_count"] > 0:
+            lines.append(
+                f"- Nhóm hàng cần chú ý nhất là {worst['category_name']} với "
+                f"{_vi_num(worst['high_count'])} lô nguy cơ cao."
+            )
+
+    lines.append(
+        "- Tốc độ bán lấy từ dự báo Prophet khi có; các sản phẩm chưa có dự báo "
+        "dùng tốc độ bán thực tế 30 ngày gần nhất."
+    )
+    return "\n".join(lines)
+
+
+def _build_advice_prompt(summary: dict) -> str:
+    kpi = summary["kpi"]
+    lines = [
+        "SỐ LIỆU RỦI RO HAO HỤT",
+        f"- Tổng tồn kho: {_vi_num(kpi['total_stock_qty'])} đơn vị, trị giá "
+        f"{_vi_num(kpi['total_stock_value'])} đ.",
+        f"- Giá trị có nguy cơ hao hụt: {_vi_num(kpi['at_risk_value'])} đ "
+        f"({_vi_num(kpi['spoilage_rate'], 2)}% tổng tồn kho).",
+        f"- Khung thời gian: {kpi['window_days']} ngày tới.",
+        f"- Số lô cần xử lý: {_vi_num(kpi['lots_to_handle'])}; trong đó "
+        f"{_vi_num(kpi['expired_lots'])} lô đã hết hạn và "
+        f"{_vi_num(kpi['high_risk_lots'])} lô nguy cơ cao.",
+        "TOP LÔ RỦI RO:",
+    ]
+    for index, item in enumerate(summary["top_risks"], start=1):
+        lines.append(
+            f"{index}. {item['product_name']} tại {item['store_name']} "
+            f"(lô {item['batch_code'] or 'chua co ma'}): còn {item['days_left']} ngày, "
+            f"điểm rủi ro {_vi_num(item['risk_score'], 1)}, thất thoát ước tính "
+            f"{_vi_num(item['loss_value'])} đ."
+        )
+    lines.append(
+        "\nHãy viết 3-5 khuyến nghị hành động cụ thể, theo thứ tự ưu tiên, "
+        "dựa đúng trên số liệu trên."
+    )
+    return "\n".join(lines)
+
+
+def _gemini_with_timeout(api_key: str, model_name: str, prompt: str,
+                         timeout: float):
+    """Call Gemini on a worker thread so a hung SDK cannot block the request."""
+    from google import genai
+
+    client = genai.Client(api_key=api_key)
+    executor = ThreadPoolExecutor(max_workers=1)
+    try:
+        future = executor.submit(
+            client.models.generate_content, model=model_name, contents=prompt
+        )
+        return future.result(timeout=timeout)
+    finally:
+        executor.shutdown(wait=False)
+
+
+@router.get(
+    "/spoilage/summary",
+    response_model=SpoilageSummaryResponse,
+    summary="KPI and chart data for the spoilage risk report",
+)
+def spoilage_summary(
+    db: DbSession = Depends(get_db),
+    days: int = Query(30, ge=0, le=365, description="Expiry window in days"),
+    category_id: int | None = Query(None, gt=0),
+    store_id: int | None = Query(None, gt=0),
+) -> SpoilageSummaryResponse:
+    summary = _load_spoilage_summary(db, days, category_id, store_id)
+    return SpoilageSummaryResponse(**summary, generated_at=datetime.now())
+
+
+@router.get(
+    "/spoilage/advice",
+    response_model=SpoilageAdviceResponse,
+    summary="AI summary and recommendations for the spoilage report",
+)
+def spoilage_advice(
+    db: DbSession = Depends(get_db),
+    days: int = Query(30, ge=0, le=365),
+    category_id: int | None = Query(None, gt=0),
+    store_id: int | None = Query(None, gt=0),
+) -> SpoilageAdviceResponse:
+    """
+    Build a short action plan from the same numbers the page shows.
+
+    Gemini is best-effort: a missing key, a network error or a timeout falls
+    back to deterministic rules, so the panel always has content and the
+    request never turns into a 500.
+    """
+    summary = _load_spoilage_summary(db, days, category_id, store_id)
+    api_key = settings.GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY", "")
+
+    if not api_key:
+        return SpoilageAdviceResponse(
+            answer=_fallback_advice(summary),
+            model="fallback",
+            generated_at=datetime.now(),
+        )
+
+    model_name = settings.GEMINI_MODEL or "gemini-3.5-flash-lite"
+    prompt = SPOILAGE_ADVICE_SYSTEM_PROMPT + "\n" + _build_advice_prompt(summary)
+
+    try:
+        response = _gemini_with_timeout(
+            api_key, model_name, prompt, SPOILAGE_ADVICE_TIMEOUT_SECONDS
+        )
+        text = getattr(response, "text", None)
+        if not text and hasattr(response, "candidates") and response.candidates:
+            try:
+                text = response.candidates[0].content.parts[0].text
+            except Exception:
+                text = None
+        if text and text.strip():
+            return SpoilageAdviceResponse(
+                answer=text.strip(),
+                model=model_name,
+                generated_at=datetime.now(),
+            )
+    except Exception:
+        # A timeout or an API outage must not hide the report behind an error.
+        pass
+
+    return SpoilageAdviceResponse(
+        answer=_fallback_advice(summary),
+        model="fallback",
+        generated_at=datetime.now(),
+    )
+
+
+@router.get(
+    "/spoilage",
+    response_model=list[SpoilageRiskRow],
+    summary="Batches at risk of spoilage",
+)
+def spoilage_detail(
+    db: DbSession = Depends(get_db),
+    days: int = Query(30, ge=0, le=365, description="Expiry window in days"),
+    category_id: int | None = Query(None, gt=0),
+    store_id: int | None = Query(None, gt=0),
+    risk_level: str | None = Query(None, pattern="^(safe|warning|high)$"),
+    limit: int = Query(500, ge=1, le=2000),
+) -> list[SpoilageRiskRow]:
+    rows = _load_spoilage_rows(
+        db, days, category_id, store_id, risk_level, limit
+    )
+    return [_to_risk_row(row) for row in rows]
+
+
+@router.get(
+    "/spoilage/export",
+    summary="Export the spoilage risk report",
+)
+def export_spoilage(
+    db: DbSession = Depends(get_db),
+    fmt: str = Query("xlsx", alias="format", pattern="^(csv|xlsx|pdf)$"),
+    days: int = Query(30, ge=0, le=365),
+    category_id: int | None = Query(None, gt=0),
+    store_id: int | None = Query(None, gt=0),
+    risk_level: str | None = Query(None, pattern="^(safe|warning|high)$"),
+    limit: int = Query(2000, ge=1, le=2000),
+) -> StreamingResponse:
+    rows = _load_spoilage_rows(
+        db, days, category_id, store_id, risk_level, limit
+    )
+
+    data = [
+        {
+            "Ma lo": r["inventory_id"],
+            "So lo": r["batch_code"] or "",
+            "Ma CH": r["store_code"],
+            "Ten CH": r["store_name"],
+            "Ma SP": r["product_code"],
+            "Ten SP": r["product_name"],
+            "Nhom hang": r["category_name"] or "",
+            "So luong": round(_f(r["quantity"]), 3),
+            "Han su dung": r["expiry_date"].isoformat() if r["expiry_date"] else "",
+            "Ngay con lai": int(r["days_left"] or 0),
+            "Toc do ban/ngay": round(_f(r["daily_demand"]), 2),
+            "Nguon toc do": r["demand_source"],
+            "Diem rui ro": round(_f(r["risk_score"]), 1),
+            "Muc rui ro": (r["risk_level"] or "").upper(),
+            "Gia tri that thoat": round(_f(r["loss_value"]), 2),
+            "Goi y xu ly": r["recommended_action"],
+        }
+        for r in rows
+    ]
+    columns = ["Ma lo", "So lo", "Ma CH", "Ten CH", "Ma SP", "Ten SP",
+               "Nhom hang", "So luong", "Han su dung", "Ngay con lai",
+               "Toc do ban/ngay", "Nguon toc do", "Diem rui ro", "Muc rui ro",
+               "Gia tri that thoat", "Goi y xu ly"]
+
+    response = _render(data, columns, fmt, "bao-cao-rui-ro-hao-hut",
+                       "BAO CAO HANG HOA & RUI RO HAO HUT")
     _truncate_header(rows, limit, response)
     return response
