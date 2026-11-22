@@ -98,6 +98,48 @@ class TransferRead(BaseModel):
 TransferPage = Page[TransferRead]
 
 
+class TransferSuggestion(BaseModel):
+    """
+    Mot goi y dieu chuyen sinh tu du bao nhu cau (forecasts) va ton kho that
+    (inventory). So lieu do Stored Procedure tra ve; `reason` va `priority`
+    do router viet lai cho nguoi doc.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    product_id: int
+    product_code: str
+    product_name: str
+    unit: str | None = None
+
+    from_store_id: int
+    from_store_code: str | None = None
+    from_store_name: str
+    to_store_id: int
+    to_store_code: str | None = None
+    to_store_name: str
+
+    from_stock: float
+    from_predicted_qty: float
+    from_daily_demand: float
+    from_days_cover: float
+    to_stock: float
+    to_predicted_qty: float
+    to_daily_demand: float
+    to_days_cover: float
+
+    surplus_qty: float
+    shortage_qty: float
+    suggested_qty: float
+
+    model_name: str
+    horizon_days: int
+    target_days: int
+
+    priority: TransferPriority
+    reason: str
+
+
 class TransferSummary(BaseModel):
     """
     Dem so yeu cau theo tung trang thai.

@@ -2104,10 +2104,11 @@ END;
 GO
 
 CREATE OR ALTER PROCEDURE dbo.sp_Forecasts_Latest
-    @StoreId   INT = NULL,
-    @ProductId INT = NULL,
-    @Page      INT = 1,
-    @PageSize  INT = 20
+    @StoreId   INT          = NULL,
+    @ProductId INT          = NULL,
+    @ModelName VARCHAR(50)  = NULL,
+    @Page      INT          = 1,
+    @PageSize  INT          = 20
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -2123,7 +2124,8 @@ BEGIN
         SELECT @NewestDate = MAX(f.forecast_date)
         FROM dbo.forecasts f
         WHERE (@StoreId IS NULL OR f.store_id = @StoreId)
-          AND (@ProductId IS NULL OR f.product_id = @ProductId);
+          AND (@ProductId IS NULL OR f.product_id = @ProductId)
+          AND (@ModelName IS NULL OR f.model_name = @ModelName);
 
         ;WITH ranked AS (
             SELECT f.*,
@@ -2135,6 +2137,7 @@ BEGIN
             WHERE f.forecast_date = @NewestDate
               AND (@StoreId IS NULL OR f.store_id = @StoreId)
               AND (@ProductId IS NULL OR f.product_id = @ProductId)
+              AND (@ModelName IS NULL OR f.model_name = @ModelName)
         )
         SELECT COUNT(*) AS total FROM ranked WHERE rn = 1;
 
@@ -2148,6 +2151,7 @@ BEGIN
             WHERE f.forecast_date = @NewestDate
               AND (@StoreId IS NULL OR f.store_id = @StoreId)
               AND (@ProductId IS NULL OR f.product_id = @ProductId)
+              AND (@ModelName IS NULL OR f.model_name = @ModelName)
         )
         SELECT r.store_id, r.product_id, r.model_name, r.forecast_date,
                r.predicted_quantity, r.lower_bound, r.upper_bound,

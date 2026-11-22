@@ -30,6 +30,7 @@ from app.schemas.transfer_schema import (
     TransferPage,
     TransferRead,
     TransferStatus,
+    TransferSuggestion,
     TransferSummary,
 )
 
@@ -48,6 +49,29 @@ STATUS_ORDER = [
 
 ANY_STAFF = ("owner", "manager", "staff")
 MANAGER_ONLY = ("owner", "manager")
+
+MODEL_NAME_PATTERN = "^(prophet|xgboost|arima|moving_average|naive)$"
+
+
+def _f(value) -> float:
+    """Coerce a NUMERIC aggregate to float; None becomes 0.0."""
+    return 0.0 if value is None else float(value)
+
+
+def _vi_num(value: float, digits: int = 0) -> str:
+    """Format a number the Vietnamese way (dot as thousands separator)."""
+    return f"{value:,.{digits}f}".replace(",", ".")
+
+
+def _priority_for_days(days_cover: float) -> str:
+    """Map so ngay phu vu con lai sang muc uu tien dieu chuyen."""
+    if days_cover < 7:
+        return "urgent"
+    if days_cover < 14:
+        return "high"
+    if days_cover < 21:
+        return "normal"
+    return "low"
 
 
 def _to_read(row: dict) -> dict:
@@ -135,6 +159,100 @@ def transfer_summary(db: DbSession = Depends(get_db)) -> TransferSummary:
         total_quantity=float(totals.get("total_quantity") or 0),
         in_transit_quantity=float(totals.get("in_transit_quantity") or 0),
     )
+
+
+# NOTE: `/suggestions` phai khai bao TRUOC `/{transfer_id}` (giong `/summary`).
+@router.get(
+    "/suggestions",
+    response_model=list[TransferSuggestion],
+    summary="Goi y dieu chuyen tu AI (du bao vs ton kho)",
+)
+def transfer_suggestions(
+    db: DbSession = Depends(get_db),
+    target_days: int = Query(14, ge=1, le=90),
+    min_qty: float = Query(1, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    model_name: str = Query("prophet", pattern=MODEL_NAME_PATTERN),
+) -> list[TransferSuggestion]:
+    """
+    So sanh nhu cau du bao voi ton kho that cho tung cap (cua hang, san pham)
+    va goi y chuyen tu cua hang du thua sang cua hang thieu hut.
+
+    `target_days` la muc phu vu mong muon (ngay). Cua hang co ton kho nhieu
+    hon nhu cầu `target_days` ngay bi coi la du, cua hang thap hon la thieu.
+    So luong goi y lay phan nho hon giua luong du va luong thieu.
+
+    Mac dinh chi dung du bao Prophet (`model_name=prophet`) de giong voi
+    giao dien Dự báo; truyen `model_name=xgboost` khi can so doi chung.
+    """
+    try:
+        rows = db.rows(
+            "sp_Transfer_SuggestAI",
+            {
+                "TargetDays": target_days,
+                "MinQty": min_qty,
+                "Limit": limit,
+                "ModelName": model_name,
+            },
+        )
+    except PyodbcError as exc:
+        raise map_sqlserver_error(exc) from exc
+
+    results: list[TransferSuggestion] = []
+    for r in rows:
+        from_stock = _f(r["from_stock"])
+        from_daily = _f(r["from_daily_demand"])
+        from_cover = _f(r["from_days_cover"])
+        to_stock = _f(r["to_stock"])
+        to_daily = _f(r["to_daily_demand"])
+        to_cover = _f(r["to_days_cover"])
+        surplus = _f(r["surplus_qty"])
+        shortage = _f(r["shortage_qty"])
+        suggested = _f(r["suggested_qty"])
+        unit = (r.get("unit") or "san pham").strip()
+        target = int(r["target_days"])
+
+        reason = (
+            f"Cua hang {r['from_store_name']} dang du {_vi_num(surplus)} {unit} "
+            f"so voi nhu cau {target} ngay (ton {_vi_num(from_stock)}, nhu cau "
+            f"{_vi_num(from_daily, 1)}/ngay), trong khi {r['to_store_name']} chi "
+            f"con {_vi_num(to_cover, 1)} ngay phuc vu (ton {_vi_num(to_stock)}, "
+            f"nhu cau {_vi_num(to_daily, 1)}/ngay). De xuat chuyen "
+            f"{_vi_num(suggested)} {unit}."
+        )
+
+        results.append(
+            TransferSuggestion(
+                product_id=r["product_id"],
+                product_code=r["product_code"],
+                product_name=r["product_name"],
+                unit=r.get("unit"),
+                from_store_id=r["from_store_id"],
+                from_store_code=r.get("from_store_code"),
+                from_store_name=r["from_store_name"],
+                to_store_id=r["to_store_id"],
+                to_store_code=r.get("to_store_code"),
+                to_store_name=r["to_store_name"],
+                from_stock=from_stock,
+                from_predicted_qty=_f(r["from_predicted_qty"]),
+                from_daily_demand=from_daily,
+                from_days_cover=from_cover,
+                to_stock=to_stock,
+                to_predicted_qty=_f(r["to_predicted_qty"]),
+                to_daily_demand=to_daily,
+                to_days_cover=to_cover,
+                surplus_qty=surplus,
+                shortage_qty=shortage,
+                suggested_qty=suggested,
+                model_name=r["model_name"],
+                horizon_days=int(r["horizon_days"]),
+                target_days=target,
+                priority=_priority_for_days(to_cover),
+                reason=reason,
+            )
+        )
+
+    return results
 
 
 @router.get("", response_model=TransferPage, summary="Danh sach yeu cau dieu chuyen")

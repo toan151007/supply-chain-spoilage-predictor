@@ -45,6 +45,7 @@ def latest_forecasts(
     db: DbSession = Depends(get_db),
     store_id: int | None = Query(None, gt=0),
     product_id: int | None = Query(None, gt=0),
+    model_name: str | None = Query(None, pattern=MODEL_NAME_PATTERN),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
 ) -> LatestForecastList:
@@ -52,6 +53,10 @@ def latest_forecasts(
     One row per product-store pair: the newest forecast date, and among
     several models on that date the one with the best RMSE. These are
     single-day figures, NOT horizon totals.
+
+    Truyen `model_name=prophet` de chi lay ket qua Prophet (mo hinh chinh,
+    thang 97/100 cap) nhu giao dien web dang lam. Bo trong de lay mo hinh
+    tot nhat theo RMSE nhu xu lu vat ly.
     """
     try:
         sets = db.call(
@@ -59,6 +64,7 @@ def latest_forecasts(
             {
                 "StoreId": store_id,
                 "ProductId": product_id,
+                "ModelName": model_name,
                 "Page": page,
                 "PageSize": page_size,
             },
