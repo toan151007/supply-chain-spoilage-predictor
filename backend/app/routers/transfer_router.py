@@ -59,8 +59,9 @@ def _f(value) -> float:
 
 
 def _vi_num(value: float, digits: int = 0) -> str:
-    """Format a number the Vietnamese way (dot as thousands separator)."""
-    return f"{value:,.{digits}f}".replace(",", ".")
+    """Format a number the Vietnamese way: dot thousands, comma decimals."""
+    text = f"{value:,.{digits}f}"
+    return text.replace(",", "_").replace(".", ",").replace("_", ".")
 
 
 def _priority_for_days(days_cover: float) -> str:
@@ -209,16 +210,15 @@ def transfer_suggestions(
         surplus = _f(r["surplus_qty"])
         shortage = _f(r["shortage_qty"])
         suggested = _f(r["suggested_qty"])
-        unit = (r.get("unit") or "san pham").strip()
+        unit = (r.get("unit") or "sản phẩm").strip()
         target = int(r["target_days"])
 
         reason = (
-            f"Cua hang {r['from_store_name']} dang du {_vi_num(surplus)} {unit} "
-            f"so voi nhu cau {target} ngay (ton {_vi_num(from_stock)}, nhu cau "
-            f"{_vi_num(from_daily, 1)}/ngay), trong khi {r['to_store_name']} chi "
-            f"con {_vi_num(to_cover, 1)} ngay phuc vu (ton {_vi_num(to_stock)}, "
-            f"nhu cau {_vi_num(to_daily, 1)}/ngay). De xuat chuyen "
-            f"{_vi_num(suggested)} {unit}."
+            f"{r['from_store_name']} đang dư {_vi_num(surplus)} {unit} so với nhu cầu "
+            f"{target} ngày (tồn {_vi_num(from_stock)}, nhu cầu "
+            f"{_vi_num(from_daily, 1)}/ngày), trong khi {r['to_store_name']} chỉ còn "
+            f"{_vi_num(to_cover, 1)} ngày phục vụ (tồn {_vi_num(to_stock)}, nhu cầu "
+            f"{_vi_num(to_daily, 1)}/ngày). Đề xuất chuyển {_vi_num(suggested)} {unit}."
         )
 
         results.append(

@@ -3478,4 +3478,95 @@ Hai endpoint mới trong `backend/app/routers/user_router.py`, cùng chịu
 | `npm run build` | PASS (687 module) |
 | `npm run lint` | 0 error (chỉ warning cũ) |
 
+## 19. Gợi ý điều chuyển từ AI, tinh gọn Prophet và chặn timeout chatbot (22/11/2026)
+
+Ba thay đổi đi cùng một đợt vì đều xoay quanh việc dùng kết quả dự báo:
+
+1. Đưa dự báo vào **quyết định điều chuyển hàng** (trước đây chỉ dự báo để xem).
+2. **Chỉ hiển thị Prophet** trên web (mô hình thắng 97/100 cặp), giữ XGBoost/ARIMA
+   trong `ai-model/` để làm báo cáo đối chứng.
+3. **Chặn timeout chatbot** ở cả hai đầu để người dùng không phải chờ vô hạn.
+
+### 19.1. Migration `014-smart-transfer.sql`
+
+**`sp_Transfer_SuggestAI`** — so sánh nhu cầu dự báo với tồn kho thật:
+
+- `demand`: `SUM(predicted_quantity)` và `COUNT(DISTINCT forecast_date)` theo cặp
+  (cửa hàng, sản phẩm), **lọc `model_name = @ModelName`** (mặc định `'prophet'`).
+- `stock`: `SUM(quantity)` các lô còn hàng (`quantity > 0`).
+- `days_cover = current_stock / (predicted_qty / horizon_days)`.
+- `surplus_qty = current_stock - daily_demand * @TargetDays`;
+  `shortage_qty = daily_demand * @TargetDays - current_stock`.
+- Xếp hạng dư theo `surplus_qty DESC`, thiếu theo `shortage_qty DESC`, ghép cùng
+  hạng `rn` trong từng sản phẩm; `suggested_qty = MIN(surplus_qty, shortage_qty)`.
+
+**Vì sao `@TargetDays = 14`:** dữ liệu hiện tại có **100/100 cặp phủ dưới 30 ngày**
+(20 cặp < 7 ngày · 54 cặp 7–14 ngày · 26 cặp 14–30 ngày). Mục tiêu 30 ngày sẽ không
+còn cửa hàng nào dư → 0 gợi ý. Mức 14 ngày cho ra danh sách có nghĩa; giao diện cho
+chọn 7/14/21/30.
+
+**`sp_Forecasts_Latest`** thêm tham số `@ModelName VARCHAR(50) = NULL`, áp vào cả câu
+đếm `total` và câu lấy dòng. Nhờ vậy `?model_name=prophet` trả **97 cặp** (3 cặp
+XGBoost thắng không còn dòng Prophet), còn bỏ trống thì giữ hành vi cũ (mô hình tốt
+nhất theo RMSE).
+
+### 19.2. Backend
+
+- `schemas/transfer_schema.py`: thêm `TransferSuggestion` (đủ số liệu hai kho,
+  `surplus_qty`, `shortage_qty`, `suggested_qty`, `priority`, `reason`).
+- `routers/transfer_router.py`:
+  - `GET /api/v1/transfers/suggestions?target_days=14&min_qty=1&limit=50&model_name=prophet`
+  - khai báo **trước** `/{transfer_id}` (cùng lỗi 422 đã gặp với `/summary`).
+  - `reason` và `priority` soạn ở Python (`_vi_num`, `_priority_for_days`) để file SQL
+    giữ ASCII. Ưu tiên: `< 7 ngày` → `urgent`, `< 14` → `high`, `< 21` → `normal`,
+    còn lại `low`.
+- `routers/forecast_router.py`: `GET /forecasts/latest` nhận thêm `model_name` (regex
+  giới hạn 5 mô hình) và truyền xuống `sp_Forecasts_Latest`.
+
+### 19.3. Frontend
+
+- `pages/TransfersPage.jsx`: thêm state `tab` (`list` / `ai`) + thanh 2 tab. Tab
+  "Danh sách yêu cầu" giữ nguyên toàn bộ pipeline 5 bước, bộ lọc và bảng. Tab
+  "Gợi ý từ AI" render `components/transfers/AISuggestionsPanel.jsx`.
+- `AISuggestionsPanel.jsx`: chọn mức phục vụ (7/14/21/30 ngày), tải lại, hiển thị
+  từng thẻ gợi ý (sản phẩm, tuyến A → B, số lượng nên chuyển, lý do, số ngày phủ của
+  hai kho). Nút "Tạo yêu cầu" chỉ hiện khi có `can_manage_transfer`.
+- Nút đó gọi `openCreateFromSuggestion` → điền sẵn `EMPTY_FORM` (cửa hàng, sản phẩm,
+  số lượng làm tròn, mức ưu tiên, lý do) rồi mở modal tạo yêu cầu. Tạo xong tự
+  chuyển về tab danh sách, xoá lọc, về trang 1 để thấy yêu cầu mới.
+- `pages/ForecastsPage.jsx`: gọi `/forecasts/latest` với `model_name: 'prophet'`,
+  **bỏ cột "Mô hình"** (7 → 6 cột, sửa `colSpan` và `TableSkeleton`), cập nhật mô tả
+  "mô hình Prophet (thắng 97/100 cặp)".
+
+### 19.4. Chặn timeout chatbot
+
+- `services/api.js`: trong request interceptor, nếu URL chứa `/chat` thì đặt
+  `config.timeout = 60000`; các API khác vẫn 20 giây.
+- `routers/chat_router.py`:
+  - `GEMINI_TIMEOUT_SECONDS = 15`, `CHAT_BUSY_ANSWER = "Hệ thống đang bận, vui lòng thử lại sau"`.
+  - `_generate_with_timeout` chạy `client.models.generate_content` trong
+    `ThreadPoolExecutor(max_workers=1)`, `future.result(timeout=remaining)`, và
+    `shutdown(wait=False)` trong `finally`.
+  - Vòng lặp 2 lần thử dùng **một hạn chung** tính từ `time.monotonic()`, không phải
+    15 giây mỗi lần. Hết hạn → trả `ChatResponse(answer=CHAT_BUSY_ANSWER,
+    sources=[{"type": "timeout"}], model=None)`.
+  - Lỗi khác vẫn đi vào nhánh fallback cũ (tóm tắt số liệu thật), không trả HTTP 500.
+
+### 19.5. Kết quả kiểm chứng
+
+| Kiểm tra | Kết quả |
+|---|---|
+| `sqlcmd -i 014-smart-transfer.sql` | PASS (2 procedure tạo lại) |
+| `EXEC sp_Transfer_SuggestAI @TargetDays=14, @Limit=5` | 5 dòng, ví dụ SP0048 · CH01 → NH03 · 361,951 · `urgent` |
+| `GET /transfers/suggestions?target_days=14&limit=5` | 5 dòng, `model_name=prophet`, `reason` tiếng Việt đúng |
+| `GET /forecasts/latest?model_name=prophet` | `total=97`, mọi dòng `model_name=prophet` |
+| Trình duyệt: tab "Gợi ý từ AI" | hiện **20 gợi ý**, lý do tiếng Việt có dấu, số thập phân dạng `38,4` |
+| Nút "Tạo yêu cầu" trong tab AI | mở modal điền sẵn: CH 1 → CH 8, SP 48, số lượng 362, ưu tiên `urgent`, lý do đầy đủ |
+| Trình duyệt: trang Dự báo | bảng **6 cột** (không còn "Mô hình"), tổng **97 cặp** |
+| Gọi chat thật | 1,7 giây, `model=gemini-3.5-flash-lite`, không lỗi |
+| Test timeout guard (client giả ngủ 2 giây, hạn 0,5 giây) | raise `TimeoutError` sau **0,5 giây** |
+| Test nhánh busy (patch `_generate_with_timeout` ném timeout) | trả đúng `CHAT_BUSY_ANSWER`, `model=None`, `sources=[{"type":"timeout"}]` |
+| `npm run build` | PASS (688 module) |
+| `npm run lint` | 0 error (chỉ warning cũ) |
+
 

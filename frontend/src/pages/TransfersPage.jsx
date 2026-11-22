@@ -5,6 +5,7 @@ import Field from '../components/common/Field.jsx'
 import Icon from '../components/common/Icon.jsx'
 import Modal from '../components/common/Modal.jsx'
 import Toast from '../components/common/Toast.jsx'
+import AISuggestionsPanel from '../components/transfers/AISuggestionsPanel.jsx'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import api from '../services/api.js'
 import { formatDate, formatNumber, getErrorMessage } from '../utils/format.js'
@@ -156,6 +157,7 @@ export default function TransfersPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [page, setPage] = useState(1)
+  const [tab, setTab] = useState('list')
 
   const [data, setData] = useState({ items: [], total: 0, pages: 0 })
   const [summary, setSummary] = useState({ counts: {}, total: 0 })
@@ -252,6 +254,21 @@ export default function TransfersPage() {
     setFormOpen(true)
   }
 
+  /* Dien san form tu mot goi y AI, de nguoi dung chi can xac nhan. */
+  const openCreateFromSuggestion = (suggestion) => {
+    setForm({
+      from_store_id: String(suggestion.from_store_id),
+      to_store_id: String(suggestion.to_store_id),
+      product_id: String(suggestion.product_id),
+      quantity: String(Math.max(1, Math.round(suggestion.suggested_qty))),
+      expiry_date: '',
+      priority: suggestion.priority,
+      reason: suggestion.reason,
+    })
+    setFormError('')
+    setFormOpen(true)
+  }
+
   const submitForm = async (event) => {
     event.preventDefault()
     setFormError('')
@@ -288,6 +305,11 @@ export default function TransfersPage() {
       setToast({ type: 'success', message: 'Đã tạo yêu cầu điều chuyển.' })
       setFormOpen(false)
       setForm(EMPTY_FORM)
+      /* Tao xong tu goi y AI thi dua nguoi dung ve danh sach de thay yeu
+         cau vua tao va tiep tuc quy trinh duyet. */
+      setTab('list')
+      setStatusFilter('')
+      setPage(1)
       setReloadKey((key) => key + 1)
     } catch (requestError) {
       setFormError(getErrorMessage(requestError, 'Không tạo được yêu cầu điều chuyển.'))
@@ -362,6 +384,33 @@ export default function TransfersPage() {
         )}
       </div>
 
+      <div className="card flex flex-wrap gap-1.5 p-1.5">
+        {[
+          { key: 'list', label: 'Danh sách yêu cầu', icon: 'transfer' },
+          { key: 'ai', label: 'Gợi ý từ AI', icon: 'sparkles' },
+        ].map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            onClick={() => setTab(item.key)}
+            className={[
+              'btn flex-1 justify-center sm:flex-none',
+              tab === item.key
+                ? 'bg-brand-600 text-white hover:bg-brand-700'
+                : 'bg-transparent text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800',
+            ].join(' ')}
+            aria-pressed={tab === item.key}
+          >
+            <Icon name={item.icon} className="h-4 w-4" />
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'ai' ? (
+        <AISuggestionsPanel canManage={canManage} onCreate={openCreateFromSuggestion} />
+      ) : (
+        <>
       {/* Thanh quy trinh: bam vao mot buoc de loc */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
         {PIPELINE.map((code, index) => {
@@ -635,6 +684,8 @@ export default function TransfersPage() {
           </>
         )}
       </div>
+        </>
+      )}
 
       {/* Modal tao yeu cau */}
       <Modal

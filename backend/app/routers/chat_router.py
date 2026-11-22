@@ -23,6 +23,7 @@ import os
 import re
 import time
 import unicodedata
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from datetime import datetime
 from typing import Any
 
@@ -38,6 +39,13 @@ from app.services import seasonal
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 logger = logging.getLogger(__name__)
+
+# Gemini co the treo rat lau khi mang cham hoac dich vu qua tai. Chan o 15
+# giay de nguoi dung nhan cau "he thong dang ban" thay vi mot loi timeout.
+# Frontend dat timeout 60 giay cho rieng /chat, du rong cho ca cau tra loi
+# cham nhat cua backend.
+GEMINI_TIMEOUT_SECONDS = 15
+CHAT_BUSY_ANSWER = "Hệ thống đang bận, vui lòng thử lại sau"
 
 
 class ChatRequest(BaseModel):
@@ -717,6 +725,25 @@ def _fast_answer(message: str) -> str | None:
     return None
 
 
+def _generate_with_timeout(client, model_name: str, prompt: str, timeout: float):
+    """
+    Goi Gemini trong mot luong rieng va gioi han thoi gian cho.
+
+    `google-genai` khong phai luc nao cung ton trong timeout cua HTTP client,
+    nen dat them mot chan o tang ung dung. Het gio thi nem
+    `FutureTimeoutError` de phan goi tra cau "he thong dang ban".
+    """
+    executor = ThreadPoolExecutor(max_workers=1)
+    try:
+        future = executor.submit(
+            client.models.generate_content, model=model_name, contents=prompt
+        )
+        return future.result(timeout=timeout)
+    finally:
+        # Khong cho doi luong nen: nguoi dung da cho qua lau roi.
+        executor.shutdown(wait=False)
+
+
 @router.post(
     "",
     response_model=ChatResponse,
@@ -765,21 +792,44 @@ def chat(payload: ChatRequest, db: DbSession = Depends(get_db)) -> ChatResponse:
 
         # Gemini hay tra 503 khi qua tai. Thu lai mot lan truoc khi bo cuoc,
         # vi mot lan loi tam thoi khong nen bien cau tra loi thanh HTTP 500.
+        # Ca hai lan thu dung chung mot han 15 giay: neu lan dau treo thi
+        # nguoi dung nhan cau "he thong dang ban", khong phai cho them 15 giay.
+        deadline = time.monotonic() + GEMINI_TIMEOUT_SECONDS
+        response = None
         last_error: Exception | None = None
         for attempt in range(2):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
             try:
-                response = client.models.generate_content(
-                    model=model_name, contents=prompt
+                response = _generate_with_timeout(
+                    client, model_name, prompt, remaining
                 )
                 last_error = None
                 break
+            except FutureTimeoutError as exc:
+                last_error = exc
+                break
             except Exception as exc:  # noqa: BLE001 - thu lai roi moi bao
                 last_error = exc
-                if attempt == 0:
+                if attempt == 0 and deadline - time.monotonic() > 1.5:
                     time.sleep(1.5)
 
         if last_error is not None:
+            if isinstance(last_error, FutureTimeoutError):
+                return ChatResponse(
+                    answer=CHAT_BUSY_ANSWER,
+                    sources=[{"type": "timeout"}],
+                    model=None,
+                )
             raise last_error
+
+        if response is None:
+            return ChatResponse(
+                answer=CHAT_BUSY_ANSWER,
+                sources=[{"type": "timeout"}],
+                model=None,
+            )
 
         text = getattr(response, "text", None)
         if not text and hasattr(response, "candidates") and response.candidates:

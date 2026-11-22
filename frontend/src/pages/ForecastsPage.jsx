@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 
 import Icon from '../components/common/Icon.jsx'
-import Spinner from '../components/common/Spinner.jsx'
 import SeasonalPanel from '../components/forecasts/SeasonalPanel.jsx'
 import api from '../services/api.js'
 import { formatDate, formatNumber, getErrorMessage } from '../utils/format.js'
@@ -50,7 +49,9 @@ export default function ForecastsPage() {
     setLoading(true)
     setError('')
     api
-      .get('/forecasts/latest', { params: { page, page_size: PAGE_SIZE } })
+      .get('/forecasts/latest', {
+        params: { page, page_size: PAGE_SIZE, model_name: 'prophet' },
+      })
       .then((res) => {
         if (!cancelled) setData(res.data)
       })
@@ -96,7 +97,7 @@ export default function ForecastsPage() {
           <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-2xl">Dự báo nhu cầu</h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             {tab === 'latest'
-              ? 'Dự báo mới nhất theo từng cặp sản phẩm × cửa hàng (mô hình tốt nhất mỗi cặp).'
+              ? 'Dự báo mới nhất theo từng cặp sản phẩm × cửa hàng bằng mô hình Prophet (thắng 97/100 cặp).'
               : 'Sản phẩm nên nhập nhiều hơn hoặc hạn chế nhập theo từng mùa, tự động làm mới mỗi 5 phút.'}
           </p>
         </div>
@@ -211,12 +212,11 @@ export default function ForecastsPage() {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[980px] text-left text-sm">
+              <table className="w-full min-w-[860px] text-left text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50/70 text-xs uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
                     <th className="px-4 py-3 font-semibold">Sản phẩm</th>
                     <th className="px-4 py-3 font-semibold">Cửa hàng</th>
-                    <th className="px-4 py-3 font-semibold">Mô hình</th>
                     <th className="px-4 py-3 font-semibold">Ngày dự báo</th>
                     <th className="px-4 py-3 text-right font-semibold">Dự báo (đơn vị)</th>
                     <th className="px-4 py-3 text-right font-semibold">Đề xuất nhập</th>
@@ -225,10 +225,10 @@ export default function ForecastsPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {loading ? (
-                    <TableSkeleton cols={7} />
+                    <TableSkeleton cols={6} />
                   ) : data.items.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-16 text-center">
+                      <td colSpan={6} className="px-6 py-16 text-center">
                         <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500">
                           <Icon name="forecast" className="h-6 w-6" />
                         </span>
@@ -243,9 +243,6 @@ export default function ForecastsPage() {
                           <p className="font-mono text-xs text-slate-400 dark:text-slate-500">{item.product?.product_code || ''}</p>
                         </td>
                         <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">{item.store?.store_name || `CH #${item.store_id}`}</td>
-                        <td className="px-4 py-3.5">
-                          <span className="badge bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300">{item.model_name}</span>
-                        </td>
                         <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">{formatDate(item.forecast_date)}</td>
                         <td className="px-4 py-3.5 text-right tabular-nums font-medium text-slate-900 dark:text-white">{formatNumber(item.predicted_quantity)}</td>
                         <td className="px-4 py-3.5 text-right tabular-nums text-slate-600 dark:text-slate-300">{item.recommended_import_qty == null ? '—' : formatNumber(item.recommended_import_qty)}</td>

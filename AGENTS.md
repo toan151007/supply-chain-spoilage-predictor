@@ -151,6 +151,25 @@ ngoài dự báo nhu cầu còn có **điều chuyển hàng giữa cửa hàng*
     - `ConfirmDialog` có thêm prop `tone` / `icon` / `busyLabel` (mặc định giữ nguyên đỏ +
       thùng rác) để dùng cho hộp "Khoá tài khoản" mà không hiện chữ "Đang xoá…".
 
+16. **Gợi ý điều chuyển từ AI + tinh gọn mô hình + chặn timeout chatbot (22/11/2026):**
+    - Trang `/transfers` có **2 tab**: "Danh sách yêu cầu" (giữ nguyên toàn bộ quy trình
+      5 bước) và **"Gợi ý từ AI"** (`components/transfers/AISuggestionsPanel.jsx`).
+      Tab AI gọi `GET /api/v1/transfers/suggestions` → `sp_Transfer_SuggestAI`, hiển thị
+      cặp **cửa hàng dư → cửa hàng thiếu** kèm số lượng gợi ý, lý do, mức ưu tiên và
+      nút "Tạo yêu cầu" (chỉ hiện khi có `can_manage_transfer`).
+    - Nút "Tạo yêu cầu" trong tab AI **điền sẵn** form tạo yêu cầu (cửa hàng gửi/nhận,
+      sản phẩm, số lượng làm tròn, mức ưu tiên, lý do), người dùng chỉ cần xác nhận.
+      Tạo xong tự chuyển về tab danh sách, xoá lọc và về trang 1 để thấy yêu cầu mới.
+    - **Chỉ dùng Prophet** cho cả tab AI và trang Dự báo: `model_name=prophet` được
+      truyền từ frontend; `@ModelName` ở procedure vẫn là tham số nên có thể truyền
+      `xgboost` khi cần đối chứng. Trang `/forecasts` **bỏ cột "Mô hình"** (còn 6 cột)
+      vì mọi dòng đều là Prophet.
+    - Chatbot: `api.js` đặt **timeout 60 giây riêng cho URL chứa `/chat`** (các API khác
+      vẫn 20 giây). `chat_router.py` gọi Gemini trong `ThreadPoolExecutor` và **dùng
+      chung một hạn 15 giây cho cả 2 lần thử**; hết hạn trả
+      `"Hệ thống đang bận, vui lòng thử lại sau"` với `sources=[{"type":"timeout"}]`
+      thay vì lỗi timeout.
+
 ## Rules (BẮT BUỘC TUÂN THỦ)
 
 - KHÔNG dùng PHP, ASP.NET, hay bất kỳ framework nào ngoài danh sách trên.
@@ -476,6 +495,42 @@ Vì vậy **không dùng được** tiêu chí "hệ số biến động mùa v�
   sang `src/assets/Avatar.jpg`. Lưu `/assets/Avatar-abc123.jpg` sẽ hỏng ngay lần build sau vì
   Vite băm tên file.
 
+### Gợi ý điều chuyển AI · Prophet-only · timeout chatbot (22/11/2026)
+
+- **`sp_Transfer_SuggestAI` đo bằng "số ngày phủ" chứ không so tồn kho tuyệt đối.**
+  `days_cover = current_stock / (predicted_qty / horizon_days)`. Cửa hàng có
+  `days_cover > @TargetDays` là dư, `< @TargetDays` là thiếu. Cách này chịu được
+  việc mỗi sản phẩm có nhu cầu/ngày rất khác nhau.
+- **`@TargetDays` mặc định 14, không phải 30.** Với dữ liệu hiện tại, **100/100 cặp
+  đều phủ dưới 30 ngày** (20 cặp < 7 ngày, 54 cặp 7–14 ngày, 26 cặp 14–30 ngày) nên
+  mục tiêu 30 ngày sẽ **không có cửa hàng nào dư** → 0 gợi ý. Mức 14 ngày cho ra danh
+  sách có nghĩa; giao diện cho chọn 7/14/21/30 để thấy ngưỡng thay đổi kết quả.
+- **Ghép cặp theo hạng (greedy) trong từng sản phẩm:** cửa hàng dư xếp theo
+  `surplus_qty DESC`, cửa hàng thiếu xếp theo `shortage_qty DESC`, ghép cùng hạng
+  `rn`; số lượng gợi ý = `MIN(surplus_qty, shortage_qty)`. Nhờ vậy không bao giờ
+  đề xuất chuyển nhiều hơn lượng dư thật của kho nguồn.
+- **`@ModelName` mặc định `'prophet'`** để tab AI và trang Dự báo cùng một mô hình.
+  Truyền `NULL` nếu muốn trộn mọi mô hình (không dùng trên web).
+- **`sp_Forecasts_Latest` thêm `@ModelName`** → `GET /forecasts/latest?model_name=prophet`
+  trả **97 cặp** thay vì 100, vì 3 cặp XGBoost thắng không còn dòng Prophet. Đây là
+  chủ ý: web chỉ hiển thị Prophet, còn 3 cặp kia vẫn nằm trong bảng để đối chứng.
+- **`/transfers/suggestions` phải khai báo TRƯỚC `/transfers/{transfer_id}`**, cùng lý
+  do với `/summary`: nếu không FastAPI cố parse chuỗi `"suggestions"` thành `int` → 422.
+- **`reason` và `priority` viết ở router Python, không viết trong SQL.** File SQL giữ
+  ASCII; câu tiếng Việt có dấu soạn ở `transfer_router.py` (helper `_vi_num` định dạng
+  dấu chấm hàng nghìn).
+- **Chặn timeout chatbot bằng thread, không bằng timeout của SDK.** `google-genai`
+  không bảo đảm tôn trọng timeout HTTP, nên `_generate_with_timeout` chạy
+  `generate_content` trong `ThreadPoolExecutor(max_workers=1)` rồi
+  `future.result(timeout=remaining)`. Hết hạn → `executor.shutdown(wait=False)` và trả
+  câu "Hệ thống đang bận…". **Thread nền vẫn tiếp tục chạy** (Python không kill được
+  thread); chấp nhận được vì request đã trả lời và kết nối sẽ tự đóng.
+- **Hạn 15 giây là hạn CHUNG cho cả 2 lần thử**, không phải 15 giây mỗi lần. Trước đây
+  vòng lặp thử lại có thể giữ người dùng 30+ giây khi Gemini treo.
+- **Frontend đặt timeout 60 giây theo URL, không đổi timeout mặc định.** Chỉ
+  `config.url.includes('/chat')` mới được nâng lên 60000 ms; API đọc/ghi khác vẫn 20
+  giây để lỗi mạng hiện ra sớm.
+
 ### Giai đoạn PostgreSQL (lịch sử)
 
 - Token Antigravity có giới hạn → cần commit thường xuyên.
@@ -639,6 +694,7 @@ Chương 2 là cơ sở lý thuyết, trình bày cả 5 mô hình, chỉ **kỳ
 - [x] **CHẶN TỰ HẠ QUYỀN / TỰ XOÁ MÌNH (19/11/2026)**: `PUT /users/{id}` trả 403 khi tự đổi vai trò, tự tắt quyền đang bật hoặc tự khoá tài khoản; `DELETE /users/{id}` trả 403 khi xoá chính mình. Modal Sửa tài khoản của chính mình khoá Vai trò + 7 công tắc quyền + công tắc hoạt động, ẩn nút xoá, và không gửi các trường bị khoá trong payload. Test API 6/6 PASS (4 lần 403 + tự sửa tên 200 + owner vẫn hoạt động); trình duyệt xác nhận disable/ẩn đúng; `npm run build` PASS
 - [x] **CHUẨN HOÁ RBAC + ĐỒNG BỘ DỮ LIỆU 2026 (20/11/2026)**: `dependencies.require_permission(flag)` chặn theo 7 cờ quyền (đọc lại `users` mỗi request nên có hiệu lực ngay); gắn vào toàn bộ endpoint ghi — sản phẩm/nhóm/cửa hàng/import dùng `can_edit_product` (+ `can_delete_product` khi xoá), kho dùng `can_manage_inventory`, đơn hàng `can_manage_order`, điều chuyển `can_manage_transfer`, `/reports/*` là `can_view_report`, `/chat` yêu cầu đăng nhập. Frontend tách `canEdit`/`canDelete`/`canWrite` cho Sản phẩm · Nhóm hàng · Cửa hàng, dùng cờ cho Kho/Đơn hàng/Điều chuyển (staff vẫn ghi được). Script `scripts/shift_and_generate_2026.py`: cộng **3287 ngày** cho dữ liệu trước 2019 (2013→2022 … 2017→2026), sinh lại bán hàng 01/01→20/11/2026 (3.240 đơn · 162.000 dòng hàng) theo mùa vụ + ngày lễ, dời khung dự báo về 21/11–20/12/2026, chạy lại 3 procedure cảnh báo. 0 lỗi FK, `npm run build` PASS
 - [x] **TÁCH TAB DANH SÁCH / PHÂN QUYỀN (21/11/2026)**: `/users` có 2 tab — "Danh sách tài khoản" (bảng có cột **Ngày giờ tạo** `dd/mm/yyyy HH:mm`, chỉ Thêm / Sửa thông tin cơ bản (tên + email) / Khoá–Mở khoá, không có công tắc quyền) và "Cấp phép & Phân quyền" (danh sách chọn bên trái, khung 7 công tắc + ô vai trò + "Lưu thay đổi quyền" bên phải). Backend thêm `PUT /users/{id}/permissions` và `PUT /users/{id}/status` (owner-only, merge dòng hiện tại rồi gọi `sp_Users_Update` với `PasswordHash = NULL`, không thêm procedure mới). Test API **30/30 PASS**, quyền mới có hiệu lực ngay với token đang dùng (report 403 → 200), tài khoản bị khoá không đăng nhập được; trình duyệt xác nhận 2 tab, modal sửa cơ bản, hộp khoá tài khoản; `npm run build` PASS, `npm run lint` 0 error
+- [x] **GỢI Ý ĐIỀU CHUYỂN TỪ AI + TINH GỌN PROPHET + CHẶN TIMEOUT CHATBOT (22/11/2026)**: migration `014-smart-transfer.sql` (`sp_Transfer_SuggestAI` + `sp_Forecasts_Latest` có `@ModelName`); `GET /transfers/suggestions` (so dự báo với tồn kho, `target_days=14`, `model_name=prophet`, `reason`/`priority` viết ở router); tab "Gợi ý từ AI" trong `/transfers` với nút "Tạo yêu cầu" điền sẵn form; trang `/forecasts` chỉ gọi `model_name=prophet` và bỏ cột "Mô hình"; `api.js` timeout 60 giây riêng `/chat`; `chat_router.py` gọi Gemini trong thread với hạn chung 15 giây và trả "Hệ thống đang bận, vui lòng thử lại sau". Test: API suggestions 5 dòng đúng, `/forecasts/latest?model_name=prophet` trả 97 cặp, timeout guard 0,5 giây raise đúng và nhánh busy trả đúng câu, chat thật 1,7 giây; `npm run build` PASS (688 module), `npm run lint` 0 error
 - [ ] T2: README con cho từng thư mục
 - [ ] Tích hợp AI Model
 

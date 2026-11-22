@@ -56,6 +56,12 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
+  // Chatbot phai cho Gemini tra loi, lau hon han cac API doc/ghi thong
+  // thuong. Backend da tu chan o 15 giay, 60 giay o day chi de phong khi
+  // mang cham ma van nhan duoc cau "he thong dang ban".
+  if (config.url?.includes('/chat')) {
+    config.timeout = 60000
+  }
   return config
 })
 
