@@ -3569,4 +3569,144 @@ nhất theo RMSE).
 | `npm run build` | PASS (688 module) |
 | `npm run lint` | 0 error (chỉ warning cũ) |
 
+## 20. Thay "Đề xuất nhập hàng" bằng Báo cáo Hàng hóa & Rủi ro Hao hụt (23/11/2026)
+
+Mục "Đề xuất nhập hàng" trên Sidebar vốn chỉ là nhãn **"SẮP RA MẮT"** (không có trang).
+Đợt này bỏ hẳn và thay bằng một trang báo cáo có dữ liệu thật: **Báo cáo Hàng hóa & Rủi ro
+Hao hụt** tại `/reports/spoilage`. Mục tiêu là trả lời ba câu hỏi của quản lý chuỗi:
+lô nào sắp hỏng, thiệt hại ước tính bao nhiêu, và nên xử lý lô nào trước.
+
+### 20.1. Migration `015-spoilage-risk-report.sql`
+
+**View `v_spoilage_risk`** — một dòng cho mỗi lô còn tồn (`quantity > 0` và có
+`expiry_date`). View **không lọc** cửa hàng / nhóm hàng / số ngày để hai procedure dùng
+chung đúng một công thức:
+
+- `daily_demand`: ưu tiên Prophet — `SUM(predicted_quantity) / COUNT(DISTINCT
+  forecast_date)` theo cặp (cửa hàng, sản phẩm), `model_name = 'prophet'`. Chưa có dự báo
+  thì lấy `SUM(order_items.quantity) / 30` trong 30 ngày quanh **ngày bán cuối cùng**
+  (`MAX(order_date)` của đơn `completed` + `sale`), không neo `GETDATE()` — nhờ vậy nạp
+  lại dữ liệu cũ không làm tốc độ bán tụt về 0.
+- `demand_source`: `forecast` / `sales` / `none`.
+- `days_left = DATEDIFF(DAY, hôm nay, expiry_date)`; âm là đã hết hạn.
+- `sellable_qty = MIN(quantity, daily_demand × days_left)`; `unsold_qty = quantity −
+  sellable_qty`; lô hết hạn thì **toàn bộ** là unsold.
+- `loss_value = unsold_qty × products.unit_cost`.
+- `risk_score = 100 × (0.7 × unsold/quantity + 0.3 × (1 − days_left/30))`; lô
+  `days_left < 0` luôn **100**; `days_left ≥ 30` thì phần khẩn cấp bằng 0.
+- `risk_level`: **≥70 `high` · ≥40 `warning` · còn lại `safe`**.
+
+**`sp_Reports_SpoilageRisk (@Days, @CategoryId, @StoreId, @RiskLevel, @Limit)`** trả bảng
+chi tiết, lọc `days_left <= @Days`, sắp `risk_score DESC, loss_value DESC, days_left ASC`,
+mặc định `@Limit = 500` (tối đa 2.000).
+
+**`sp_Reports_SpoilageSummary (@Days, @CategoryId, @StoreId)`** quét view **một lần** vào
+bảng tạm `#risk` rồi trả **4 result set**: KPI (tồn kho, giá trị nguy cơ, tỷ lệ, số lô),
+cột chồng theo nhóm hàng (an toàn / cảnh báo / nguy cơ cao), xu hướng theo ngày hết hạn
+(giá trị thất thoát + tỷ lệ xử lý), và 5 lô rủi ro nhất.
+
+**Vì sao `@Days` là cửa sổ TƯƠNG LAI:** `0` nghĩa là "hết hạn hôm nay" **cộng toàn bộ lô
+đã hết hạn** (vì `days_left` âm luôn `<= 0`), `7` / `30` mở rộng thêm. Không phải "số
+ngày trong quá khứ". Nhờ vậy nút "Hôm nay" vẫn thấy hàng đã hỏng — đúng nhu cầu xử lý.
+
+**Vì sao phải có view:** công thức rủi ro xuất hiện ở cả bảng chi tiết lẫn 4 result set
+của summary. Nếu viết hai lần, chỉ cần sửa một bên là số trên thẻ KPI lệch với số trong
+bảng — lỗi rất khó phát hiện. View gom về một chỗ, procedure chỉ còn nhiệm vụ lọc.
+
+### 20.2. Backend
+
+`schemas/spoilage_schema.py`: `SpoilageRiskRow` (đủ trường hiển thị + `risk_reason`,
+`recommended_action`, `demand_source`), `SpoilageSummaryResponse` (KPI + 3 mảng biểu đồ),
+`SpoilageAdviceResponse`.
+
+`routers/report_router.py` thêm 4 endpoint (router đã có
+`dependencies=[Depends(require_permission("can_view_report"))]` nên **kế thừa quyền**):
+
+| Endpoint | Việc |
+|---|---|
+| `GET /api/v1/reports/spoilage` | Bảng chi tiết (`days`, `category_id`, `store_id`, `risk_level`, `limit`) |
+| `GET /api/v1/reports/spoilage/summary` | 4 thẻ KPI + dữ liệu biểu đồ |
+| `GET /api/v1/reports/spoilage/advice` | Tóm tắt & khuyến nghị (Gemini) |
+| `GET /api/v1/reports/spoilage/export?format=` | CSV / XLSX / PDF |
+
+- `advice` gọi Gemini trong `ThreadPoolExecutor` với hạn **10 giây**
+  (`SPOILAGE_ADVICE_TIMEOUT_SECONDS`); thiếu khoá, lỗi mạng hay quá hạn đều rơi về
+  `_fallback_advice` (luật tiếng Việt theo số liệu) với `model="fallback"` — panel không
+  bao giờ trống và request không thành 500.
+- `_risk_reason` soạn câu giải thích tiếng Việt ở Python (SQL giữ ASCII): đã hết hạn /
+  hết hạn hôm nay / còn N ngày + nguồn tốc độ bán.
+- `export` dùng `_render` sẵn có, tiêu đề cột **ASCII không dấu** ("Ma lo", "Ten SP"…) để
+  reportlab không lỗi font; dữ liệu trong ô vẫn là tiếng Việt.
+
+### 20.3. Frontend
+
+- `Sidebar.jsx`: xoá mục "Đề xuất nhập hàng" (badge "SẮP RA MẮT"), nhóm "PHÂN TÍCH" chỉ
+  còn **"Báo cáo Hàng hóa"** với icon `chart` mới thêm trong `Icon.jsx`; `App.jsx` thêm
+  route `reports/spoilage`.
+- `pages/SpoilageReportPage.jsx`:
+  - **Header:** nút quay lại, tiêu đề, giờ cập nhật, 3 nút kỳ hạn dạng pill
+    (**Hôm nay / 7 ngày / 30 ngày**), 3 select (**danh mục / chi nhánh / mức rủi ro**),
+    nút **Làm mới · Xuất Excel · Xuất PDF**.
+  - **4 thẻ KPI:** tổng tồn kho (kèm trị giá), giá trị nguy cơ hao hụt (kèm số đơn vị),
+    tỷ lệ hao hụt (kèm số lô trong khung), số lô cần xử lý (kèm số lô hết hạn / nguy cơ
+    cao). Số chạy hiệu ứng đếm.
+  - **Biểu đồ cột chồng** an toàn / cảnh báo / nguy cơ cao theo danh mục, và **biểu đồ
+    đường** xu hướng giá trị thất thoát + tỷ lệ xử lý theo ngày hết hạn (2 trục).
+  - **Panel "Tóm tắt & Khuyến nghị thông minh"** gọi `/spoilage/advice`, có nhãn model
+    (Gemini hay fallback) và tải độc lập nên không chặn bảng.
+  - **Bảng chi tiết:** Mã lô / Tên hàng · Danh mục · Tồn kho · Hạn sử dụng · Tốc độ bán
+    · Risk Score · Thất thoát · nút **Xử lý**.
+  - **Drawer bên phải:** chi tiết lô (tồn, giá trị, hạn, tốc độ bán, dự kiến bán được,
+    thất thoát, nguồn tốc độ bán) + 3 nút **Khuyến mãi · Điều chuyển · Kiểm kê**.
+    "Khuyến mãi" lập kế hoạch giảm giá ngay trong Drawer (≤2 ngày: 50%, ≤7 ngày: 30%,
+    còn lại 15%) kèm toast; "Điều chuyển" mở `/transfers`, "Kiểm kê" mở `/inventory`.
+
+### 20.4. Vì sao không lưu lịch sử "đã xử lý"
+
+Hệ thống chưa có bảng log thao tác xử lý hàng hỏng, nên đường "tỷ lệ xử lý thành công"
+trên biểu đồ được tính bằng **`100 × (1 − thất thoát/giá trị tồn)`** theo từng ngày hết
+hạn — tức tỷ lệ giá trị **còn cứu được**, không phải log thao tác thủ công. Cách này
+không bịa dữ liệu và vẫn cho thấy ngày nào hàng hỏng nặng nhất. Khi viết Chương 4 phải
+nói rõ để không bị hiểu là đã đo được hành vi xử lý thật.
+
+Tương tự, các thao tác trong Drawer hiện là **hỗ trợ quyết định**: "Khuyến mãi" mới tạo
+kế hoạch trong phiên làm việc (chưa ghi DB), "Điều chuyển" và "Kiểm kê" đưa người dùng
+sang trang nghiệp vụ tương ứng. Muốn ghi nhận thật thì phải thêm bảng log — ngoài phạm
+vi đợt này.
+
+### 20.5. Kết quả kiểm chứng
+
+| Kiểm tra | Kết quả |
+|---|---|
+| `sqlcmd -i 015-spoilage-risk-report.sql` | PASS (1 view + 2 procedure) |
+| Tổng kết DB sau migration | **11 bảng · 5 view · 94 Stored Procedure** |
+| `GET /reports/spoilage/summary?days=30` | 331.239 đơn vị · 8.877.108.500 đ · **834.809.519 đ nguy cơ (9,4%)** · 648 lô trong khung · 290 lô cần xử lý · 183 lô hết hạn · 261 lô nguy cơ cao |
+| `?days=7` | 797.213.585 đ (8,98%) · 363 lô · 281 lô cần xử lý |
+| `?days=0` ("Hôm nay") | 233 lô (gồm 183 lô đã hết hạn) · 644.346.000 đ |
+| Dữ liệu biểu đồ khung 30 ngày | 7 danh mục · 28 điểm xu hướng · 5 lô rủi ro nhất |
+| `GET /reports/spoilage?days=7&category_id=2&store_id=1&risk_level=high` | đúng **3 lô**, `risk_reason` tiếng Việt, `recommended_action` hợp lệ |
+| `GET /reports/spoilage/advice` | Gemini trả 1.300 ký tự (`model=gemini-3.5-flash-lite`); tắt khoá → `model=fallback` |
+| `GET /reports/spoilage/export?format=xlsx` | 22.912 byte, magic `PK` |
+| `GET /reports/spoilage/export?format=pdf` | 95.771 byte (PDF hợp lệ) |
+| Trình duyệt: Sidebar | không còn "Đề xuất nhập hàng"; "PHÂN TÍCH" chỉ có **Báo cáo Hàng hóa** |
+| Trình duyệt: đổi kỳ hạn 30 → 7 → Hôm nay | KPI + biểu đồ + bảng đổi đúng theo API |
+| Trình duyệt: lọc danh mục + chi nhánh + mức rủi ro | bảng còn đúng 3 lô Fresh Food / CH Q.3 |
+| Trình duyệt: bấm "Xử lý" | Drawer mở đúng lô, đủ 3 nút thao tác |
+| Trình duyệt: "Khuyến mãi" | hiện "Kế hoạch khuyến mãi: giảm 50% cho lô BATCH-2026-000028…" |
+| Trình duyệt: "Điều chuyển" / "Kiểm kê" | chuyển tới `/transfers` / `/inventory` |
+| Trình duyệt: Xuất Excel / PDF | tải `bao-cao-rui-ro-hao-hut.xlsx` (22.912 byte) và `.pdf` (95.771 byte) |
+| `npm run build` | PASS (689 module) |
+| `npm run lint` | 0 error (chỉ warning cũ) |
+
+### 20.6. Lưu ý khi test và khi viết báo cáo
+
+- **Thẻ KPI có hiệu ứng đếm số**: đọc DOM ngay sau khi đổi bộ lọc có thể thấy `0 đơn vị`
+  trong lúc animation chạy. Chờ ~0,5 giây rồi đọc lại; đừng kết luận API trả 0.
+- **Trục thời gian của biểu đồ đường có khoảng trống** vì chỉ có điểm ở ngày thật sự có
+  lô hết hạn (`GROUP BY expiry_date`, lấy từ hôm nay − 30 ngày). Đây là bản chất dữ liệu.
+- **`expired_lots` không đổi giữa 7 và 30 ngày** (183 lô) vì lô hết hạn luôn nằm trong
+  mọi cửa sổ; `high_risk_lots` và `lots_to_handle` thì đổi theo cửa sổ.
+- Bảng mặc định lấy 500 lô đầu theo điểm rủi ro; muốn xem toàn bộ thì dùng nút xuất
+  (tối đa 2.000 dòng).
+
 

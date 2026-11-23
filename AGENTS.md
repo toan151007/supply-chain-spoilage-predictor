@@ -87,8 +87,10 @@ ngoài dự báo nhu cầu còn có **điều chuyển hàng giữa cửa hàng*
    "Dự báo theo mùa" (`components/forecasts/SeasonalPanel.jsx`). Tab mùa vụ **tự động
    gọi lại API mỗi 5 phút** (`REFRESH_MS = 5 * 60 * 1000`) và hiện đồng hồ đếm ngược,
    giờ cập nhật, nút "Làm mới ngay". Không cần F5.
-10. **Việc còn lại:** nối Dashboard với API thật, tạo đơn hàng mới, trang Đề xuất nhập hàng
-    và Báo cáo (CSV/XLSX/PDF).
+10. **Việc còn lại:** nối Dashboard với API thật, tạo đơn hàng mới và hoàn thiện các mẫu
+    báo cáo CSV/XLSX/PDF còn lại. Mục "Đề xuất nhập hàng" **đã bỏ khỏi Sidebar** và thay
+    bằng trang Báo cáo Hàng hóa (xem mục 17); các endpoint đề xuất nhập hàng ở backend
+    vẫn giữ nguyên.
 11. **Tinh giản giao diện + Lọc nhanh cảnh báo (10/11/2026):**
     - `AlertsPage` có 4 nút lọc nhanh dạng pill: **Tất cả · Đã hết hạn · Sắp hết hạn ·
       Tồn kho thấp** — bấm là gọi API ngay (`?alert_type=...`), không cần nút "Áp dụng".
@@ -169,6 +171,26 @@ ngoài dự báo nhu cầu còn có **điều chuyển hàng giữa cửa hàng*
       chung một hạn 15 giây cho cả 2 lần thử**; hết hạn trả
       `"Hệ thống đang bận, vui lòng thử lại sau"` với `sources=[{"type":"timeout"}]`
       thay vì lỗi timeout.
+
+17. **Báo cáo Hàng hóa & Rủi ro Hao hụt (23/11/2026):** mục "Đề xuất nhập hàng" (nhãn
+    "SẮP RA MẮT") **bị xoá khỏi Sidebar**; nhóm "PHÂN TÍCH" chỉ còn **Báo cáo Hàng hóa**
+    (`chart` icon) → route `/reports/spoilage`.
+    - Trang `frontend/src/pages/SpoilageReportPage.jsx` gồm: header lọc **Hôm nay / 7 ngày /
+      30 ngày**, Danh mục, Chi nhánh, Mức độ rủi ro + nút **Làm mới / Xuất Excel / Xuất
+      PDF**; 4 thẻ KPI (Tổng tồn kho, Giá trị nguy cơ hao hụt, Tỷ lệ hao hụt, Số lô cần
+      xử lý); biểu đồ cột chồng An toàn/Cảnh báo/Nguy cơ cao theo danh mục; biểu đồ đường
+      xu hướng thất thoát + tỷ lệ xử lý; khung **"Tóm tắt & Khuyến nghị thông minh"**
+      (Gemini, có fallback luật tiếng Việt); bảng chi tiết 500 lô và **Drawer "Xử lý"**
+      bên phải với 3 thao tác **Khuyến mãi · Điều chuyển · Kiểm kê**.
+    - Backend: `GET /api/v1/reports/spoilage` (chi tiết), `/spoilage/summary` (4 KPI + dữ
+      liệu biểu đồ), `/spoilage/advice` (AI) và `/spoilage/export?format=xlsx|pdf|csv`;
+      tất cả nằm trong `report_router.py` nên kế thừa `can_view_report`.
+    - CSDL: migration `015-spoilage-risk-report.sql` thêm **view `v_spoilage_risk`** (một
+      nơi duy nhất chứa công thức rủi ro) + **`sp_Reports_SpoilageRisk`** và
+      **`sp_Reports_SpoilageSummary`**.
+    - Drawer: "Khuyến mãi" tạo kế hoạch giảm giá theo số ngày còn lại (≤2 ngày: 50%,
+      ≤7 ngày: 30%, còn lại 15%) và hiện ngay trong Drawer; "Điều chuyển" mở
+      `/transfers`, "Kiểm kê" mở `/inventory`.
 
 ## Rules (BẮT BUỘC TUÂN THỦ)
 
@@ -347,8 +369,8 @@ Vì vậy **không dùng được** tiêu chí "hệ số biến động mùa v�
 
 - **Bước 3 dùng `DbSession` bọc `pyodbc` raw connection, KHÔNG dùng SQLAlchemy Session.** `Session` không có `nextset()`, và procedure tự `COMMIT` transaction ngầm của pyodbc gây lỗi `266 Transaction count after EXECUTE...`. Engine tạo với `autocommit=True`, lấy connection bằng `engine.raw_connection()`. Router gọi `db.call("sp_Ten", {TenThamSo: value})` → `list[list[dict]]` (mỗi result set là list dict theo TÊN cột).
 - **Chuỗi kết nối phải dựng qua `mssql+pyodbc:///?odbc_connect=<quote_plus(...)>`** vì host chứa dấu `\` bị URL-encode sai nếu viết dạng `user:pass@host`.
-- **Có 91 Stored Procedure**: 49 trong `database/HUONG-DAN-CHAY-SSMS.md` + 25 trong `database/03-migrations/010-sqlserver-analytics-procedures.sql` (dashboard, dashboard nâng cao, đề xuất nhập hàng, báo cáo, import dùng `OPENJSON`) + **10 điều chuyển + 1 dự báo mùa vụ** trong `database/03-migrations/011-transfers-seasonal.sql` + **4 quản lý người dùng** (`sp_Users_List/Create/Update/Delete`) trong `013-users-permissions.sql`. Chạy migration 010 → 011 → 013 sau file hướng dẫn.
-- **Có 11 bảng** (10 bảng gốc + `transfer_requests`) và **4 view**.
+- **Có 94 Stored Procedure**: 49 trong `database/HUONG-DAN-CHAY-SSMS.md` + 25 trong `database/03-migrations/010-sqlserver-analytics-procedures.sql` (dashboard, dashboard nâng cao, đề xuất nhập hàng, báo cáo, import dùng `OPENJSON`) + **10 điều chuyển + 1 dự báo mùa vụ** trong `database/03-migrations/011-transfers-seasonal.sql` + **2 bảo trì cảnh báo** (`012-refresh-alert-demo-data.sql`) + **4 quản lý người dùng** (`sp_Users_List/Create/Update/Delete`) trong `013-users-permissions.sql` + **1 gợi ý điều chuyển AI** (`014-smart-transfer.sql`) + **2 báo cáo rủi ro hao hụt** (`015-spoilage-risk-report.sql`). Chạy migration 010 → 011 → 012 → 013 → 014 → 015 sau file hướng dẫn.
+- **Có 11 bảng** (10 bảng gốc + `transfer_requests`) và **5 view** (thêm `v_spoilage_risk`).
 - **Nạp dữ liệu dev**: `python scripts/convert_seed_to_sqlserver.py` (sinh `database/02-seed/seed-sqlserver.sql`) rồi `python scripts/load_sqlserver_data.py`. Script nạp **bỏ các dòng `sales = 0`** để không vi phạm `CHECK (quantity > 0)` — đúng bài học cũ.
 - **`sp_Orders_Delete` xoá dòng hàng trước rồi xoá đơn** trong cùng transaction (khôi phục `ON DELETE CASCADE` của PostgreSQL). Xoá đơn `completed` vẫn bị chặn ở tầng trạng thái.
 - **Bảng `forecasts` hiện có 3.000 dòng = 100 cặp × 30 ngày** (97 cặp `prophet` + 3 cặp `xgboost`, đúng mô hình thắng cuộc của từng cặp). Số cũ 2.820 (94 cặp) là do loader lọc `model == 'prophet'` rồi bỏ thêm 3 cặp — đã sửa 05/11/2026.
@@ -531,6 +553,47 @@ Vì vậy **không dùng được** tiêu chí "hệ số biến động mùa v�
   `config.url.includes('/chat')` mới được nâng lên 60000 ms; API đọc/ghi khác vẫn 20
   giây để lỗi mạng hiện ra sớm.
 
+### Báo cáo rủi ro hao hụt · view `v_spoilage_risk` (23/11/2026)
+
+- **Một view giữ toàn bộ công thức, hai procedure chỉ lọc.** `v_spoilage_risk` trả **một
+  dòng cho mỗi lô còn tồn** (`quantity > 0` và có `expiry_date`), không lọc cửa hàng /
+  nhóm / số ngày; `sp_Reports_SpoilageRisk` và `sp_Reports_SpoilageSummary` tự lọc. Sửa
+  công thức rủi ro chỉ sửa một chỗ, không sợ hai bên lệch nhau.
+- **Tốc độ bán ưu tiên Prophet, fallback về bán thực tế.** `daily_demand` lấy
+  `SUM(predicted_quantity) / COUNT(DISTINCT forecast_date)` của `model_name='prophet'`;
+  chưa có dự báo thì lấy `SUM(order_items.quantity) / 30` trong 30 ngày quanh **ngày bán
+  cuối cùng** (`MAX(order_date)` của đơn `completed` + `sale`), không neo `GETDATE()`.
+  Nhờ vậy nạp lại dữ liệu cũ không làm tốc độ bán tụt về 0. Cột `demand_source` =
+  `forecast | sales | none`.
+- **`sellable_qty = MIN(quantity, daily_demand × days_left)`**, `unsold_qty =
+  quantity - sellable_qty`, **hết hạn thì toàn bộ lô là unsold**. `loss_value =
+  unsold_qty × unit_cost` (giá vốn trong `products.unit_cost`).
+- **Điểm rủi ro = `100 × (0.7 × unsold/quantity + 0.3 × (1 - days_left/30))`**; lô
+  `days_left < 0` luôn **100 điểm**; `days_left ≥ 30` thì phần khẩn cấp bằng 0. Ngưỡng:
+  **≥70 `high` · ≥40 `warning` · còn lại `safe`**.
+- **`@Days` là cửa sổ hạn sử dụng tính TỚI TƯƠNG LAI, không phải số ngày quá khứ.**
+  `0` = lô hết hạn hôm nay **cộng toàn bộ lô đã hết hạn** (vì `days_left` âm luôn
+  `<= @Days`); `7` / `30` là mốc mở rộng. Đừng hiểu `0` là "không lọc gì".
+- **`expired_lots` đếm toàn bộ lô đã hết hạn; `high_risk_lots` và `lots_to_handle` chỉ
+  đếm trong cửa sổ `@Days`.** Vì lô hết hạn luôn nằm trong cửa sổ nên `expired_lots`
+  không đổi khi đổi 7 ↔ 30 ngày; `high_risk_lots` thì đổi.
+- **`trend` gom theo `expiry_date` và chỉ lấy `expiry_date >= hôm nay - 30`**, nên trục
+  thời gian **có khoảng trống** ở ngày không có lô nào hết hạn — đúng bản chất dữ liệu,
+  không phải lỗi biểu đồ. `handled_rate = 100 × (1 - loss_value/total_value)` là **tỷ lệ
+  giá trị còn cứu được**, không phải log thao tác thủ công (hệ thống chưa lưu lịch sử xử
+  lý) — khi viết Chương 4 phải nói rõ.
+- **Giao diện có hiệu ứng đếm số ở thẻ KPI.** Ngay sau khi đổi bộ lọc, đọc DOM có thể
+  thấy `0 đơn vị` trong lúc animation chạy; chờ ~0,5 giây rồi đọc lại mới đúng. Đừng kết
+  luận API trả 0 khi test bằng trình duyệt — kiểm tra `network.get` hoặc gọi thẳng API.
+- **Bảng chi tiết mặc định `limit=500`** (tối đa 2.000) và sắp theo `risk_score DESC,
+  loss_value DESC, days_left ASC`; trang hiển thị đủ 500 lô đầu, không phân trang.
+- **Xuất Excel/PDF dùng tiêu đề cột ASCII không dấu** ("Ma lo", "Ten SP"…) để reportlab
+  không lỗi font khi vẽ PDF; dữ liệu tiếng Việt trong ô vẫn giữ nguyên. PDF giới hạn
+  1.000 dòng như các báo cáo khác.
+- **AI advice chạy 10 giây trong thread rồi fallback luật tiếng Việt** (`model="fallback"`);
+  panel tải độc lập với bảng nên Gemini chậm không chặn trang. Gọi lại API advice mỗi
+  lần đổi bộ lọc.
+
 ### Giai đoạn PostgreSQL (lịch sử)
 
 - Token Antigravity có giới hạn → cần commit thường xuyên.
@@ -695,6 +758,7 @@ Chương 2 là cơ sở lý thuyết, trình bày cả 5 mô hình, chỉ **kỳ
 - [x] **CHUẨN HOÁ RBAC + ĐỒNG BỘ DỮ LIỆU 2026 (20/11/2026)**: `dependencies.require_permission(flag)` chặn theo 7 cờ quyền (đọc lại `users` mỗi request nên có hiệu lực ngay); gắn vào toàn bộ endpoint ghi — sản phẩm/nhóm/cửa hàng/import dùng `can_edit_product` (+ `can_delete_product` khi xoá), kho dùng `can_manage_inventory`, đơn hàng `can_manage_order`, điều chuyển `can_manage_transfer`, `/reports/*` là `can_view_report`, `/chat` yêu cầu đăng nhập. Frontend tách `canEdit`/`canDelete`/`canWrite` cho Sản phẩm · Nhóm hàng · Cửa hàng, dùng cờ cho Kho/Đơn hàng/Điều chuyển (staff vẫn ghi được). Script `scripts/shift_and_generate_2026.py`: cộng **3287 ngày** cho dữ liệu trước 2019 (2013→2022 … 2017→2026), sinh lại bán hàng 01/01→20/11/2026 (3.240 đơn · 162.000 dòng hàng) theo mùa vụ + ngày lễ, dời khung dự báo về 21/11–20/12/2026, chạy lại 3 procedure cảnh báo. 0 lỗi FK, `npm run build` PASS
 - [x] **TÁCH TAB DANH SÁCH / PHÂN QUYỀN (21/11/2026)**: `/users` có 2 tab — "Danh sách tài khoản" (bảng có cột **Ngày giờ tạo** `dd/mm/yyyy HH:mm`, chỉ Thêm / Sửa thông tin cơ bản (tên + email) / Khoá–Mở khoá, không có công tắc quyền) và "Cấp phép & Phân quyền" (danh sách chọn bên trái, khung 7 công tắc + ô vai trò + "Lưu thay đổi quyền" bên phải). Backend thêm `PUT /users/{id}/permissions` và `PUT /users/{id}/status` (owner-only, merge dòng hiện tại rồi gọi `sp_Users_Update` với `PasswordHash = NULL`, không thêm procedure mới). Test API **30/30 PASS**, quyền mới có hiệu lực ngay với token đang dùng (report 403 → 200), tài khoản bị khoá không đăng nhập được; trình duyệt xác nhận 2 tab, modal sửa cơ bản, hộp khoá tài khoản; `npm run build` PASS, `npm run lint` 0 error
 - [x] **GỢI Ý ĐIỀU CHUYỂN TỪ AI + TINH GỌN PROPHET + CHẶN TIMEOUT CHATBOT (22/11/2026)**: migration `014-smart-transfer.sql` (`sp_Transfer_SuggestAI` + `sp_Forecasts_Latest` có `@ModelName`); `GET /transfers/suggestions` (so dự báo với tồn kho, `target_days=14`, `model_name=prophet`, `reason`/`priority` viết ở router); tab "Gợi ý từ AI" trong `/transfers` với nút "Tạo yêu cầu" điền sẵn form; trang `/forecasts` chỉ gọi `model_name=prophet` và bỏ cột "Mô hình"; `api.js` timeout 60 giây riêng `/chat`; `chat_router.py` gọi Gemini trong thread với hạn chung 15 giây và trả "Hệ thống đang bận, vui lòng thử lại sau". Test: API suggestions 5 dòng đúng, `/forecasts/latest?model_name=prophet` trả 97 cặp, timeout guard 0,5 giây raise đúng và nhánh busy trả đúng câu, chat thật 1,7 giây; `npm run build` PASS (688 module), `npm run lint` 0 error
+- [x] **BÁO CÁO HÀNG HÓA & RỦI RO HAO HỤT (23/11/2026)**: xoá mục "Đề xuất nhập hàng" ("SẮP RA MẮT") khỏi Sidebar, thay bằng **Báo cáo Hàng hóa** (`/reports/spoilage`, icon biểu đồ); migration `015-spoilage-risk-report.sql` (view `v_spoilage_risk` + `sp_Reports_SpoilageRisk` + `sp_Reports_SpoilageSummary`); 4 endpoint `GET /reports/spoilage`, `/spoilage/summary`, `/spoilage/advice` (Gemini 10 giây, fallback luật), `/spoilage/export?format=xlsx|pdf|csv` (kế thừa `can_view_report`); trang `SpoilageReportPage.jsx` có 4 thẻ KPI, biểu đồ cột chồng theo danh mục, biểu đồ đường xu hướng thất thoát, panel AI, bảng 500 lô và Drawer "Xử lý" (Khuyến mãi · Điều chuyển · Kiểm kê). Đo thực tế khung 30 ngày: **331.239 đơn vị · 8.877.108.500 đ tồn kho · 834.809.519 đ nguy cơ (9,4%) · 648 lô trong khung · 290 lô cần xử lý · 183 lô hết hạn · 261 lô nguy cơ cao** (7 danh mục, 28 điểm xu hướng, 5 lô rủi ro nhất); khung 7 ngày còn 797.213.585 đ (8,98%) / 363 lô, "Hôm nay" còn 233 lô. Trình duyệt: lọc danh mục + chi nhánh + mức rủi ro ra đúng 3 lô Fresh Food/CH Q.3; Drawer mở đúng, "Khuyến mãi" hiện kế hoạch giảm 50% cho lô quá hạn, "Điều chuyển" → `/transfers`, "Kiểm kê" → `/inventory`; tải XLSX 22.912 byte và PDF 95.771 byte. `npm run build` PASS (689 module), `npm run lint` 0 error
 - [ ] T2: README con cho từng thư mục
 - [ ] Tích hợp AI Model
 
