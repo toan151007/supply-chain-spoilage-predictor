@@ -40,6 +40,7 @@ from app.schemas.spoilage_schema import (
     SpoilageRiskRow,
     SpoilageSummaryResponse,
 )
+from app.schemas.top_selling_schema import TopSellingRow
 
 # Reports are sensitive and the administrator can switch the right off for a
 # manager, so this is checked per request rather than only hidden in the menu.
@@ -853,3 +854,41 @@ def export_spoilage(
                        "BAO CAO HANG HOA & RUI RO HAO HUT")
     _truncate_header(rows, limit, response)
     return response
+
+
+@router.get(
+    "/top-selling",
+    response_model=list[TopSellingRow],
+    summary="Best-selling products of one day",
+)
+def top_selling(
+    db: DbSession = Depends(get_db),
+    sale_date: date | None = Query(
+        None,
+        alias="date",
+        description="Sale date (YYYY-MM-DD); defaults to the latest day with sales",
+    ),
+) -> list[TopSellingRow]:
+    """
+    Products sold on one day, best sellers first.
+
+    Without `date` the procedure falls back to the latest day that actually
+    has completed sales, so the page opens on data instead of an empty today.
+    """
+    try:
+        rows = db.rows("sp_Reports_TopSelling", {"Date": sale_date})
+    except PyodbcError as exc:
+        raise map_sqlserver_error(exc) from exc
+
+    return [
+        TopSellingRow(
+            product_id=int(row["product_id"]),
+            product_name=row["product_name"],
+            product_code=row["product_code"],
+            category_name=row["category_name"],
+            sale_date=row["sale_date"],
+            total_quantity=round(_f(row["total_quantity"]), 3),
+            total_revenue=round(_f(row["total_revenue"]), 2),
+        )
+        for row in rows
+    ]

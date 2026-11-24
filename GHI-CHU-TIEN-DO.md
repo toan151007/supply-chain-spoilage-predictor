@@ -3709,4 +3709,90 @@ vi đợt này.
 - Bảng mặc định lấy 500 lô đầu theo điểm rủi ro; muốn xem toàn bộ thì dùng nút xuất
   (tối đa 2.000 dòng).
 
+## 21. Mặt hàng bán chạy theo ngày (24/11/2026)
+
+Nhóm "PHÂN TÍCH" trên Sidebar chỉ có **một** mục "Báo cáo Hàng hóa". Trang đầu là Rủi ro
+hao hụt; đợt này thêm **tab thứ hai** để trả lời câu hỏi khác: *ngày hôm đó bán được
+những gì, món nào bán chạy nhất, doanh thu bao nhiêu*. Hai tab dùng chung thanh
+`components/reports/ReportTabs.jsx` nên không phải thêm mục menu thứ hai.
+
+### 21.1. Migration `016-top-selling.sql`
+
+**`sp_Reports_TopSelling (@Date DATE = NULL)`** trả **một dòng cho mỗi sản phẩm** đã bán
+trong ngày, gom 10 cửa hàng:
+
+- `@Date = NULL` → lấy `MAX(order_date)` của đơn `status='completed' AND order_type='sale'`
+  làm ngày xem. **Cố ý không dùng `GETDATE()`**: dữ liệu bán hàng hiện dừng ở 20/11/2026
+  trong khi hôm nay là 24/11/2026, dùng `GETDATE()` sẽ ra bảng rỗng và trông như lỗi.
+- Chỉ tính đơn `completed` + `sale`; `total_revenue = SUM(order_items.line_total)` (cột
+  generated đã trừ `discount_percent`), `total_quantity = SUM(order_items.quantity)`.
+- Sắp theo `total_quantity DESC`, kèm `product_id`, `product_name`, `product_code`,
+  `category_name`, `sale_date`.
+- Đủ `BEGIN TRY ... BEGIN CATCH` + `TRANSACTION`, comment ASCII.
+
+### 21.2. Backend
+
+`GET /api/v1/reports/top-selling?date=YYYY-MM-DD` trong `report_router.py` (kế thừa
+`can_view_report`), gọi `db.rows("sp_Reports_TopSelling", {"Date": sale_date})`, trả
+`list[TopSellingRow]` (`backend/app/schemas/top_selling_schema.py`). Bỏ `date` = ngày bán
+gần nhất.
+
+### 21.3. Giao diện
+
+`frontend/src/pages/TopSellingPage.jsx` (route `/reports/top-selling`) thiết kế theo kiểu
+app bán hàng trên điện thoại, giữ danh sách dọc ở **mọi** breakpoint:
+
+- Header: nút quay lại · tiêu đề "Mặt hàng bán chạy" · nút kính lúp · nút phễu lọc.
+- Hàng ngày: `‹ Thứ Sáu, 20/11/2026 ›`; bấm vào chữ ngày mở `showPicker()` của
+  `<input type="date">` ẩn để nhảy thẳng tới một ngày.
+- Dải 3 ô tổng hợp: **Sản phẩm · Bán ra · Doanh thu** (doanh thu dùng
+  `formatCompactCurrency`).
+- Danh sách: chấm màu (chỉ để dễ quét, không mã hoá gì) · tên sản phẩm · nhóm hàng + mã ·
+  doanh thu · ô **SL** màu xanh. Sắp theo số lượng bán giảm dần.
+- Tìm kiếm bỏ dấu tiếng Việt (`normalize('NFD')` + xoá dấu + `đ→d`) trên tên, mã và nhóm
+  hàng — gõ `sua` ra cả "Sữa chua", "Sữa tắm", "Sữa tươi".
+- Phễu lọc: sắp xếp (số lượng / doanh thu / tên A→Z) và giới hạn hiển thị (10 / 20 / 50 /
+  tất cả). Lọc và sắp xếp chạy ở client, không gọi lại API.
+- Dark Mode đầy đủ; ở khung 360 px không dòng nào tràn ngang.
+
+### 21.4. Hai quyết định nhỏ nhưng dễ sai
+
+- **Ngày mặc định do dữ liệu quyết định.** Lần đầu trang gọi API **không kèm `date`**;
+  API trả ngày bán gần nhất và mỗi dòng mang `sale_date`. Trang lấy `sale_date` của dòng
+  đầu để hiển thị, sau đó các mũi tên mới gửi ngày tường minh. Nhờ vậy mở trang là thấy số
+  thật, không phải màn hình trống của "hôm nay".
+- **Ngày phải parse theo giờ địa phương.** `new Date('2026-11-16')` bị hiểu là UTC và ở
+  múi giờ âm sẽ hiện 15/11 — lỗi lệch một ngày rất khó thấy khi test buổi sáng. Hàm
+  `parseISO` tách chuỗi rồi dựng `new Date(y, m-1, d)`.
+
+### 21.5. Kết quả kiểm chứng
+
+| Kiểm tra | Kết quả |
+|---|---|
+| `sqlcmd -i 016-top-selling.sql` | PASS (`sp_Reports_TopSelling`) |
+| Tổng kết DB sau migration | 11 bảng · 5 view · **95 Stored Procedure** |
+| `GET /reports/top-selling?date=2026-11-16` | 50 sản phẩm · 26.441 đơn vị · 1.016.451.000 đ · top Kẹo mút 888 |
+| `?date=2026-11-19` | 50 sản phẩm · 31.741 đơn vị · 1.223.421.000 đ · top Cà phê sữa 1.104 |
+| `?date=2026-11-20` | 50 sản phẩm · 21.165 đơn vị · 817.332.500 đ |
+| Không truyền `date` | trả đúng ngày **2026-11-20** (ngày bán gần nhất) |
+| `?date=2026-11-22` (không có đơn) | mảng rỗng — giao diện hiện "Không có dữ liệu bán hàng cho ngày này" |
+| Sắp xếp số lượng | 50 dòng giảm dần đúng |
+| Trình duyệt: mũi tên ‹ › | 20/11 → 19/11 → 18/11, số liệu khớp API từng ngày |
+| Trình duyệt: tìm `sua` | còn 5 dòng (Sữa chua, Sữa tắm, Sữa tươi…) |
+| Trình duyệt: giới hạn 10 | bảng còn 10/50 dòng |
+| Trình duyệt: sắp theo doanh thu | top Thịt bò 90.045.000 đ |
+| Trình duyệt: Dark Mode / khung 360 px | nền tối đúng, không tràn ngang |
+| `npm run build` | PASS |
+| `npm run lint` | 0 error (chỉ warning cũ) |
+
+### 21.6. Lưu ý khi viết báo cáo
+
+- Con số doanh thu ở đây là **doanh thu bán hàng theo `line_total`**, không phải giá vốn;
+  đừng trộn với "giá trị nguy cơ hao hụt" ở tab Rủi ro.
+- Ngày 21/11/2026 trở đi **không có đơn** nên bảng rỗng — đúng dữ liệu, không phải lỗi
+  truy vấn. Khi chụp màn hình báo cáo nên chọn 16–20/11 để có số.
+- Lọc và sắp xếp chạy phía client vì mỗi ngày chỉ có 50 dòng; nếu sau này mở rộng sang
+  khoảng nhiều ngày thì phải chuyển sang tham số procedure.
+
+
 

@@ -15,6 +15,7 @@ import {
 
 import Icon from '../components/common/Icon.jsx'
 import Toast from '../components/common/Toast.jsx'
+import ReportTabs from '../components/reports/ReportTabs.jsx'
 import api from '../services/api.js'
 import {
   formatCompactCurrency,
@@ -361,6 +362,8 @@ export default function SpoilageReportPage() {
           <span>Quay lại</span>
         </button>
       </div>
+
+      <ReportTabs />
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>

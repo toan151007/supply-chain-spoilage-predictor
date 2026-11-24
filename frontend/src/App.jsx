@@ -15,6 +15,7 @@ import OrdersPage from './pages/OrdersPage.jsx'
 import ProductsPage from './pages/ProductsPage.jsx'
 import SpoilageReportPage from './pages/SpoilageReportPage.jsx'
 import StoresPage from './pages/StoresPage.jsx'
+import TopSellingPage from './pages/TopSellingPage.jsx'
 import TransfersPage from './pages/TransfersPage.jsx'
 import UsersPage from './pages/UsersPage.jsx'
 
@@ -36,6 +37,7 @@ export default function App() {
             <Route path="categories" element={<CategoriesPage />} />
             <Route path="stores" element={<StoresPage />} />
             <Route path="reports/spoilage" element={<SpoilageReportPage />} />
+            <Route path="reports/top-selling" element={<TopSellingPage />} />
             <Route path="users" element={<UsersPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>

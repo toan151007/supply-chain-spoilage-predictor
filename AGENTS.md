@@ -192,6 +192,33 @@ ngoài dự báo nhu cầu còn có **điều chuyển hàng giữa cửa hàng*
       ≤7 ngày: 30%, còn lại 15%) và hiện ngay trong Drawer; "Điều chuyển" mở
       `/transfers`, "Kiểm kê" mở `/inventory`.
 
+18. **Mặt hàng bán chạy theo ngày (24/11/2026):** tab thứ hai của nhóm báo cáo.
+    - **Thanh tab dùng chung** `frontend/src/components/reports/ReportTabs.jsx` gắn ở
+      đầu cả `SpoilageReportPage` (`/reports/spoilage`) lẫn `TopSellingPage`
+      (`/reports/top-selling`); Sidebar vẫn chỉ có một mục "Báo cáo Hàng hóa".
+    - Trang `frontend/src/pages/TopSellingPage.jsx` thiết kế như app bán hàng trên
+      điện thoại: header có **nút quay lại · tiêu đề · kính lúp · phễu lọc**; hàng ngày
+      `‹ Thứ Sáu, 20/11/2026 ›` (bấm vào chữ ngày mở `showPicker()` của
+      `<input type="date">` ẩn); dải 3 ô tổng hợp **Sản phẩm · Bán ra · Doanh thu**;
+      danh sách dọc **chấm màu + tên + nhóm/mã + doanh thu + ô SL**, sắp theo số lượng
+      bán giảm dần.
+    - Ô tìm kiếm **bỏ dấu tiếng Việt** (`normalize('NFD')` + xoá dấu + `đ→d`) nên gõ
+      `sua` vẫn ra "Sữa chua 500g"; lọc theo tên, mã sản phẩm hoặc nhóm hàng.
+    - Bộ lọc cho chọn **sắp xếp** (số lượng / doanh thu / tên A→Z) và **số dòng hiển thị**
+      (10 / 20 / 50 / tất cả). Lọc và sắp xếp chạy ở client trên dữ liệu của một ngày,
+      không gọi lại API.
+    - Backend `GET /api/v1/reports/top-selling?date=YYYY-MM-DD` (`date` bỏ trống = ngày
+      bán gần nhất) → `sp_Reports_TopSelling` (migration `016-top-selling.sql`), schema
+      `top_selling_schema.py`. Nằm trong `report_router.py` nên kế thừa `can_view_report`.
+    - **Ngày mặc định lấy từ dữ liệu, không lấy `GETDATE()`:** hôm nay là 24/11/2026
+      nhưng bán hàng dừng ở 20/11/2026, nên mở trang phải thấy dữ liệu thật. Ngày được
+      suy ra từ `sale_date` của dòng đầu tiên API trả về, rồi các mũi tên `‹ ›` mới dùng
+      ngày tường minh. Ngày không có đơn hiện khung "Không có dữ liệu bán hàng cho ngày
+      này" + nút "Về ngày có dữ liệu gần nhất" (đặt `date = null` để API tự chọn lại).
+    - Ngày được parse theo **giờ địa phương** (`parseISO` tách chuỗi) chứ không dùng
+      `new Date('2026-11-16')` — chuỗi ISO trần bị hiểu là UTC và lệch một ngày ở một số
+      múi giờ.
+
 ## Rules (BẮT BUỘC TUÂN THỦ)
 
 - KHÔNG dùng PHP, ASP.NET, hay bất kỳ framework nào ngoài danh sách trên.
@@ -369,7 +396,7 @@ Vì vậy **không dùng được** tiêu chí "hệ số biến động mùa v�
 
 - **Bước 3 dùng `DbSession` bọc `pyodbc` raw connection, KHÔNG dùng SQLAlchemy Session.** `Session` không có `nextset()`, và procedure tự `COMMIT` transaction ngầm của pyodbc gây lỗi `266 Transaction count after EXECUTE...`. Engine tạo với `autocommit=True`, lấy connection bằng `engine.raw_connection()`. Router gọi `db.call("sp_Ten", {TenThamSo: value})` → `list[list[dict]]` (mỗi result set là list dict theo TÊN cột).
 - **Chuỗi kết nối phải dựng qua `mssql+pyodbc:///?odbc_connect=<quote_plus(...)>`** vì host chứa dấu `\` bị URL-encode sai nếu viết dạng `user:pass@host`.
-- **Có 94 Stored Procedure**: 49 trong `database/HUONG-DAN-CHAY-SSMS.md` + 25 trong `database/03-migrations/010-sqlserver-analytics-procedures.sql` (dashboard, dashboard nâng cao, đề xuất nhập hàng, báo cáo, import dùng `OPENJSON`) + **10 điều chuyển + 1 dự báo mùa vụ** trong `database/03-migrations/011-transfers-seasonal.sql` + **2 bảo trì cảnh báo** (`012-refresh-alert-demo-data.sql`) + **4 quản lý người dùng** (`sp_Users_List/Create/Update/Delete`) trong `013-users-permissions.sql` + **1 gợi ý điều chuyển AI** (`014-smart-transfer.sql`) + **2 báo cáo rủi ro hao hụt** (`015-spoilage-risk-report.sql`). Chạy migration 010 → 011 → 012 → 013 → 014 → 015 sau file hướng dẫn.
+- **Có 95 Stored Procedure**: 49 trong `database/HUONG-DAN-CHAY-SSMS.md` + 25 trong `database/03-migrations/010-sqlserver-analytics-procedures.sql` (dashboard, dashboard nâng cao, đề xuất nhập hàng, báo cáo, import dùng `OPENJSON`) + **10 điều chuyển + 1 dự báo mùa vụ** trong `database/03-migrations/011-transfers-seasonal.sql` + **2 bảo trì cảnh báo** (`012-refresh-alert-demo-data.sql`) + **4 quản lý người dùng** (`sp_Users_List/Create/Update/Delete`) trong `013-users-permissions.sql` + **1 gợi ý điều chuyển AI** (`014-smart-transfer.sql`) + **2 báo cáo rủi ro hao hụt** (`015-spoilage-risk-report.sql`) + **1 mặt hàng bán chạy** (`016-top-selling.sql`). Chạy migration 010 → 011 → 012 → 013 → 014 → 015 → 016 sau file hướng dẫn.
 - **Có 11 bảng** (10 bảng gốc + `transfer_requests`) và **5 view** (thêm `v_spoilage_risk`).
 - **Nạp dữ liệu dev**: `python scripts/convert_seed_to_sqlserver.py` (sinh `database/02-seed/seed-sqlserver.sql`) rồi `python scripts/load_sqlserver_data.py`. Script nạp **bỏ các dòng `sales = 0`** để không vi phạm `CHECK (quantity > 0)` — đúng bài học cũ.
 - **`sp_Orders_Delete` xoá dòng hàng trước rồi xoá đơn** trong cùng transaction (khôi phục `ON DELETE CASCADE` của PostgreSQL). Xoá đơn `completed` vẫn bị chặn ở tầng trạng thái.
@@ -594,6 +621,29 @@ Vì vậy **không dùng được** tiêu chí "hệ số biến động mùa v�
   panel tải độc lập với bảng nên Gemini chậm không chặn trang. Gọi lại API advice mỗi
   lần đổi bộ lọc.
 
+### Mặt hàng bán chạy theo ngày · `sp_Reports_TopSelling` (24/11/2026)
+
+- **`@Date = NULL` phải rơi về ngày bán gần nhất, không phải `GETDATE()`.** Dữ liệu bán
+  hàng dừng ở 20/11/2026 trong khi hôm nay là 24/11/2026, nên mở trang với `GETDATE()`
+  sẽ ra bảng rỗng và trông như lỗi. Procedure lấy `MAX(order_date)` của đơn
+  `completed` + `sale` rồi mới lọc.
+- **Doanh thu lấy `SUM(order_items.line_total)`, không nhân lại `quantity × unit_price`.**
+  `line_total` là generated column đã trừ `discount_percent`; tự tính lại sẽ lệch với mọi
+  báo cáo khác.
+- **Chỉ tính đơn `status='completed' AND order_type='sale'`.** Thiếu điều kiện này thì hôm
+  nay có một đơn nháp là số liệu đổi, và đơn `return` / `purchase` bị cộng vào doanh thu.
+- **Một dòng cho mỗi sản phẩm, gom 10 cửa hàng.** `GROUP BY product_id`, `SUM` cả số lượng
+  lẫn doanh thu; ngày 16/11/2026 ra **50 sản phẩm / 26.441 đơn vị / 1.016.451.000 đ**.
+- **`sale_date` trả về theo từng dòng dữ liệu, không phải tham số đầu vào.** Nhờ vậy
+  frontend biết ngày thực tế đang xem mà không phải đoán lại khi gọi API không kèm `date`.
+- **Ngày `2026-11-21` trở đi trả mảng rỗng** (không có đơn) — đúng dữ liệu, không phải lỗi.
+  Giao diện phân biệt rõ "ngày không có dữ liệu" với "bộ lọc không khớp".
+- **Đừng dùng `new Date('2026-11-16')` trong JS.** Chuỗi ISO trần bị hiểu là UTC; máy ở
+  múi giờ âm sẽ hiện 15/11. Hàm `parseISO` tách chuỗi và dựng `new Date(y, m-1, d)` theo
+  giờ địa phương.
+- **Hàng chờ trong lúc đổi ngày:** `loading` giữ danh sách cũ ở `opacity-60` thay vì xoá
+  trắng, để bấm mũi tên liên tục không bị nháy. Chỉ hiện skeleton khi chưa có dòng nào.
+
 ### Giai đoạn PostgreSQL (lịch sử)
 
 - Token Antigravity có giới hạn → cần commit thường xuyên.
@@ -759,6 +809,7 @@ Chương 2 là cơ sở lý thuyết, trình bày cả 5 mô hình, chỉ **kỳ
 - [x] **TÁCH TAB DANH SÁCH / PHÂN QUYỀN (21/11/2026)**: `/users` có 2 tab — "Danh sách tài khoản" (bảng có cột **Ngày giờ tạo** `dd/mm/yyyy HH:mm`, chỉ Thêm / Sửa thông tin cơ bản (tên + email) / Khoá–Mở khoá, không có công tắc quyền) và "Cấp phép & Phân quyền" (danh sách chọn bên trái, khung 7 công tắc + ô vai trò + "Lưu thay đổi quyền" bên phải). Backend thêm `PUT /users/{id}/permissions` và `PUT /users/{id}/status` (owner-only, merge dòng hiện tại rồi gọi `sp_Users_Update` với `PasswordHash = NULL`, không thêm procedure mới). Test API **30/30 PASS**, quyền mới có hiệu lực ngay với token đang dùng (report 403 → 200), tài khoản bị khoá không đăng nhập được; trình duyệt xác nhận 2 tab, modal sửa cơ bản, hộp khoá tài khoản; `npm run build` PASS, `npm run lint` 0 error
 - [x] **GỢI Ý ĐIỀU CHUYỂN TỪ AI + TINH GỌN PROPHET + CHẶN TIMEOUT CHATBOT (22/11/2026)**: migration `014-smart-transfer.sql` (`sp_Transfer_SuggestAI` + `sp_Forecasts_Latest` có `@ModelName`); `GET /transfers/suggestions` (so dự báo với tồn kho, `target_days=14`, `model_name=prophet`, `reason`/`priority` viết ở router); tab "Gợi ý từ AI" trong `/transfers` với nút "Tạo yêu cầu" điền sẵn form; trang `/forecasts` chỉ gọi `model_name=prophet` và bỏ cột "Mô hình"; `api.js` timeout 60 giây riêng `/chat`; `chat_router.py` gọi Gemini trong thread với hạn chung 15 giây và trả "Hệ thống đang bận, vui lòng thử lại sau". Test: API suggestions 5 dòng đúng, `/forecasts/latest?model_name=prophet` trả 97 cặp, timeout guard 0,5 giây raise đúng và nhánh busy trả đúng câu, chat thật 1,7 giây; `npm run build` PASS (688 module), `npm run lint` 0 error
 - [x] **BÁO CÁO HÀNG HÓA & RỦI RO HAO HỤT (23/11/2026)**: xoá mục "Đề xuất nhập hàng" ("SẮP RA MẮT") khỏi Sidebar, thay bằng **Báo cáo Hàng hóa** (`/reports/spoilage`, icon biểu đồ); migration `015-spoilage-risk-report.sql` (view `v_spoilage_risk` + `sp_Reports_SpoilageRisk` + `sp_Reports_SpoilageSummary`); 4 endpoint `GET /reports/spoilage`, `/spoilage/summary`, `/spoilage/advice` (Gemini 10 giây, fallback luật), `/spoilage/export?format=xlsx|pdf|csv` (kế thừa `can_view_report`); trang `SpoilageReportPage.jsx` có 4 thẻ KPI, biểu đồ cột chồng theo danh mục, biểu đồ đường xu hướng thất thoát, panel AI, bảng 500 lô và Drawer "Xử lý" (Khuyến mãi · Điều chuyển · Kiểm kê). Đo thực tế khung 30 ngày: **331.239 đơn vị · 8.877.108.500 đ tồn kho · 834.809.519 đ nguy cơ (9,4%) · 648 lô trong khung · 290 lô cần xử lý · 183 lô hết hạn · 261 lô nguy cơ cao** (7 danh mục, 28 điểm xu hướng, 5 lô rủi ro nhất); khung 7 ngày còn 797.213.585 đ (8,98%) / 363 lô, "Hôm nay" còn 233 lô. Trình duyệt: lọc danh mục + chi nhánh + mức rủi ro ra đúng 3 lô Fresh Food/CH Q.3; Drawer mở đúng, "Khuyến mãi" hiện kế hoạch giảm 50% cho lô quá hạn, "Điều chuyển" → `/transfers`, "Kiểm kê" → `/inventory`; tải XLSX 22.912 byte và PDF 95.771 byte. `npm run build` PASS (689 module), `npm run lint` 0 error
+- [x] **MẶT HÀNG BÁN CHẠY THEO NGÀY (24/11/2026)**: migration `016-top-selling.sql` (`sp_Reports_TopSelling @Date`, mặc định ngày bán gần nhất); `GET /reports/top-selling?date=YYYY-MM-DD` + `top_selling_schema.py` (kế thừa `can_view_report`); thanh tab dùng chung `components/reports/ReportTabs.jsx` gắn ở cả hai trang báo cáo; trang `TopSellingPage.jsx` kiểu app bán hàng (nút quay lại · kính lúp · phễu lọc; hàng ngày `‹ Thứ Sáu, 20/11/2026 ›` mở date picker; 3 ô tổng hợp; danh sách dọc tên + nhóm + doanh thu + SL), tìm kiếm bỏ dấu tiếng Việt, lọc sắp xếp (số lượng/doanh thu/tên) và giới hạn 10/20/50/tất cả. Đo thật qua API: 16/11 **50 sản phẩm · 26.441 đơn vị · 1.016.451.000 đ** (top Kẹo mút 888), 19/11 **31.741 / 1.223.421.000 đ** (top Cà phê sữa 1.104), 20/11 **21.165 / 817.332.500 đ**; ngày 21/11 trả rỗng và hiện đúng khung "Không có dữ liệu". Trình duyệt: mũi tên ‹ › đổi ngày đúng, tìm `sua` ra 5 sản phẩm, giới hạn 10 dòng, sắp theo doanh thu ra Thịt bò 90.045.000 đ, Dark Mode + khung 360 px không tràn. `npm run build` PASS (963,76 kB), `npm run lint` 0 error
 - [ ] T2: README con cho từng thư mục
 - [ ] Tích hợp AI Model
 

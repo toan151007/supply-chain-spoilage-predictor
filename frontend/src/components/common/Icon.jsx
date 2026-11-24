@@ -63,6 +63,19 @@ const ICONS = {
       <path d="M8 17v-5M12 17V8M16 17v-7M20 17v-3" />
     </>
   ),
+  trendingUp: (
+    <>
+      <path d="m3 17 6-6 4 4 8-8" />
+      <path d="M15 7h6v6" />
+    </>
+  ),
+  filter: <path d="M3 5h18l-7 8.5V20l-4-2.5v-4L3 5Z" />,
+  calendar: (
+    <>
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M8 3v4M16 3v4M3 10h18" />
+    </>
+  ),
   leaf: (
     <>
       <path d="M4 20c0-8 5.5-13 16-14-1 11-6 15-13 15" />
