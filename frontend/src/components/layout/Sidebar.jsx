@@ -24,7 +24,9 @@ const NAV_GROUPS = [
   {
     title: 'Danh mục',
     items: [
-      { to: '/categories', label: 'Nhóm hàng', icon: 'box' },
+      // Hidden from the menu on 24/11/2026: categories are managed through the
+      // product form. The page, API and DB table stay in place.
+      // { to: '/categories', label: 'Nhóm hàng', icon: 'box' },
       { to: '/stores', label: 'Cửa hàng', icon: 'dashboard' },
     ],
   },

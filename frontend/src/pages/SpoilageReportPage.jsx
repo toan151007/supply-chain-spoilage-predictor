@@ -31,6 +31,49 @@ const PERIODS = [
   { value: 30, label: '30 ngày' },
 ]
 
+const pad2 = (value) => String(value).padStart(2, '0')
+
+/* Prefer the filename the API chose; fall back to the same convention when a
+   proxy strips Content-Disposition. */
+function exportFileName(response, format) {
+  const disposition =
+    response?.headers?.['content-disposition'] ||
+    response?.headers?.['Content-Disposition'] ||
+    ''
+  const match = /filename="?([^";]+)"?/i.exec(disposition)
+  if (match) return match[1]
+
+  const now = new Date()
+  const stamp = `${now.getFullYear()}${pad2(now.getMonth() + 1)}${pad2(
+    now.getDate(),
+  )}_${pad2(now.getHours())}${pad2(now.getMinutes())}`
+  return `Bao_Cao_Hao_Hut_${stamp}.${format}`
+}
+
+/* With responseType:'blob' an error body is still a Blob, so getErrorMessage
+   cannot see the JSON detail without reading it first. */
+async function readBlobError(error) {
+  const data = error?.response?.data
+  if (!data || typeof data.text !== 'function') return ''
+  try {
+    const text = await data.text()
+    if (!text) return ''
+    try {
+      const parsed = JSON.parse(text)
+      if (parsed?.detail) {
+        return typeof parsed.detail === 'string'
+          ? parsed.detail
+          : JSON.stringify(parsed.detail)
+      }
+    } catch {
+      /* Body is plain text, use it as-is. */
+    }
+    return text
+  } catch {
+    return ''
+  }
+}
+
 const RISK_META = {
   high: {
     label: 'Nguy cơ cao',
@@ -301,23 +344,41 @@ export default function SpoilageReportPage() {
         params: { ...scopeParams, risk_level: riskLevel || undefined, format },
         responseType: 'blob',
       })
+      const fileName = exportFileName(response, format)
       const url = window.URL.createObjectURL(new Blob([response.data]))
       const link = document.createElement('a')
       link.href = url
-      link.setAttribute('download', `bao-cao-rui-ro-hao-hut.${format}`)
+      link.setAttribute('download', fileName)
       document.body.appendChild(link)
       link.click()
       link.remove()
       window.URL.revokeObjectURL(url)
+
+      const headerTotal = Number(response.headers?.['x-total-rows'])
+      const rowCount =
+        Number.isFinite(headerTotal) && headerTotal > 0
+          ? headerTotal
+          : rows.length
       setToast({
         type: 'success',
-        message: `Đã tải báo cáo ${format.toUpperCase()} với ${formatNumber(rows.length)} lô hàng.`,
+        message: `Đã tải báo cáo ${format.toUpperCase()} với ${formatNumber(
+          rowCount,
+        )} lô hàng.`,
       })
     } catch (requestError) {
-      setToast({
-        type: 'error',
-        message: getErrorMessage(requestError, 'Không xuất được báo cáo. Vui lòng thử lại.'),
-      })
+      const detail = await readBlobError(requestError)
+      const status = requestError?.response?.status
+      /* The permission dependency answers in English, so a 403 always shows
+         the Vietnamese message instead of the raw API detail. */
+      const message =
+        status === 403
+          ? 'Bạn không có quyền xuất báo cáo. Vui lòng liên hệ quản trị viên.'
+          : detail ||
+            getErrorMessage(
+              requestError,
+              'Không xuất được báo cáo. Vui lòng thử lại.',
+            )
+      setToast({ type: 'error', message })
     } finally {
       setExporting(null)
     }

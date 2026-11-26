@@ -5,7 +5,6 @@ import RealtimeAlerts from './components/common/RealtimeAlerts.jsx'
 import Layout from './components/layout/Layout.jsx'
 import ProtectedRoute from './components/layout/ProtectedRoute.jsx'
 import AlertsPage from './pages/AlertsPage.jsx'
-import CategoriesPage from './pages/CategoriesPage.jsx'
 import DashboardPage from './pages/DashboardPage.jsx'
 import ForecastsPage from './pages/ForecastsPage.jsx'
 import InventoryPage from './pages/InventoryPage.jsx'
@@ -34,7 +33,6 @@ export default function App() {
             <Route path="transfers" element={<TransfersPage />} />
             <Route path="alerts" element={<AlertsPage />} />
             <Route path="forecasts" element={<ForecastsPage />} />
-            <Route path="categories" element={<CategoriesPage />} />
             <Route path="stores" element={<StoresPage />} />
             <Route path="reports/spoilage" element={<SpoilageReportPage />} />
             <Route path="reports/top-selling" element={<TopSellingPage />} />

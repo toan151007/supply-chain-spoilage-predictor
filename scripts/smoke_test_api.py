@@ -107,10 +107,11 @@ def main() -> None:
     check("reco slow", "GET", "/recommendations/slow-moving?limit=5")
 
     for fmt in ("csv", "xlsx", "pdf"):
-        check(f"report inventory {fmt}", "GET", f"/reports/inventory/export?format={fmt}&limit=50")
-    check("report sales csv", "GET", "/reports/sales/export?format=csv&group_by=day&limit=100")
-    check("report waste csv", "GET", "/reports/waste/export?format=csv&limit=100")
-    check("report expiring csv", "GET", "/reports/expiring/export?format=csv&limit=100")
+        check(f"report inventory {fmt}", "GET", f"/reports/inventory/export?format={fmt}&limit=50", token=token)
+    check("report sales csv", "GET", "/reports/sales/export?format=csv&group_by=day&limit=100", token=token)
+    check("report waste csv", "GET", "/reports/waste/export?format=csv&limit=100", token=token)
+    check("report expiring csv", "GET", "/reports/expiring/export?format=csv&limit=100", token=token)
+    check("report spoilage xlsx", "GET", "/reports/spoilage/export?format=xlsx&days=7&limit=50", token=token)
 
     check("import types", "GET", "/import/types")
     check("import template", "GET", "/import/template/products?fmt=csv")
@@ -118,8 +119,8 @@ def main() -> None:
     # Validation / error mapping
     check("products 404", "GET", "/products/99999", expected=404)
     check("bad period", "GET", "/dashboard/revenue?period=fortnight", expected=422)
-    check("bad format", "GET", "/reports/sales/export?format=bogus", expected=422)
-    check("bad group_by", "GET", "/reports/sales/export?group_by=bogus", expected=422)
+    check("bad format", "GET", "/reports/sales/export?format=bogus", expected=422, token=token)
+    check("bad group_by", "GET", "/reports/sales/export?group_by=bogus", expected=422, token=token)
     check("bad days", "GET", "/dashboard/expiring?days=99", expected=422)
     check(
         "login bad password", "POST", "/auth/login", expected=401,

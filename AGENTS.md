@@ -219,6 +219,15 @@ ngoài dự báo nhu cầu còn có **điều chuyển hàng giữa cửa hàng*
       `new Date('2026-11-16')` — chuỗi ISO trần bị hiểu là UTC và lệch một ngày ở một số
       múi giờ.
 
+19. **Ẩn trang Nhóm hàng khỏi giao diện (24/11/2026):** mục menu "Nhóm hàng"
+    (`/categories`) **bị comment trong `Sidebar.jsx`** và route bị bỏ khỏi `App.jsx`
+    (import `CategoriesPage` cũng bỏ) để giảm menu thừa — nhóm hàng đã quản lý gián tiếp
+    qua form Sản phẩm. **Không xoá gì ở backend/DB:** bảng `categories`, API
+    `/api/v1/categories` và các Stored Procedure vẫn nguyên; file `CategoriesPage.jsx`
+    vẫn giữ trong repo để tham khảo. Dropdown chọn nhóm hàng ở trang Sản phẩm và bộ lọc
+    danh mục ở Dashboard / Báo cáo Hàng hóa **không bị ảnh hưởng** vì chúng gọi thẳng API,
+    không đi qua route này. Nếu cần bật lại: bỏ comment dòng menu và thêm lại route.
+
 ## Rules (BẮT BUỘC TUÂN THỦ)
 
 - KHÔNG dùng PHP, ASP.NET, hay bất kỳ framework nào ngoài danh sách trên.
@@ -614,9 +623,30 @@ Vì vậy **không dùng được** tiêu chí "hệ số biến động mùa v�
   luận API trả 0 khi test bằng trình duyệt — kiểm tra `network.get` hoặc gọi thẳng API.
 - **Bảng chi tiết mặc định `limit=500`** (tối đa 2.000) và sắp theo `risk_score DESC,
   loss_value DESC, days_left ASC`; trang hiển thị đủ 500 lô đầu, không phân trang.
-- **Xuất Excel/PDF dùng tiêu đề cột ASCII không dấu** ("Ma lo", "Ten SP"…) để reportlab
+- **CSV/PDF dùng tiêu đề cột ASCII không dấu** ("Ma lo", "Ten SP"…) để reportlab
   không lỗi font khi vẽ PDF; dữ liệu tiếng Việt trong ô vẫn giữ nguyên. PDF giới hạn
   1.000 dòng như các báo cáo khác.
+- **XLSX có đường render riêng `_spoilage_xlsx()`, KHÔNG dùng `_render()`** (24/11/2026):
+  tiêu đề tiếng Việt có dấu ở dòng 3, dòng 1–2 là tiêu đề báo cáo + dòng ngữ cảnh
+  (`Xuất lúc … · Khung N ngày · Danh mục … · Cửa hàng … · Mức rủi ro … · N lô`),
+  header `1F3864` in đậm, zebra `F8FAFC`, freeze `A4`, auto-filter, khổ ngang
+  `fitToWidth = 1`. Cột số (`Số lượng`, `Tốc độ bán/ngày`, `Điểm rủi ro`,
+  `Giá trị thất thoát`) là **số thật** với number-format `#,##0.###` / `#,##0.00` /
+  `0.0` / `#,##0`; `Hạn sử dụng` là ô **datetime** với format `dd/mm/yyyy`;
+  `Mức độ rủi ro` tô màu theo mức (`high` đỏ · `warning` vàng · `safe` xanh) và dịch
+  sang tiếng Việt. `Nguồn tốc độ` / `Gợi ý xử lý` cũng dịch key ASCII sang nhãn tiếng Việt.
+- **Độ rộng cột tính từ nội dung thật, có chặn trên** (`_display_len()` + `min/max` trong
+  `SPOILAGE_XLSX_COLUMNS`): cột co theo ô dài nhất nhưng không vượt `maximum`, nên tên
+  sản phẩm dài sẽ xuống dòng thay vì đẩy các cột số ra ngoài khổ ngang. Ba cột được
+  phép `wrap_text` nằm trong `SPOILAGE_WRAP_COLUMNS` (4, 6, 16).
+- **Dòng ngữ cảnh ghi cả danh mục và cửa hàng đang lọc** — `_spoilage_filter_labels()`
+  đọc tên qua `sp_Categories_Get` / `sp_Stores_Get` (best-effort: lỗi tra cứu thì in
+  `#id`, không làm hỏng file). Nhờ vậy mở file là biết ngay đang xem phạm vi nào.
+- **Đổi tên file tải về lấy từ `Content-Disposition`** (`Bao_Cao_Hao_Hut_YYYYMMDD_HHMM.xlsx`)
+  và có hàm dựng lại cùng quy ước nếu proxy bỏ header. Vì `responseType: 'blob'` nên
+  body lỗi cũng là Blob — `readBlobError()` đọc text rồi parse `detail` trước khi hiện
+  Toast. **Riêng 403 luôn hiện câu tiếng Việt** ("Bạn không có quyền xuất báo cáo…")
+  chứ không dùng `detail` của backend, vì `require_permission` trả thông điệp tiếng Anh.
 - **AI advice chạy 10 giây trong thread rồi fallback luật tiếng Việt** (`model="fallback"`);
   panel tải độc lập với bảng nên Gemini chậm không chặn trang. Gọi lại API advice mỗi
   lần đổi bộ lọc.

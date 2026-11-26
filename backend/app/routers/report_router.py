@@ -788,6 +788,241 @@ def spoilage_advice(
     )
 
 
+# ---------------------------------------------------------------------------
+# Spoilage XLSX
+# ---------------------------------------------------------------------------
+# The shared renderer uses ASCII headers because the PDF is drawn with
+# reportlab's base fonts, which have no Vietnamese glyphs. Excel has no such
+# limit, so the spoilage workbook is built separately with proper Vietnamese
+# labels, real date cells and number formats. CSV/PDF still go through
+# _render and therefore keep the ASCII headers.
+SPOILAGE_RISK_LABELS = {
+    "high": "Nguy cơ cao",
+    "warning": "Cảnh báo",
+    "safe": "An toàn",
+}
+SPOILAGE_DEMAND_LABELS = {
+    "forecast": "Dự báo",
+    "sales": "Bán thực tế",
+    "none": "Không có",
+}
+SPOILAGE_ACTION_LABELS = {
+    "promotion": "Khuyến mãi",
+    "transfer": "Điều chuyển",
+    "inventory_check": "Kiểm kê",
+}
+SPOILAGE_RISK_COLORS = {
+    # fill, font
+    "high": ("FEE2E2", "B91C1C"),
+    "warning": ("FEF3C7", "B45309"),
+    "safe": ("DCFCE7", "15803D"),
+}
+
+# header, number format, alignment, minimum width, maximum width
+SPOILAGE_XLSX_COLUMNS = [
+    ("Mã lô", "0", "right", 8, 10),
+    ("Số lô", "@", "left", 16, 24),
+    ("Mã cửa hàng", "@", "left", 12, 18),
+    ("Tên cửa hàng", "@", "left", 22, 34),
+    ("Mã sản phẩm", "@", "left", 12, 18),
+    ("Tên sản phẩm", "@", "left", 24, 34),
+    ("Nhóm hàng", "@", "left", 16, 24),
+    ("Số lượng", "#,##0.###", "right", 10, 16),
+    ("Hạn sử dụng", "dd/mm/yyyy", "center", 13, 14),
+    ("Ngày còn lại", "0", "center", 11, 14),
+    ("Tốc độ bán/ngày", "#,##0.00", "right", 13, 18),
+    ("Nguồn tốc độ", "@", "left", 13, 18),
+    ("Điểm rủi ro", "0.0", "right", 11, 14),
+    ("Mức độ rủi ro", "@", "center", 15, 18),
+    ("Giá trị thất thoát", "#,##0", "right", 16, 22),
+    ("Gợi ý xử lý", "@", "left", 26, 34),
+]
+
+# Columns that may hold long text and therefore wrap instead of stretching.
+SPOILAGE_WRAP_COLUMNS = (4, 6, 16)
+
+# Column 14 holds the risk level; the fill colour repeats what the label says,
+# so the sheet stays readable in black-and-white print.
+SPOILAGE_RISK_COLUMN = 14
+
+
+def _display_len(value) -> int:
+    """Roughly how many characters a cell needs once Excel formats it."""
+    if value is None:
+        return 0
+    if isinstance(value, datetime):
+        return 10  # dd/mm/yyyy
+    if isinstance(value, bool):
+        return 3
+    if isinstance(value, int):
+        return len(f"{value:,}")
+    if isinstance(value, float):
+        return len(f"{value:,.2f}")
+    return len(str(value))
+
+
+def _spoilage_filter_labels(db: DbSession, category_id: int | None,
+                            store_id: int | None) -> tuple[str, str]:
+    """Resolve the active category/store filters into printable names.
+
+    Decoration only: a failed lookup falls back to the id so the export never
+    breaks just because a label could not be read.
+    """
+    category_name = f"#{category_id}" if category_id else ""
+    store_name = f"#{store_id}" if store_id else ""
+
+    try:
+        if category_id:
+            found = db.rows("sp_Categories_Get", {"CategoryId": category_id})
+            if found:
+                category_name = found[0]["category_name"]
+    except Exception:
+        pass
+
+    try:
+        if store_id:
+            found = db.rows("sp_Stores_Get", {"StoreId": store_id})
+            if found:
+                store_name = found[0]["store_name"]
+    except Exception:
+        pass
+
+    return category_name, store_name
+
+
+def _spoilage_xlsx(rows: list[dict], days: int, risk_level: str | None,
+                   limit: int, category_name: str = "",
+                   store_name: str = "") -> bytes:
+    """Build a styled, Vietnamese-labelled workbook for the spoilage report."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+    from openpyxl.utils import get_column_letter
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Rui ro hao hut"
+    last_col = get_column_letter(len(SPOILAGE_XLSX_COLUMNS))
+
+    thin = Side(style="thin", color="E2E8F0")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    # Title and context line. Merging keeps the long filter summary readable.
+    sheet.merge_cells(f"A1:{last_col}1")
+    title_cell = sheet["A1"]
+    title_cell.value = "BÁO CÁO HÀNG HÓA & RỦI RO HAO HỤT"
+    title_cell.font = Font(bold=True, size=14, color="FFFFFF")
+    title_cell.fill = PatternFill("solid", fgColor="2A5AAA")
+    title_cell.alignment = Alignment(horizontal="left", vertical="center")
+    sheet.row_dimensions[1].height = 26
+
+    risk_text = SPOILAGE_RISK_LABELS.get(risk_level or "", "Tất cả")
+    context = f"Xuất lúc {datetime.now():%d/%m/%Y %H:%M} · Khung {days} ngày"
+    if category_name:
+        context += f" · Danh mục: {category_name}"
+    if store_name:
+        context += f" · Cửa hàng: {store_name}"
+    context += f" · Mức rủi ro: {risk_text} · {len(rows)} lô"
+    if len(rows) >= limit:
+        context += f" (giới hạn {limit} dòng)"
+    sheet.merge_cells(f"A2:{last_col}2")
+    context_cell = sheet["A2"]
+    context_cell.value = context
+    context_cell.font = Font(size=9, italic=True, color="475569")
+    context_cell.alignment = Alignment(horizontal="left", vertical="center")
+    sheet.row_dimensions[2].height = 18
+
+    header_row = 3
+    for index, (header, _fmt, _align, _min_width, _max_width) in enumerate(
+        SPOILAGE_XLSX_COLUMNS, start=1
+    ):
+        cell = sheet.cell(row=header_row, column=index, value=header)
+        cell.font = Font(bold=True, size=10.5, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor="1F3864")
+        cell.alignment = Alignment(
+            horizontal="center", vertical="center", wrap_text=True
+        )
+        cell.border = border
+    sheet.row_dimensions[header_row].height = 30
+
+    # Numbers stay numbers and dates stay dates so Excel can sort, filter and
+    # sum them; only the display is formatted.
+    table: list[list] = []
+    for row in rows:
+        risk = (row.get("risk_level") or "").lower()
+        table.append([
+            int(row["inventory_id"]),
+            row.get("batch_code") or "",
+            row.get("store_code") or "",
+            row.get("store_name") or "",
+            row.get("product_code") or "",
+            row.get("product_name") or "",
+            row.get("category_name") or "",
+            round(_f(row["quantity"]), 3),
+            row.get("expiry_date"),
+            int(row["days_left"] or 0),
+            round(_f(row["daily_demand"]), 2),
+            SPOILAGE_DEMAND_LABELS.get(row.get("demand_source"), ""),
+            round(_f(row["risk_score"]), 1),
+            SPOILAGE_RISK_LABELS.get(risk, ""),
+            round(_f(row["loss_value"]), 2),
+            SPOILAGE_ACTION_LABELS.get(
+                row.get("recommended_action"), row.get("recommended_action") or ""
+            ),
+        ])
+
+    zebra = PatternFill("solid", fgColor="F8FAFC")
+    for offset, values in enumerate(table):
+        excel_row = header_row + 1 + offset
+        risk = (rows[offset].get("risk_level") or "").lower()
+
+        for index, (value, (_h, number_format, align, _min_w, _max_w)) in enumerate(
+            zip(values, SPOILAGE_XLSX_COLUMNS), start=1
+        ):
+            cell = sheet.cell(row=excel_row, column=index, value=value)
+            cell.number_format = number_format
+            cell.alignment = Alignment(
+                horizontal=align,
+                vertical="top",
+                wrap_text=align == "left" and index in SPOILAGE_WRAP_COLUMNS,
+            )
+            cell.border = border
+            if offset % 2 == 1:
+                cell.fill = zebra
+
+        if risk in SPOILAGE_RISK_COLORS:
+            fill_color, font_color = SPOILAGE_RISK_COLORS[risk]
+            risk_cell = sheet.cell(row=excel_row, column=SPOILAGE_RISK_COLUMN)
+            risk_cell.fill = PatternFill("solid", fgColor=fill_color)
+            risk_cell.font = Font(bold=True, color=font_color)
+
+    # Auto width: the widest cell wins, clamped so the long text columns wrap
+    # instead of pushing the numeric columns off a landscape page.
+    for index, (header, _fmt, _align, minimum, maximum) in enumerate(
+        SPOILAGE_XLSX_COLUMNS, start=1
+    ):
+        widest = len(header) + 2
+        for values in table:
+            widest = max(widest, _display_len(values[index - 1]) + 2)
+        sheet.column_dimensions[get_column_letter(index)].width = max(
+            minimum, min(maximum, widest)
+        )
+
+    # Freeze the title block and header, then let the user sort/filter columns.
+    sheet.freeze_panes = f"A{header_row + 1}"
+    if rows:
+        sheet.auto_filter.ref = f"A{header_row}:{last_col}{header_row + len(rows)}"
+
+    # Landscape with all columns on one page width.
+    sheet.page_setup.orientation = "landscape"
+    sheet.page_setup.fitToWidth = 1
+    sheet.page_setup.fitToHeight = 0
+    sheet.sheet_properties.pageSetUpPr.fitToPage = True
+
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
+
+
 @router.get(
     "/spoilage",
     response_model=list[SpoilageRiskRow],
@@ -849,6 +1084,23 @@ def export_spoilage(
                "Nhom hang", "So luong", "Han su dung", "Ngay con lai",
                "Toc do ban/ngay", "Nguon toc do", "Diem rui ro", "Muc rui ro",
                "Gia tri that thoat", "Goi y xu ly"]
+
+    if fmt == "xlsx":
+        category_name, store_name = _spoilage_filter_labels(
+            db, category_id, store_id
+        )
+        payload = _spoilage_xlsx(
+            rows, days, risk_level, limit, category_name, store_name
+        )
+        filename = f"Bao_Cao_Hao_Hut_{datetime.now():%Y%m%d_%H%M}.xlsx"
+        response = StreamingResponse(
+            io.BytesIO(payload),
+            media_type=XLSX_MEDIA,
+            headers={"Content-Disposition":
+                     f'attachment; filename="{filename}"'},
+        )
+        _truncate_header(rows, limit, response)
+        return response
 
     response = _render(data, columns, fmt, "bao-cao-rui-ro-hao-hut",
                        "BAO CAO HANG HOA & RUI RO HAO HUT")
