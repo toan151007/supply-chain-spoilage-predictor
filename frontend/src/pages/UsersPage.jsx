@@ -113,6 +113,12 @@ const ROLE_DEFAULTS = {
   },
 }
 
+/* Roles whose permission set is shared: saving one member rewrites every
+   active member (sp_Users_UpdatePermissionsByRole, migration 018). Owner is
+   intentionally excluded - two owners must not be able to overwrite each
+   other's flags. */
+const INHERITED_ROLES = ['manager', 'staff']
+
 function permissionSnapshot(account) {
   return PERMISSION_KEYS.reduce((flags, key) => {
     flags[key] = Boolean(account?.[key])
@@ -128,7 +134,6 @@ const EMPTY_CREATE = {
   role: 'manager',
   is_active: true,
   avatar_url: '',
-  ...ROLE_DEFAULTS.manager,
 }
 
 /* Pragmatic email shape check: the API is the authority, this only stops a
@@ -188,6 +193,7 @@ export default function UsersPage() {
   const [draft, setDraft] = useState(null)
   const [draftError, setDraftError] = useState('')
   const [savingDraft, setSavingDraft] = useState(false)
+  const [confirmSave, setConfirmSave] = useState(false)
 
   const [toast, setToast] = useState(null)
 
@@ -246,6 +252,18 @@ export default function UsersPage() {
     ? PERMISSION_KEYS.filter((key) => Boolean(draft[key])).length
     : 0
 
+  /* Saving a manager/staff account rewrites every active peer, so the UI has
+     to say so before the request leaves the browser. */
+  const draftRoleInherited = Boolean(draft && INHERITED_ROLES.includes(draft.role))
+  const rolePeerCount = useMemo(() => {
+    if (!draft) return 0
+    return items.filter(
+      (account) =>
+        account.role === draft.role &&
+        (account.is_active || account.user_id === selectedId),
+    ).length
+  }, [items, draft, selectedId])
+
   const openCreate = () => {
     setCreateForm({ ...EMPTY_CREATE })
     setCreateError('')
@@ -254,10 +272,6 @@ export default function UsersPage() {
 
   const setCreateField = (name, value) => {
     setCreateForm((previous) => ({ ...previous, [name]: value }))
-  }
-
-  const applyCreateRoleDefaults = (role) => {
-    setCreateForm((previous) => ({ ...previous, role, ...ROLE_DEFAULTS[role] }))
   }
 
   const handleCreate = async (event) => {
@@ -301,7 +315,6 @@ export default function UsersPage() {
         role: createForm.role,
         is_active: true,
         avatar_url: createForm.avatar_url || null,
-        ...permissionSnapshot(createForm),
       })
       const created = response.data || {}
 
@@ -423,6 +436,21 @@ export default function UsersPage() {
     setDraft((previous) => ({ ...previous, [name]: value }))
   }
 
+  /* Switching role means joining that role's shared set, so the switches jump
+     to what the role currently uses (or its defaults when nobody uses it yet).
+     Leaving the old flags on screen would let a save overwrite the new role
+     with permissions nobody chose for it. */
+  const changeDraftRole = (role) => {
+    setDraft((previous) => {
+      if (!previous || role === previous.role) return previous
+      const peer = items.find(
+        (account) => account.role === role && account.user_id !== selectedId,
+      )
+      const flags = peer ? permissionSnapshot(peer) : { ...ROLE_DEFAULTS[role] }
+      return { ...previous, role, ...flags }
+    })
+  }
+
   const setAllDraftFlags = (value) => {
     setDraft((previous) =>
       PERMISSION_KEYS.reduce(
@@ -440,6 +468,12 @@ export default function UsersPage() {
     setDraft((previous) => ({ ...previous, ...ROLE_DEFAULTS[previous.role] }))
   }
 
+  const requestSavePermissions = () => {
+    if (!selected || !draft || editingSelf) return
+    setDraftError('')
+    setConfirmSave(true)
+  }
+
   const handleSavePermissions = async () => {
     if (!selected || !draft || editingSelf) return
 
@@ -447,16 +481,27 @@ export default function UsersPage() {
     setDraftError('')
 
     try {
-      await api.put(`/users/${selected.user_id}/permissions`, {
+      const response = await api.put(`/users/${selected.user_id}/permissions`, {
         role: draft.role,
         ...permissionSnapshot(draft),
       })
+      const result = response.data || {}
+      const affectedRole = result.affected_role || draft.role
+      const affectedUsers = Number(result.affected_users) || 1
+      const roleLabel = (ROLE_META[affectedRole] ?? ROLE_META.staff).label
+
+      setConfirmSave(false)
       setToast({
         type: 'success',
-        message: `Đã lưu quyền hạn cho "${selected.full_name || selected.username}".`,
+        message: INHERITED_ROLES.includes(affectedRole)
+          ? `Đã cập nhật quyền cho ${affectedUsers} tài khoản ${roleLabel} thành công.`
+          : `Đã cập nhật quyền cho tài khoản "${
+              selected.full_name || selected.username
+            }" thành công.`,
       })
       reload()
     } catch (requestError) {
+      setConfirmSave(false)
       setDraftError(getErrorMessage(requestError, 'Không lưu được quyền hạn.'))
     } finally {
       setSavingDraft(false)
@@ -823,6 +868,30 @@ export default function UsersPage() {
                   </div>
                 )}
 
+                {!editingSelf && draftRoleInherited && (
+                  <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+                    <Icon name="warning" className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>
+                      <span className="font-semibold">Lưu ý:</span> Thay đổi quyền của tài khoản này
+                      sẽ được áp dụng cho <span className="font-semibold">TẤT CẢ</span> tài khoản có
+                      cùng vai trò{' '}
+                      <span className="font-semibold">{ROLE_META[draft.role].label}</span>
+                      {rolePeerCount > 0 ? ` (hiện có ${rolePeerCount} tài khoản)` : ''}. Bạn có
+                      chắc chắn muốn tiếp tục?
+                    </span>
+                  </div>
+                )}
+
+                {!editingSelf && !draftRoleInherited && (
+                  <div className="flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300">
+                    <Icon name="info" className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>
+                      Vai trò {ROLE_META[draft.role].label} không dùng kế thừa quyền: thay đổi chỉ
+                      áp dụng cho tài khoản này.
+                    </span>
+                  </div>
+                )}
+
                 {editingSelf && (
                   <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
                     <Icon name="shield" className="mt-0.5 h-4 w-4 shrink-0" />
@@ -838,12 +907,12 @@ export default function UsersPage() {
                     <Field
                       label="Vai trò"
                       htmlFor="perm-role"
-                      hint={editingSelf ? 'Không thể tự đổi vai trò.' : 'Vai trò là mức nền cho các quyền bên dưới.'}
+                      hint={editingSelf ? 'Không thể tự đổi vai trò.' : 'Vai trò quyết định bộ quyền dùng chung.'}
                     >
                       <select
                         id="perm-role"
                         value={draft.role}
-                        onChange={(event) => setDraftField('role', event.target.value)}
+                        onChange={(event) => changeDraftRole(event.target.value)}
                         disabled={editingSelf}
                         className={`input ${lockedInputClass}`}
                       >
@@ -917,7 +986,7 @@ export default function UsersPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={handleSavePermissions}
+                    onClick={requestSavePermissions}
                     disabled={editingSelf || !draftDirty || savingDraft}
                     className="btn-primary"
                   >
@@ -942,8 +1011,9 @@ export default function UsersPage() {
 
       <p className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
         <Icon name="shield" className="h-4 w-4" />
-        Quyền hạn có hiệu lực ngay ở lần tải trang tiếp theo; hệ thống luôn giữ ít nhất một chủ sở
-        hữu đang hoạt động.
+        Quyền của Quản lý và Nhân viên được kế thừa theo vai trò: lưu một tài khoản là áp dụng cho
+        mọi tài khoản đang hoạt động cùng vai trò. Hệ thống luôn giữ ít nhất một chủ sở hữu đang
+        hoạt động.
       </p>
 
       {/* Create: needs a username, a password and a role, so it stays here
@@ -1053,12 +1123,12 @@ export default function UsersPage() {
               label="Vai trò"
               htmlFor="create_role"
               required
-              hint="Đổi vai trò sẽ đặt lại các quyền bên dưới theo mức mặc định."
+              hint="Quyền hạn được gán tự động theo vai trò đã chọn."
             >
               <select
                 id="create_role"
                 value={createForm.role}
-                onChange={(event) => applyCreateRoleDefaults(event.target.value)}
+                onChange={(event) => setCreateField('role', event.target.value)}
                 className="input"
               >
                 {roleOptions.map((role) => (
@@ -1072,8 +1142,9 @@ export default function UsersPage() {
 
           <p className="flex items-start gap-2 rounded-xl bg-slate-50 px-3.5 py-2.5 text-xs text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
             <Icon name="info" className="mt-0.5 h-4 w-4 shrink-0" />
-            Tài khoản được tạo với {PERMISSION_KEYS.filter((key) => createForm[key]).length} quyền
-            hạn mặc định của vai trò {ROLE_META[createForm.role].label.toLowerCase()}.
+            Quyền hạn sẽ được tự động thiết lập theo Vai trò{' '}
+            {ROLE_META[createForm.role].label.toLowerCase()}. Muốn thay đổi, hãy vào tab “Cấp phép
+            &amp; Phân quyền” sau khi tạo tài khoản.
           </p>
         </form>
       </Modal>
@@ -1168,6 +1239,29 @@ export default function UsersPage() {
           </p>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        open={confirmSave}
+        title={draftRoleInherited ? 'Áp dụng quyền theo vai trò' : 'Lưu thay đổi quyền'}
+        message={
+          draft && selected
+            ? draftRoleInherited
+              ? `Quyền mới sẽ được áp dụng cho TẤT CẢ ${rolePeerCount} tài khoản ${
+                  ROLE_META[draft.role].label
+                } đang hoạt động, không chỉ "${selected.full_name || selected.username}". Bạn có chắc chắn muốn tiếp tục?`
+              : `Lưu thay đổi quyền cho tài khoản "${
+                  selected.full_name || selected.username
+                }"? Vai trò ${ROLE_META[draft.role].label} không dùng kế thừa nên chỉ tài khoản này thay đổi.`
+            : ''
+        }
+        confirmLabel="Lưu thay đổi"
+        busyLabel="Đang lưu…"
+        tone="warning"
+        icon="shield"
+        busy={savingDraft}
+        onCancel={() => setConfirmSave(false)}
+        onConfirm={handleSavePermissions}
+      />
 
       <ConfirmDialog
         open={Boolean(statusTarget)}

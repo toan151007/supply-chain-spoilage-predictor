@@ -48,8 +48,17 @@ class UserPermissionFields(BaseModel):
     can_manage_user: bool = False
 
 
-class UserCreate(UserPermissionFields):
-    """Request body for POST /api/v1/users."""
+class UserCreate(BaseModel):
+    """
+    Request body for POST /api/v1/users.
+
+    Deliberately does NOT inherit `UserPermissionFields`: with role-based
+    inheritance the seven switches belong to the role, so a create request
+    cannot hand out individual permissions. `sp_Users_Create` assigns the
+    defaults of `role` on its own. A client that still sends the flags gets
+    them ignored (the schema has no `extra="forbid"`), which matches how the
+    rest of the API treats unknown fields.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -97,6 +106,21 @@ class UserStatusUpdate(BaseModel):
     is_active: bool
 
 
+class UserPermissionsResult(UserRead):
+    """
+    Response for PUT /api/v1/users/{id}/permissions.
+
+    Same shape as `UserRead` (the account that was edited) plus the role
+    inheritance outcome: `affected_users` is how many accounts now carry the
+    saved set and `affected_role` names the role those accounts share. The UI
+    uses both to confirm "applied to N staff accounts" instead of implying
+    only the selected account changed.
+    """
+
+    affected_users: int = 1
+    affected_role: str | None = None
+
+
 class UserUpdate(UserPermissionFields):
     """
     Request body for PUT /api/v1/users/{id}. All fields optional.
@@ -129,6 +153,7 @@ class UserUpdate(UserPermissionFields):
 __all__ = [
     "UserCreate",
     "UserCreated",
+    "UserPermissionsResult",
     "UserPermissionsUpdate",
     "UserStatusUpdate",
     "UserUpdate",

@@ -228,6 +228,20 @@ ngoài dự báo nhu cầu còn có **điều chuyển hàng giữa cửa hàng*
     danh mục ở Dashboard / Báo cáo Hàng hóa **không bị ảnh hưởng** vì chúng gọi thẳng API,
     không đi qua route này. Nếu cần bật lại: bỏ comment dòng menu và thêm lại route.
 
+20. **Kế thừa quyền theo vai trò (27/11/2026):** quyền của `manager` và `staff` thuộc về
+    VAI TRÒ, không thuộc từng tài khoản.
+    - Tab "Cấp phép & Phân quyền" hiện **banner vàng** "*Lưu ý: Thay đổi quyền của tài
+      khoản này sẽ được áp dụng cho TẤT CẢ tài khoản có cùng vai trò … Bạn có chắc chắn
+      muốn tiếp tục?*" (kèm số tài khoản đang dùng vai trò đó); vai trò `owner` hiện ghi
+      chú xám "không dùng kế thừa quyền".
+    - Bấm "Lưu thay đổi quyền" **mở `ConfirmDialog`** (`tone="warning"`, `icon="shield"`)
+      rồi mới gọi `PUT /users/{id}/permissions`; thành công hiện Toast
+      "*Đã cập nhật quyền cho X tài khoản [Vai trò] thành công.*"
+    - Modal "Thêm tài khoản mới" **ẩn toàn bộ công tắc quyền**, chỉ còn ghi chú "Quyền hạn
+      sẽ được tự động thiết lập theo Vai trò"; payload `POST /users` không gửi cờ quyền.
+    - Đổi Vai trò trong tab Phân quyền tự nạp bộ quyền của vai trò mới (`changeDraftRole`)
+      để không ghi đè vai trò mới bằng cờ cũ.
+
 ## Rules (BẮT BUỘC TUÂN THỦ)
 
 - KHÔNG dùng PHP, ASP.NET, hay bất kỳ framework nào ngoài danh sách trên.
@@ -623,6 +637,41 @@ Vì vậy **không dùng được** tiêu chí "hệ số biến động mùa v�
   ước "SQL ASCII, tiếng Việt ở Python".
 - **Icon `pin` được thêm vào `components/common/Icon.jsx`** cho chip khoảng cách; bộ
   icon hiện tại là inline SVG, thêm icon mới chỉ cần thêm một entry vào `ICONS`.
+
+### Kế thừa quyền theo vai trò (27/11/2026)
+
+- **Bảng `users` KHÔNG đổi cấu trúc** — vẫn `role` + 7 cột `BIT`. Thay đổi nằm ở
+  procedure: quyền được coi là thuộc về VAI TRÒ, không thuộc về từng tài khoản.
+- **`sp_Users_UpdatePermissionsByRole`** (migration `018-rbac-inheritance.sql`) ghi dòng
+  đích rồi `UPDATE` mọi tài khoản `is_active = 1` cùng `role` (chỉ `manager` / `staff`),
+  trả thêm result set 2 `{affected_users, affected_role}` cho API.
+- **`owner` KHÔNG kế thừa:** hai owner không được ghi đè quyền của nhau (một owner có thể
+  tự khoá mình khỏi hệ thống); sửa owner chỉ ảnh hưởng chính tài khoản đó,
+  `affected_users = 1`.
+- **`sp_Users_Create` bỏ qua 7 tham số quyền** và lấy bộ quyền ĐANG DÙNG của vai trò
+  (đọc thành viên đang hoạt động đầu tiên); chỉ khi vai trò chưa có ai hoạt động mới dùng
+  bộ mặc định cứng. Nhờ vậy tài khoản tạo sau khi admin bật `can_view_report` cho staff
+  cũng có quyền đó — không sinh hai bộ quyền khác nhau cho cùng một vai trò.
+- **`POST /users` không nhận quyền:** `UserCreate` thôi kế thừa `UserPermissionFields`;
+  client cũ còn gửi kèm cờ thì bị bỏ qua (schema không `extra="forbid"`).
+- **`PUT /users/{id}/permissions` trả `UserPermissionsResult`** = `UserRead` +
+  `affected_users` + `affected_role`; frontend dùng để báo "Đã cập nhật quyền cho X tài
+  khoản Nhân viên thành công."
+- **Đổi vai trò trong tab Phân quyền nạp sẵn bộ quyền của vai trò mới** (`changeDraftRole`
+  đọc bộ quyền của một thành viên khác cùng vai trò, chưa có thì dùng `ROLE_DEFAULTS`),
+  nếu không lần lưu sẽ ghi đè vai trò mới bằng các cờ cũ.
+- **Tài khoản bị khoá giữ quyền cũ**, không nhận lan truyền; mở khoá xong sẽ đồng bộ ở
+  lần lưu kế tiếp của vai trò đó. `affected_users` đếm thành viên đang hoạt động **cộng**
+  chính tài khoản đích.
+- **Chuẩn hoá chỉ chạy một lần:** file 018 đồng bộ 7 cột theo vai trò ở lần chạy ĐẦU
+  (phát hiện bằng `OBJECT_ID('dbo.sp_Users_UpdatePermissionsByRole') IS NULL`, lưu vào
+  bảng tạm vì biến không qua được `GO`), nên chạy lại không ghi đè lựa chọn của admin.
+- **Modal "Thêm tài khoản mới" không còn công tắc quyền** — chỉ có ghi chú "Quyền hạn sẽ
+  được tự động thiết lập theo Vai trò". Tab Phân quyền có banner vàng khi vai trò là
+  `manager`/`staff`, và nút "Lưu thay đổi quyền" mở `ConfirmDialog` (tone `warning`,
+  icon `shield`) trước khi gọi API.
+- **3 chốt chống tự khoá mình vẫn giữ nguyên** ở cả `PUT /users/{id}` và
+  `PUT /users/{id}/permissions` (403 khi tự đổi vai trò, tự tắt quyền đang bật, tự khoá).
 
 ### Báo cáo rủi ro hao hụt · view `v_spoilage_risk` (23/11/2026)
 

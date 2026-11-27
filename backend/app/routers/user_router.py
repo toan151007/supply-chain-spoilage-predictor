@@ -36,6 +36,7 @@ from app.schemas.common import Page
 from app.schemas.user_schema import (
     UserCreate,
     UserCreated,
+    UserPermissionsResult,
     UserPermissionsUpdate,
     UserRead,
     UserStatusUpdate,
@@ -78,6 +79,28 @@ PERMISSION_FIELDS = (
     "can_manage_transfer",
     "can_manage_user",
 )
+
+# Starting point for a role that has no active member yet. Must match
+# ROLE_DEFAULTS in frontend/src/pages/UsersPage.jsx and the CASE block inside
+# sp_Users_Create (migration 018).
+ROLE_DEFAULT_PERMISSIONS = {
+    "owner": {field: True for field in PERMISSION_FIELDS},
+    "manager": {
+        **{field: True for field in PERMISSION_FIELDS},
+        "can_delete_product": False,
+        "can_manage_user": False,
+    },
+    "staff": {
+        **{field: True for field in PERMISSION_FIELDS},
+        "can_edit_product": False,
+        "can_delete_product": False,
+        "can_view_report": False,
+        "can_manage_user": False,
+    },
+}
+
+# Roles whose permission set is shared by every active member.
+INHERITED_ROLES = ("manager", "staff")
 
 
 def _get_row_or_404(db: DbSession, user_id: int) -> dict:
@@ -134,6 +157,50 @@ def _save_row(db: DbSession, user_id: int, row: dict) -> dict:
     params["UserId"] = user_id
     params["PasswordHash"] = None
     return db.one("sp_Users_Update", params)
+
+
+def _permission_params(row: dict) -> dict:
+    """Build the parameter dict of sp_Users_UpdatePermissionsByRole."""
+    return {
+        "Role": row["role"],
+        "CanEditProduct": as_bit(row.get("can_edit_product", False)),
+        "CanDeleteProduct": as_bit(row.get("can_delete_product", False)),
+        "CanViewReport": as_bit(row.get("can_view_report", False)),
+        "CanManageInventory": as_bit(row.get("can_manage_inventory", False)),
+        "CanManageOrder": as_bit(row.get("can_manage_order", False)),
+        "CanManageTransfer": as_bit(row.get("can_manage_transfer", False)),
+        "CanManageUser": as_bit(row.get("can_manage_user", False)),
+    }
+
+
+def _role_flags(db: DbSession, role: str, exclude_user_id: int | None = None) -> dict:
+    """
+    Return the permission set currently used by the active members of `role`.
+
+    Used when an account changes role through PUT /users/{id}: the new member
+    must inherit what the role already has, not reset the whole role. Falls
+    back to the documented defaults when the role has no active member other
+    than the account being moved.
+    """
+    if role not in ROLE_DEFAULT_PERMISSIONS:
+        return dict(ROLE_DEFAULT_PERMISSIONS["staff"])
+
+    sets = db.call(
+        "sp_Users_List",
+        {
+            "Search": None,
+            "Role": role,
+            "IsActive": 1,
+            "Page": 1,
+            "PageSize": 50,
+        },
+    )
+    members = sets[1] if len(sets) > 1 else []
+    for member in members:
+        if member["user_id"] != exclude_user_id:
+            return {field: bool(member.get(field)) for field in PERMISSION_FIELDS}
+
+    return dict(ROLE_DEFAULT_PERMISSIONS[role])
 
 
 async def _deliver_account_email(
@@ -220,6 +287,11 @@ async def create_user(
     """
     Create the account, then try to email the credentials.
 
+    Permission flags are NOT taken from the request: `sp_Users_Create` assigns
+    the defaults of the chosen role (migration 018), because the role owns the
+    permission set. The `Can*` keys `_write_params` still adds are ignored by
+    the procedure.
+
     Order matters: the row is written first and the message is best-effort.
     A dead SMTP server must not lose the account the administrator just
     filled in - the UI shows "created but not sent" instead.
@@ -267,6 +339,12 @@ def update_user(
     Optional `payload` fields mean "unchanged". For the caller's own account
     the role, the permission flags and the active switch are frozen: there is
     no self-service way back in once an owner demotes or disables itself.
+
+    Changing `role` here is allowed, but the account then joins the permission
+    set the new role already uses (see `_role_flags`) instead of carrying the
+    old role's flags across. The permissions tab is still the normal path for
+    role changes, because that screen also lets the administrator review the
+    seven switches before saving.
     """
     changes = payload.model_dump(exclude_unset=True)
 
@@ -301,6 +379,10 @@ def update_user(
         for field in PERMISSION_FIELDS:
             merged.setdefault(field, False)
 
+        new_role = changes.get("role")
+        if new_role and new_role != existing["role"]:
+            merged.update(_role_flags(db, new_role, exclude_user_id=user_id))
+
         params = _write_params(merged)
         params["UserId"] = user_id
         params["PasswordHash"] = (
@@ -316,8 +398,8 @@ def update_user(
 
 @router.put(
     "/{user_id}/permissions",
-    response_model=UserRead,
-    summary="Grant or revoke permission flags",
+    response_model=UserPermissionsResult,
+    summary="Grant or revoke permission flags (applies to the whole role)",
 )
 def update_user_permissions(
     user_id: int,
@@ -326,7 +408,12 @@ def update_user_permissions(
     db: DbSession = Depends(get_db),
 ) -> dict:
     """
-    Save the permission switches on their own.
+    Save the permission switches and propagate them to the role.
+
+    With role-based inheritance the seven flags belong to the role, not to one
+    account: `sp_Users_UpdatePermissionsByRole` writes the target row and then
+    every ACTIVE account with the same role (manager / staff). Owner is not
+    inherited, so editing an owner only touches that owner.
 
     The permissions tab never shows a username or an email, so routing that
     save through PUT /users/{id} would mean resending profile fields the
@@ -360,7 +447,27 @@ def update_user_permissions(
                     detail=SELF_PERMISSION_MESSAGE,
                 )
 
-        return _save_row(db, user_id, {**existing, **changes})
+        merged = {**existing, **changes}
+        for field in PERMISSION_FIELDS:
+            merged.setdefault(field, False)
+
+        params = _permission_params(merged)
+        params["UserId"] = user_id
+        sets = db.call("sp_Users_UpdatePermissionsByRole", params)
+
+        row = sets[0][0] if sets and sets[0] else None
+        if row is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User {user_id} not found",
+            )
+
+        meta = sets[1][0] if len(sets) > 1 and sets[1] else {}
+        return {
+            **row,
+            "affected_users": int(meta.get("affected_users") or 1),
+            "affected_role": meta.get("affected_role") or merged["role"],
+        }
     except HTTPException:
         raise
     except PyodbcError as exc:
