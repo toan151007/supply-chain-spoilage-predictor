@@ -75,6 +75,70 @@ def _priority_for_days(days_cover: float) -> str:
     return "low"
 
 
+URGENCY_LABELS = {
+    "CRITICAL": "Khẩn cấp",
+    "WARNING": "Cảnh báo",
+    "NORMAL": "Bình thường",
+}
+
+# Cau ket theo muc khan cap, de nguoi doc biet phai lam gi tiep theo.
+URGENCY_CLOSING = {
+    "CRITICAL": "Cần chuyển ngay trong hôm nay để tránh đứt gãy chuỗi cung ứng.",
+    "WARNING": "Nên điều chuyển trong 1-2 ngày tới để giữ mức phủ an toàn.",
+    "NORMAL": "Có thể gom vào chuyến điều chuyển gần nhất, chưa cần gấp.",
+}
+
+
+def _urgency_label(code: str | None) -> str:
+    """Ma khan cap (CRITICAL/WARNING/NORMAL) -> nhan tieng Viet."""
+    return URGENCY_LABELS.get((code or "").upper(), URGENCY_LABELS["NORMAL"])
+
+
+def _build_reason(row: dict, urgency: str, numbers: dict) -> str:
+    """
+    Cau giai thich bang tieng Viet co dau cho moi goi y.
+
+    Bon y: tinh trang cua cua hang nhan, tinh trang cua cua hang gui, khuyen
+    nghi cu the (so luong + khoang cach + muc phu sau khi chuyen) va viec can
+    lam ngay hay khong. So lieu dung `_vi_num` nen dau phan cach la dau cham.
+    """
+    unit = numbers["unit"]
+    target = numbers["target"]
+    to_stock = numbers["to_stock"]
+    to_daily = numbers["to_daily"]
+    to_cover = numbers["to_cover"]
+    from_stock = numbers["from_stock"]
+    from_cover = numbers["from_cover"]
+    surplus = numbers["surplus"]
+    suggested = numbers["suggested"]
+    distance = numbers["distance"]
+
+    from_name = row["from_store_name"]
+    to_name = row["to_store_name"]
+    from_code = row.get("from_store_code") or f"CH{row['from_store_id']}"
+    to_code = row.get("to_store_code") or f"CH{row['to_store_id']}"
+
+    parts = [
+        f"{to_name} chỉ còn {_vi_num(to_cover, 1)} ngày phủ "
+        f"(tồn {_vi_num(to_stock)} {unit}, nhu cầu {_vi_num(to_daily, 1)} {unit}/ngày).",
+        f"{from_name} đang dư {_vi_num(surplus)} {unit} so với mức {target} ngày "
+        f"(tồn {_vi_num(from_stock)} {unit}, phủ {_vi_num(from_cover, 1)} ngày).",
+    ]
+
+    move = f"Nên chuyển {_vi_num(suggested)} {unit} từ {from_code} sang {to_code}"
+    if distance is not None:
+        move += f" (khoảng {_vi_num(distance, 1)} km)"
+    if to_daily > 0:
+        after = (to_stock + suggested) / to_daily
+        move += f", đưa mức phủ của {to_code} lên khoảng {_vi_num(after, 1)} ngày."
+    else:
+        move += "."
+    parts.append(move)
+
+    parts.append(URGENCY_CLOSING.get(urgency, URGENCY_CLOSING["NORMAL"]))
+    return " ".join(parts)
+
+
 def _to_read(row: dict) -> dict:
     """Ghep cac cot phang cua SP thanh object long (from_store/to_store/product)."""
     row = dict(row)
@@ -212,13 +276,31 @@ def transfer_suggestions(
         suggested = _f(r["suggested_qty"])
         unit = (r.get("unit") or "sản phẩm").strip()
         target = int(r["target_days"])
+        distance = None if r.get("distance_km") is None else _f(r["distance_km"])
+        urgency = (r.get("transfer_urgency") or "").upper()
+        if urgency not in URGENCY_LABELS:
+            urgency = (
+                "CRITICAL" if to_cover < 3
+                else "WARNING" if to_cover <= 7
+                else "NORMAL"
+            )
 
-        reason = (
-            f"{r['from_store_name']} đang dư {_vi_num(surplus)} {unit} so với nhu cầu "
-            f"{target} ngày (tồn {_vi_num(from_stock)}, nhu cầu "
-            f"{_vi_num(from_daily, 1)}/ngày), trong khi {r['to_store_name']} chỉ còn "
-            f"{_vi_num(to_cover, 1)} ngày phục vụ (tồn {_vi_num(to_stock)}, nhu cầu "
-            f"{_vi_num(to_daily, 1)}/ngày). Đề xuất chuyển {_vi_num(suggested)} {unit}."
+        reason = _build_reason(
+            r,
+            urgency,
+            {
+                "unit": unit,
+                "target": target,
+                "from_stock": from_stock,
+                "from_daily": from_daily,
+                "from_cover": from_cover,
+                "to_stock": to_stock,
+                "to_daily": to_daily,
+                "to_cover": to_cover,
+                "surplus": surplus,
+                "suggested": suggested,
+                "distance": distance,
+            },
         )
 
         results.append(
@@ -249,6 +331,9 @@ def transfer_suggestions(
                 target_days=target,
                 priority=_priority_for_days(to_cover),
                 reason=reason,
+                transfer_urgency=urgency,
+                urgency_label=_urgency_label(urgency),
+                distance_km=distance,
             )
         )
 

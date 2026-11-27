@@ -405,7 +405,7 @@ Vì vậy **không dùng được** tiêu chí "hệ số biến động mùa v�
 
 - **Bước 3 dùng `DbSession` bọc `pyodbc` raw connection, KHÔNG dùng SQLAlchemy Session.** `Session` không có `nextset()`, và procedure tự `COMMIT` transaction ngầm của pyodbc gây lỗi `266 Transaction count after EXECUTE...`. Engine tạo với `autocommit=True`, lấy connection bằng `engine.raw_connection()`. Router gọi `db.call("sp_Ten", {TenThamSo: value})` → `list[list[dict]]` (mỗi result set là list dict theo TÊN cột).
 - **Chuỗi kết nối phải dựng qua `mssql+pyodbc:///?odbc_connect=<quote_plus(...)>`** vì host chứa dấu `\` bị URL-encode sai nếu viết dạng `user:pass@host`.
-- **Có 95 Stored Procedure**: 49 trong `database/HUONG-DAN-CHAY-SSMS.md` + 25 trong `database/03-migrations/010-sqlserver-analytics-procedures.sql` (dashboard, dashboard nâng cao, đề xuất nhập hàng, báo cáo, import dùng `OPENJSON`) + **10 điều chuyển + 1 dự báo mùa vụ** trong `database/03-migrations/011-transfers-seasonal.sql` + **2 bảo trì cảnh báo** (`012-refresh-alert-demo-data.sql`) + **4 quản lý người dùng** (`sp_Users_List/Create/Update/Delete`) trong `013-users-permissions.sql` + **1 gợi ý điều chuyển AI** (`014-smart-transfer.sql`) + **2 báo cáo rủi ro hao hụt** (`015-spoilage-risk-report.sql`) + **1 mặt hàng bán chạy** (`016-top-selling.sql`). Chạy migration 010 → 011 → 012 → 013 → 014 → 015 → 016 sau file hướng dẫn.
+- **Có 95 Stored Procedure**: 49 trong `database/HUONG-DAN-CHAY-SSMS.md` + 25 trong `database/03-migrations/010-sqlserver-analytics-procedures.sql` (dashboard, dashboard nâng cao, đề xuất nhập hàng, báo cáo, import dùng `OPENJSON`) + **10 điều chuyển + 1 dự báo mùa vụ** trong `database/03-migrations/011-transfers-seasonal.sql` + **2 bảo trì cảnh báo** (`012-refresh-alert-demo-data.sql`) + **4 quản lý người dùng** (`sp_Users_List/Create/Update/Delete`) trong `013-users-permissions.sql` + **1 gợi ý điều chuyển AI** (`014-smart-transfer.sql`) + **2 báo cáo rủi ro hao hụt** (`015-spoilage-risk-report.sql`) + **1 mặt hàng bán chạy** (`016-top-selling.sql`) + **1 hàm khoảng cách + viết lại `sp_Transfer_SuggestAI`** (`017-smart-transfer-urgency.sql`, thêm cột chứ không thêm procedure). Chạy migration 010 → 011 → 012 → 013 → 014 → 015 → 016 → 017 sau file hướng dẫn.
 - **Có 11 bảng** (10 bảng gốc + `transfer_requests`) và **5 view** (thêm `v_spoilage_risk`).
 - **Nạp dữ liệu dev**: `python scripts/convert_seed_to_sqlserver.py` (sinh `database/02-seed/seed-sqlserver.sql`) rồi `python scripts/load_sqlserver_data.py`. Script nạp **bỏ các dòng `sales = 0`** để không vi phạm `CHECK (quantity > 0)` — đúng bài học cũ.
 - **`sp_Orders_Delete` xoá dòng hàng trước rồi xoá đơn** trong cùng transaction (khôi phục `ON DELETE CASCADE` của PostgreSQL). Xoá đơn `completed` vẫn bị chặn ở tầng trạng thái.
@@ -588,6 +588,41 @@ Vì vậy **không dùng được** tiêu chí "hệ số biến động mùa v�
 - **Frontend đặt timeout 60 giây theo URL, không đổi timeout mặc định.** Chỉ
   `config.url.includes('/chat')` mới được nâng lên 60000 ms; API đọc/ghi khác vẫn 20
   giây để lỗi mạng hiện ra sớm.
+
+### Gợi ý điều chuyển: mức khẩn cấp + khoảng cách + lý do chi tiết (27/11/2026)
+
+- **Migration `017-smart-transfer-urgency.sql` KHÔNG thêm procedure**, chỉ thêm hàm
+  `dbo.fn_StoreDistanceKm` và `CREATE OR ALTER` lại `sp_Transfer_SuggestAI`. Nhờ vậy
+  DB vẫn **95 Stored Procedure**, chỉ thêm 1 hàm. Chạy lại file nhiều lần vẫn an toàn.
+- **`distance_km` là khoảng cách GIẢ LẬP, không phải toạ độ thật.** Schema không lưu
+  GPS nên hàm dựng một lưới 5 cột × 6 km, hàng × 9 km, cộng offset nhỏ theo `store_id`.
+  Hàm **deterministic** (cùng cặp id luôn ra cùng số) để giao diện không nhảy số mỗi
+  lần tải lại — đừng dùng `RAND()` hay `NEWID()`. Khi viết Chương 4 phải ghi rõ đây là
+  số mô phỏng chỉ để xếp thứ tự ưu tiên.
+- **`transfer_urgency` tính theo cửa hàng NHẬN:** `days_cover < 3` → `CRITICAL`,
+  `3..7` → `WARNING`, còn lại `NORMAL`. Đây là cột **riêng** với `priority` cũ
+  (`urgent/high/normal/low` theo mốc 7/14/21 ngày); `priority` vẫn giữ để form tạo
+  yêu cầu prefill đúng trường của bảng `transfer_requests`.
+- **Thứ tự sắp xếp đổi từ `suggested_qty DESC` sang `urgency → shortage_qty DESC →
+  distance_km ASC`.** Bản cũ sai nghiệp vụ: một cặp CRITICAL chỉ thiếu 5 đơn vị nằm
+  dưới một cặp NORMAL thiếu 900 đơn vị. `ORDER BY` lặp lại đúng biểu thức `CASE` của
+  cột `transfer_urgency` (không dùng alias trong `ORDER BY` của câu có `TOP`).
+- **`reason` do router Python viết thành 4 câu** (tình trạng kho nhận → kho gửi →
+  khuyến nghị kèm km và mức phủ sau khi chuyển → câu kết theo urgency). Đo thực tế
+  **389–407 ký tự**, cộng tiền tố `[Gợi ý AI · Khẩn cấp] ` vẫn dưới `max_length=500`
+  của `TransferCreate.reason` — nếu sau này thêm câu, phải nâng giới hạn hoặc cắt bớt,
+  không thì `POST /transfers` trả 422.
+- **Số lượng hiển thị phải làm tròn ở CẢ HAI nơi.** `suggested_qty` là `DECIMAL(15,3)`
+  (vd `122.667`); `formatNumber` mặc định 1 chữ số thập phân nên thẻ hiện "122,7 chai"
+  trong khi `_vi_num(..., 0)` trong lý do và ô Số lượng của form đều là **123**. Đã
+  sửa thẻ thành `formatNumber(Math.round(item.suggested_qty))`.
+- **Nút "Tạo yêu cầu" thêm tiền tố `[Gợi ý AI · <urgency_label>] ` vào ô Lý do** để
+  người duyệt biết yêu cầu sinh từ gợi ý nào; phần còn lại vẫn là `reason` đầy đủ.
+- **`/transfers/suggestions` trả `urgency_label` tiếng Việt từ router**
+  (`URGENCY_LABELS`), SQL chỉ trả mã ASCII `CRITICAL/WARNING/NORMAL` — giữ đúng quy
+  ước "SQL ASCII, tiếng Việt ở Python".
+- **Icon `pin` được thêm vào `components/common/Icon.jsx`** cho chip khoảng cách; bộ
+  icon hiện tại là inline SVG, thêm icon mới chỉ cần thêm một entry vào `ICONS`.
 
 ### Báo cáo rủi ro hao hụt · view `v_spoilage_risk` (23/11/2026)
 
@@ -840,6 +875,7 @@ Chương 2 là cơ sở lý thuyết, trình bày cả 5 mô hình, chỉ **kỳ
 - [x] **GỢI Ý ĐIỀU CHUYỂN TỪ AI + TINH GỌN PROPHET + CHẶN TIMEOUT CHATBOT (22/11/2026)**: migration `014-smart-transfer.sql` (`sp_Transfer_SuggestAI` + `sp_Forecasts_Latest` có `@ModelName`); `GET /transfers/suggestions` (so dự báo với tồn kho, `target_days=14`, `model_name=prophet`, `reason`/`priority` viết ở router); tab "Gợi ý từ AI" trong `/transfers` với nút "Tạo yêu cầu" điền sẵn form; trang `/forecasts` chỉ gọi `model_name=prophet` và bỏ cột "Mô hình"; `api.js` timeout 60 giây riêng `/chat`; `chat_router.py` gọi Gemini trong thread với hạn chung 15 giây và trả "Hệ thống đang bận, vui lòng thử lại sau". Test: API suggestions 5 dòng đúng, `/forecasts/latest?model_name=prophet` trả 97 cặp, timeout guard 0,5 giây raise đúng và nhánh busy trả đúng câu, chat thật 1,7 giây; `npm run build` PASS (688 module), `npm run lint` 0 error
 - [x] **BÁO CÁO HÀNG HÓA & RỦI RO HAO HỤT (23/11/2026)**: xoá mục "Đề xuất nhập hàng" ("SẮP RA MẮT") khỏi Sidebar, thay bằng **Báo cáo Hàng hóa** (`/reports/spoilage`, icon biểu đồ); migration `015-spoilage-risk-report.sql` (view `v_spoilage_risk` + `sp_Reports_SpoilageRisk` + `sp_Reports_SpoilageSummary`); 4 endpoint `GET /reports/spoilage`, `/spoilage/summary`, `/spoilage/advice` (Gemini 10 giây, fallback luật), `/spoilage/export?format=xlsx|pdf|csv` (kế thừa `can_view_report`); trang `SpoilageReportPage.jsx` có 4 thẻ KPI, biểu đồ cột chồng theo danh mục, biểu đồ đường xu hướng thất thoát, panel AI, bảng 500 lô và Drawer "Xử lý" (Khuyến mãi · Điều chuyển · Kiểm kê). Đo thực tế khung 30 ngày: **331.239 đơn vị · 8.877.108.500 đ tồn kho · 834.809.519 đ nguy cơ (9,4%) · 648 lô trong khung · 290 lô cần xử lý · 183 lô hết hạn · 261 lô nguy cơ cao** (7 danh mục, 28 điểm xu hướng, 5 lô rủi ro nhất); khung 7 ngày còn 797.213.585 đ (8,98%) / 363 lô, "Hôm nay" còn 233 lô. Trình duyệt: lọc danh mục + chi nhánh + mức rủi ro ra đúng 3 lô Fresh Food/CH Q.3; Drawer mở đúng, "Khuyến mãi" hiện kế hoạch giảm 50% cho lô quá hạn, "Điều chuyển" → `/transfers`, "Kiểm kê" → `/inventory`; tải XLSX 22.912 byte và PDF 95.771 byte. `npm run build` PASS (689 module), `npm run lint` 0 error
 - [x] **MẶT HÀNG BÁN CHẠY THEO NGÀY (24/11/2026)**: migration `016-top-selling.sql` (`sp_Reports_TopSelling @Date`, mặc định ngày bán gần nhất); `GET /reports/top-selling?date=YYYY-MM-DD` + `top_selling_schema.py` (kế thừa `can_view_report`); thanh tab dùng chung `components/reports/ReportTabs.jsx` gắn ở cả hai trang báo cáo; trang `TopSellingPage.jsx` kiểu app bán hàng (nút quay lại · kính lúp · phễu lọc; hàng ngày `‹ Thứ Sáu, 20/11/2026 ›` mở date picker; 3 ô tổng hợp; danh sách dọc tên + nhóm + doanh thu + SL), tìm kiếm bỏ dấu tiếng Việt, lọc sắp xếp (số lượng/doanh thu/tên) và giới hạn 10/20/50/tất cả. Đo thật qua API: 16/11 **50 sản phẩm · 26.441 đơn vị · 1.016.451.000 đ** (top Kẹo mút 888), 19/11 **31.741 / 1.223.421.000 đ** (top Cà phê sữa 1.104), 20/11 **21.165 / 817.332.500 đ**; ngày 21/11 trả rỗng và hiện đúng khung "Không có dữ liệu". Trình duyệt: mũi tên ‹ › đổi ngày đúng, tìm `sua` ra 5 sản phẩm, giới hạn 10 dòng, sắp theo doanh thu ra Thịt bò 90.045.000 đ, Dark Mode + khung 360 px không tràn. `npm run build` PASS (963,76 kB), `npm run lint` 0 error
+- [x] **GỢI Ý ĐIỀU CHUYỂN: MỨC KHẨN CẤP + KHOẢNG CÁCH + LÝ DO CHI TIẾT (27/11/2026)**: migration `017-smart-transfer-urgency.sql` thêm hàm `dbo.fn_StoreDistanceKm` (khoảng cách giả lập deterministic theo `store_id`, lưới 5 cột × 6 km / hàng × 9 km) và `CREATE OR ALTER sp_Transfer_SuggestAI` trả thêm `transfer_urgency` (`CRITICAL` < 3 ngày phủ · `WARNING` 3–7 · `NORMAL` còn lại) + `distance_km`; đổi `ORDER BY` từ `suggested_qty DESC` sang **urgency → `shortage_qty DESC` → `distance_km ASC`**. Router viết `reason` 4 câu tiếng Việt (389–407 ký tự), thêm `urgency_label` + `URGENCY_LABELS`/`URGENCY_CLOSING`. UI `AISuggestionsPanel`: badge đỏ/vàng/xanh, chip "Khoảng cách: X km" (icon `pin` mới), khối "Lý do gợi ý" nền xám, đếm số gợi ý theo mức; nút "Tạo yêu cầu" thêm tiền tố `[Gợi ý AI · <mức>]` vào ô Lý do. Đo thật (target 14 ngày, limit 20): **1 CRITICAL / 15 WARNING / 4 NORMAL**, dòng đầu Ruou dua co NH02→CH03 · 9,9 km · phủ 1,08 ngày · 122,667 chai; trình duyệt xác nhận badge + chip km + reason đúng dấu, form prefill 123 chai/`urgent`/ghi chú đầy đủ; `npm run build` PASS (957,47 kB), `npm run lint` 0 error
 - [ ] T2: README con cho từng thư mục
 - [ ] Tích hợp AI Model
 

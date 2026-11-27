@@ -4,12 +4,31 @@ import Icon from '../common/Icon.jsx'
 import api from '../../services/api.js'
 import { formatNumber, getErrorMessage } from '../../utils/format.js'
 
-const PRIORITY_META = {
-  low: { label: 'Thấp', badge: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' },
-  normal: { label: 'Bình thường', badge: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' },
-  high: { label: 'Cao', badge: 'bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
-  urgent: { label: 'Khẩn', badge: 'bg-red-50 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
+/* Mức khẩn cấp do `sp_Transfer_SuggestAI` tính từ số ngày phủ của cửa hàng
+   NHẬN: dưới 3 ngày = CRITICAL, 3-7 ngày = WARNING, còn lại = NORMAL. */
+const URGENCY_META = {
+  CRITICAL: {
+    label: 'Khẩn cấp',
+    badge:
+      'bg-red-50 text-red-700 ring-1 ring-red-200 dark:bg-red-950/50 dark:text-red-300 dark:ring-red-900',
+    dot: 'bg-red-500',
+  },
+  WARNING: {
+    label: 'Cảnh báo',
+    badge:
+      'bg-amber-50 text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900',
+    dot: 'bg-amber-500',
+  },
+  NORMAL: {
+    label: 'Bình thường',
+    badge:
+      'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900',
+    dot: 'bg-emerald-500',
+  },
 }
+
+const urgencyMeta = (item) =>
+  URGENCY_META[item.transfer_urgency] ?? URGENCY_META.NORMAL
 
 const TARGET_OPTIONS = [
   { value: 7, label: '7 ngày' },
@@ -150,19 +169,39 @@ export default function AISuggestionsPanel({ canManage, onCreate }) {
         </div>
       ) : (
         <>
-          <div className="flex items-center justify-between text-sm text-slate-500 dark:text-slate-400">
-            <p>
-              <span className="font-semibold text-slate-800 dark:text-slate-100">{suggestions.length}</span>{' '}
-              gợi ý, xếp theo khối lượng nên chuyển giảm dần.
-            </p>
+          <div className="flex flex-col gap-2 text-sm text-slate-500 dark:text-slate-400 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <span>
+                <span className="font-semibold text-slate-800 dark:text-slate-100">
+                  {suggestions.length}
+                </span>{' '}
+                gợi ý
+              </span>
+              {['CRITICAL', 'WARNING', 'NORMAL'].map((code) => {
+                const count = suggestions.filter(
+                  (item) => (item.transfer_urgency || 'NORMAL') === code,
+                ).length
+                if (!count) return null
+                const meta = URGENCY_META[code]
+                return (
+                  <span
+                    key={code}
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${meta.badge}`}
+                  >
+                    <span className={`h-1.5 w-1.5 rounded-full ${meta.dot}`} />
+                    {count} {meta.label.toLowerCase()}
+                  </span>
+                )
+              })}
+            </div>
             <p className="hidden sm:block">
-              Dự báo {suggestions[0]?.horizon_days ?? 30} ngày · mục tiêu {targetDays} ngày
+              Xếp theo mức khẩn cấp → lượng thiếu → khoảng cách
             </p>
           </div>
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             {suggestions.map((item) => {
-              const priority = PRIORITY_META[item.priority] ?? PRIORITY_META.normal
+              const urgency = urgencyMeta(item)
               const key = `${item.product_id}-${item.from_store_id}-${item.to_store_id}`
               return (
                 <div key={key} className="card flex flex-col p-4">
@@ -173,7 +212,10 @@ export default function AISuggestionsPanel({ canManage, onCreate }) {
                         <span className="font-mono text-xs text-slate-400 dark:text-slate-500">
                           {item.product_code}
                         </span>
-                        <span className={`badge ${priority.badge}`}>{priority.label}</span>
+                        <span className={`badge ${urgency.badge}`}>
+                          <span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${urgency.dot}`} />
+                          {item.urgency_label || urgency.label}
+                        </span>
                       </div>
                       <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300">
                         <span className="font-medium text-slate-800 dark:text-slate-100">
@@ -183,12 +225,18 @@ export default function AISuggestionsPanel({ canManage, onCreate }) {
                         <span className="font-medium text-slate-800 dark:text-slate-100">
                           {item.to_store_name}
                         </span>
+                        {item.distance_km != null && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                            <Icon name="pin" className="h-3 w-3" />
+                            Khoảng cách: {formatNumber(item.distance_km)} km
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="text-right">
                       <p className="text-xs text-slate-500 dark:text-slate-400">Nên chuyển</p>
                       <p className="text-lg font-bold tabular-nums text-brand-700 dark:text-brand-300">
-                        {formatNumber(item.suggested_qty)}{' '}
+                        {formatNumber(Math.round(item.suggested_qty))}{' '}
                         <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
                           {item.unit}
                         </span>
@@ -196,7 +244,14 @@ export default function AISuggestionsPanel({ canManage, onCreate }) {
                     </div>
                   </div>
 
-                  <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-300">{item.reason}</p>
+                  <div className="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-800/60">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                      Lý do gợi ý
+                    </p>
+                    <p className="mt-1 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+                      {item.reason}
+                    </p>
+                  </div>
 
                   <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                     <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800/60">

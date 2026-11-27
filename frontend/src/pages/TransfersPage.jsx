@@ -256,6 +256,7 @@ export default function TransfersPage() {
 
   /* Dien san form tu mot goi y AI, de nguoi dung chi can xac nhan. */
   const openCreateFromSuggestion = (suggestion) => {
+    const tag = suggestion.urgency_label ? `[Gợi ý AI · ${suggestion.urgency_label}] ` : '[Gợi ý AI] '
     setForm({
       from_store_id: String(suggestion.from_store_id),
       to_store_id: String(suggestion.to_store_id),
@@ -263,7 +264,7 @@ export default function TransfersPage() {
       quantity: String(Math.max(1, Math.round(suggestion.suggested_qty))),
       expiry_date: '',
       priority: suggestion.priority,
-      reason: suggestion.reason,
+      reason: `${tag}${suggestion.reason || ''}`.trim(),
     })
     setFormError('')
     setFormOpen(true)

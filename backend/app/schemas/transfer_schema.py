@@ -32,6 +32,9 @@ TransferStatus = Literal[
 
 TransferPriority = Literal["low", "normal", "high", "urgent"]
 
+# Urgency of the receiving store, computed in sp_Transfer_SuggestAI (017).
+TransferUrgency = Literal["CRITICAL", "WARNING", "NORMAL"]
+
 
 class TransferCreate(BaseModel):
     """Request body for POST /api/v1/transfers."""
@@ -138,6 +141,12 @@ class TransferSuggestion(BaseModel):
 
     priority: TransferPriority
     reason: str
+
+    # Added with migration 017: urgency of the RECEIVING store and a simulated
+    # distance between the two stores (the schema has no GPS coordinates).
+    transfer_urgency: TransferUrgency
+    urgency_label: str
+    distance_km: float | None = None
 
 
 class TransferSummary(BaseModel):
